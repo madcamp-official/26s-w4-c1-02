@@ -1,0 +1,18 @@
+{
+  "version": "0.2",
+  "meta": { "name": "목업 나무 도마", "created_at": "2026-07-24T00:00:00Z", "quality_score": null },
+  "image": { "src": "photo.jpg", "width": 1080, "height": 1440 },
+  "modes": [
+    { "id": "m1", "f": 180.0, "d": 12.0 },
+    { "id": "m2", "f": 410.5, "d": 18.0 },
+    { "id": "m3", "f": 950.2, "d": 25.0 }
+  ],
+  "anchors": [
+    { "x": 0.2, "y": 0.2, "amps": [0.4, 1.0, 0.6] },
+    { "x": 0.8, "y": 0.2, "amps": [0.4, 1.0, 0.6] },
+    { "x": 0.5, "y": 0.5, "amps": [1.0, 0.2, 0.3] },
+    { "x": 0.2, "y": 0.8, "amps": [0.5, 0.9, 0.7] },
+    { "x": 0.8, "y": 0.8, "amps": [0.5, 0.9, 0.7] }
+  ],
+  "playback": { "interp": "idw", "idw_power": 2, "master_gain": 0.9, "pitch_snap": null }
+}

@@ -1,0 +1,20 @@
+# Node / web
+node_modules/
+dist/
+*.local
+
+# Python / server
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# 실측 녹음 원본 (용량 큼 — 필요한 것만 shared/examples 에 선별 커밋)
+recordings/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
