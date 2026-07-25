@@ -1,0 +1,39 @@
+# 로컬 개발용 인프라만. 앱은 호스트에서 pnpm dev 로 돈다.
+# 배포용(web/worker/mcp/caddy 포함)은 deploy/docker-compose.prod.yml.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: endpointer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: endpointer
+      POSTGRES_PASSWORD: endpointer
+      POSTGRES_DB: endpointer
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U endpointer -d endpointer']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: endpointer-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
+  redisdata:

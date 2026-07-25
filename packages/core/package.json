@@ -1,0 +1,33 @@
+{
+  "name": "@endpointer/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "타입 · 어댑터 스펙 해석기 · 정규화 파서 · 검증기 · DB 스키마 — 세 앱이 공유하는 계약",
+  "exports": {
+    ".": "./src/index.ts",
+    "./db": "./src/db/index.ts",
+    "./spec": "./src/spec/index.ts",
+    "./normalize": "./src/normalize/index.ts",
+    "./validate": "./src/validate/index.ts"
+  },
+  "scripts": {
+    "build": "echo 'core는 소스 그대로 소비된다 (빌드 없음)'",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10"
+  }
+}

@@ -1,0 +1,257 @@
+# endpointer 배포 구성 — VM 1대 + Docker Compose + Caddy (기획서 8장 배포 / ADR A9)
+#
+# 로컬 개발용은 레포 루트의 docker-compose.yml 이다. 이 파일은 배포 전용이며
+# 반드시 이 디렉터리에서 실행한다:
+#
+#   cd deploy && docker compose -f docker-compose.prod.yml up -d --build
+#
+# compose 는 이 파일이 있는 디렉터리의 .env 를 자동으로 읽는다.
+# .env.production.example 을 .env 로 복사해서 채워라. 절차는 README.md.
+#
+# 전제 VM: 2vCPU / 8GB (기획서 8장). 메모리 상한 합계가 8GB 를 넘지 않게 잡혀 있다 —
+# 15장 리스크 "Playwright 가 VM 을 잡아먹음" 대응. 상한은 .env 로 덮어쓸 수 있다.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+# 세 앱이 공통으로 쓰는 런타임 환경변수. 컨테이너 내부 호스트명 기준이다.
+x-app-env: &app-env
+  NODE_ENV: production
+  TZ: ${TZ:-Asia/Seoul}
+  DATABASE_URL: postgres://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+  REDIS_URL: redis://redis:6379
+  PUBLIC_BASE_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
+  PUBLIC_API_BASE_URL: https://${API_DOMAIN:?set API_DOMAIN}
+  PUBLIC_MCP_BASE_URL: https://${MCP_DOMAIN:?set MCP_DOMAIN}
+
+services:
+  # ── 리버스 프록시 · 자동 HTTPS ────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    container_name: endpointer-caddy
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp' # HTTP/3
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN}
+      MCP_DOMAIN: ${MCP_DOMAIN:?set MCP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # 발급받은 인증서. 이걸 잃으면 Let's Encrypt 한도에 걸린다
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+    healthcheck:
+      # Caddy 관리 API(로컬 전용 2019)가 응답하면 설정이 로드된 것이다
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://127.0.0.1:2019/config/']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: ${MEM_CADDY:-256m}
+    cpus: ${CPU_CADDY:-0.5}
+
+  # ── 마이그레이션 (1회성) ──────────────────────────────────────────────
+  # 앱보다 먼저 돌고 끝난다. restart: "no" 이므로 재부팅 시 다시 뜨지 않는다 (의도된 동작).
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mcp
+    image: endpointer/mcp:local
+    container_name: endpointer-migrate
+    restart: 'no'
+    logging: *default-logging
+    command: ['pnpm', '--filter', '@endpointer/core', 'db:migrate']
+    working_dir: /app
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: ${MEM_MIGRATE:-512m}
+
+  # ── 화면 + 인증 + 관리 API + 공개 v1 API ──────────────────────────────
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    image: endpointer/web:local
+    container_name: endpointer-web
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      <<: *app-env
+      PORT: '3000'
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      AUTH_URL: https://${APP_DOMAIN}
+      AUTH_TRUST_HOST: 'true' # Caddy 뒤에 있으므로 필요하다 (next-auth v5)
+      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:-}
+      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:-}
+    expose:
+      - '3000' # 호스트에 열지 않는다. caddy 만 접근한다
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # TODO(G4): apps/web 에 GET /api/health 가 생기면 그쪽을 찌른다.
+      #           지금은 "HTTP 로 응답한다"만 본다 (상태 코드는 보지 않는다).
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/').then(()=>process.exit(0),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    mem_limit: ${MEM_WEB:-1536m}
+    cpus: ${CPU_WEB:-1.0}
+
+  # ── 수집 · 컴파일 · 자가 치유 · 구독 발송 (Playwright 포함) ───────────
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    image: endpointer/worker:local
+    container_name: endpointer-worker
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      <<: *app-env
+      # 15장: 브라우저 동시성을 낮게 묶어 둔다. 이 값을 올릴 거면 mem_limit 도 같이 올려라
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      BROWSER_CONCURRENCY: ${BROWSER_CONCURRENCY:-1}
+      HEAL_MAX_ATTEMPTS_PER_DAY: ${HEAL_MAX_ATTEMPTS_PER_DAY:-3}
+      CRAWLER_USER_AGENT: ${CRAWLER_USER_AGENT:-endpointer/0.1}
+      CRAWLER_MIN_INTERVAL_MS: ${CRAWLER_MIN_INTERVAL_MS:-1500}
+      CRAWLER_MAX_PAGES: ${CRAWLER_MAX_PAGES:-3}
+      CRAWLER_CACHE_TTL_S: ${CRAWLER_CACHE_TTL_S:-3600}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL_COMPILE: ${GEMINI_MODEL_COMPILE:-gemini-3.1-flash-lite}
+      GEMINI_MODEL_MATCH: ${GEMINI_MODEL_MATCH:-gemini-3.1-flash-lite}
+      LLM_CACHE_DIR: /app/.cache/llm
+      LLM_CACHE_ENABLED: ${LLM_CACHE_ENABLED:-true}
+      LLM_HTML_TRIM: ${LLM_HTML_TRIM:-true}
+      LLM_MAX_INPUT_CHARS: ${LLM_MAX_INPUT_CHARS:-400000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SUBSCRIPTION_FROM_EMAIL: ${SUBSCRIPTION_FROM_EMAIL:-}
+    volumes:
+      - llmcache:/app/.cache # 무료 티어 쿼터 보호 — 재배포해도 컴파일 캐시가 남는다
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # Chromium 은 /dev/shm 을 쓴다. 기본 64MB 면 탭이 죽는다
+    shm_size: ${SHM_WORKER:-1gb}
+    healthcheck:
+      # TODO(G3): 워커가 Redis 에 heartbeat 를 쓰게 되면 그걸 본다.
+      #           지금은 진입점 프로세스가 살아 있는지만 확인한다.
+      test: ['CMD-SHELL', "pgrep -f 'src/index.ts' >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: ${MEM_WORKER:-3g}
+    cpus: ${CPU_WORKER:-1.5}
+
+  # ── MCP Streamable HTTP ───────────────────────────────────────────────
+  mcp:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.mcp
+    image: endpointer/mcp:local
+    container_name: endpointer-mcp
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      <<: *app-env
+      MCP_PORT: '3002'
+    expose:
+      - '3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3002/').then(()=>process.exit(0),()=>process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    mem_limit: ${MEM_MCP:-512m}
+    cpus: ${CPU_MCP:-0.5}
+
+  # ── 데이터 ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: endpointer-postgres
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+      # 컨테이너 재생성 시 초기화 스크립트가 다시 안 돌게 서브디렉터리를 쓴다
+      PGDATA: /var/lib/postgresql/data/pgdata
+    # 포트를 호스트에 열지 않는다. 외부 접속이 필요하면 SSH 터널을 써라 (README 참조)
+    expose:
+      - '5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    shm_size: 256mb
+    mem_limit: ${MEM_POSTGRES:-1g}
+    cpus: ${CPU_POSTGRES:-1.0}
+
+  redis:
+    image: redis:7-alpine
+    container_name: endpointer-redis
+    restart: unless-stopped
+    logging: *default-logging
+    # BullMQ 는 잡을 evict 당하면 안 된다 → noeviction. maxmemory 는 mem_limit 보다 낮게.
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --maxmemory
+      - ${REDIS_MAXMEMORY:-384mb}
+      - --maxmemory-policy
+      - noeviction
+    expose:
+      - '6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: ${MEM_REDIS:-512m}
+    cpus: ${CPU_REDIS:-0.5}
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
+  llmcache:

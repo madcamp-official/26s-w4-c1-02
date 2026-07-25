@@ -1,0 +1,45 @@
+# syntax=docker/dockerfile:1.7
+#
+# apps/mcp — MCP Streamable HTTP 서버 (포트 3002)
+# 빌드 컨텍스트는 레포 루트다 (compose 에서 context: ..).
+#
+# 빌드 산출물이 없다. tsx 로 TS 를 직접 실행하고 @endpointer/core 도 소스로 소비한다.
+# 같은 이미지를 compose 의 migrate 서비스(1회성 drizzle 마이그레이션)가 재사용한다 —
+# core 의 소스와 tsx 가 둘 다 들어 있어서 그대로 쓸 수 있다.
+
+FROM node:24-bookworm-slim AS base
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    COREPACK_HOME=/opt/corepack
+# COREPACK_HOME 을 공용 경로로: 기본값은 $HOME 아래라서 USER 를 node 로 바꾸면
+# root 가 받아둔 pnpm 캐시를 못 찾고 런타임에 다시 받으러 나간다
+RUN corepack enable \
+ && corepack prepare pnpm@11.17.0 --activate \
+ && chmod -R a+rX /opt/corepack
+WORKDIR /app
+
+# ── deps: 매니페스트 먼저 (레이어 캐시) ───────────────────────────────
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc package.json ./
+COPY packages/core/package.json  packages/core/package.json
+COPY apps/web/package.json       apps/web/package.json
+COPY apps/worker/package.json    apps/worker/package.json
+COPY apps/mcp/package.json       apps/mcp/package.json
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# ── runtime ───────────────────────────────────────────────────────────
+FROM deps AS runtime
+ENV NODE_ENV=production
+COPY tsconfig.base.json ./
+COPY packages/core packages/core
+COPY apps/mcp apps/mcp
+# chown 하지 않는다 — 실행에 필요한 건 읽기 권한뿐이고, /app 을 통째로 chown 하면
+# node_modules 가 복제된 레이어가 하나 더 생긴다
+USER node
+WORKDIR /app/apps/mcp
+EXPOSE 3002
+# apps/mcp 의 "start": "tsx src/index.ts"
+# migrate 서비스는 이 CMD 를 덮어쓴다 (pnpm --filter @endpointer/core db:migrate)
+CMD ["pnpm", "start"]

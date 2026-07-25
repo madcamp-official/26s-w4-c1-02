@@ -1,0 +1,15 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm 10+ 는 postinstall 빌드 스크립트를 기본 차단한다. 실제로 네이티브 빌드가 필요한 것만 허용.
+allowBuilds:
+  '@google/genai': true
+  '@tailwindcss/oxide': true
+  esbuild: true
+  msgpackr-extract: true
+  playwright: true
+  playwright-core: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true

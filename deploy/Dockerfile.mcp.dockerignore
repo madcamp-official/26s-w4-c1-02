@@ -1,0 +1,40 @@
+# BuildKit 은 <Dockerfile 이름>.dockerignore 를 컨텍스트 루트의 .dockerignore 보다 우선한다.
+# 레포 루트에 .dockerignore 를 두지 않고 여기서 배포 빌드만 통제하기 위한 파일이다.
+# (셋이 내용이 같다. 고칠 때 셋 다 고쳐라)
+
+# 호스트의 설치본이 이미지에 섞여 들어가면 안 된다 (아키텍처가 다르면 네이티브 바이너리가 깨진다)
+node_modules
+**/node_modules
+
+# 빌드 산출물 · 캐시
+.next
+**/.next
+.turbo
+**/.turbo
+dist
+**/dist
+coverage
+**/coverage
+.cache
+**/.cache
+
+# 비밀
+.env
+.env.*
+!.env.example
+deploy/.env
+deploy/.env.*
+!deploy/.env.production.example
+
+# 이미지에 들어갈 이유가 없는 것
+.git
+.gitignore
+.github
+.claude
+.vscode
+.idea
+.DS_Store
+docs
+design
+*.log
+npm-debug.log*

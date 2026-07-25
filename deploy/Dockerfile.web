@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1.7
+#
+# apps/web — Next.js 16 (App Router)
+# 빌드 컨텍스트는 레포 루트다:  docker build -f deploy/Dockerfile.web .
+# (compose 에서는 context: .. 로 잡혀 있다)
+#
+# 모노레포 전제:
+#   · @endpointer/core 는 빌드 산출물이 없다. 소스(TS) 그대로 소비된다 → dist 를 찾지 않는다.
+#     next 가 워크스페이스 TS 를 트랜스파일해야 하므로 apps/web/next.config 에
+#     transpilePackages: ['@endpointer/core'] 가 필요하다 (트랙 B 담당).
+#   · standalone output 이 next.config 에 설정돼 있지 않으므로 일반 빌드 + `next start` 로 간다.
+#     standalone 이 켜지면 런타임 스테이지를 .next/standalone 복사로 바꿔서 이미지를 크게 줄일 수 있다.
+
+# ── base: pnpm 을 이미지 안에 고정한다 ────────────────────────────────
+FROM node:24-bookworm-slim AS base
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    NEXT_TELEMETRY_DISABLED=1 \
+    COREPACK_HOME=/opt/corepack
+# prepare 까지 해 둬야 런타임에 pnpm 을 네트워크로 받으러 가지 않는다.
+# COREPACK_HOME 을 공용 경로로 빼는 게 중요하다 — 기본값은 $HOME 아래라서
+# 런타임에 USER 를 node 로 바꾸면 root 가 받아둔 캐시를 못 찾고 다시 받으러 나간다.
+RUN corepack enable \
+ && corepack prepare pnpm@11.17.0 --activate \
+ && chmod -R a+rX /opt/corepack
+WORKDIR /app
+
+# ── deps: 매니페스트만 먼저 복사해서 레이어 캐시를 산다 ───────────────
+# 소스가 바뀌어도 lockfile 이 그대로면 이 레이어는 재사용된다.
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc package.json ./
+# 워크스페이스 멤버 전부의 package.json 이 있어야 --frozen-lockfile 이 통과한다
+COPY packages/core/package.json  packages/core/package.json
+COPY apps/web/package.json       apps/web/package.json
+COPY apps/worker/package.json    apps/worker/package.json
+COPY apps/mcp/package.json       apps/mcp/package.json
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# ── build: next build ─────────────────────────────────────────────────
+FROM deps AS build
+COPY tsconfig.base.json ./
+COPY packages/core packages/core
+COPY apps/web apps/web
+RUN pnpm --filter @endpointer/web build
+
+# ── runtime ───────────────────────────────────────────────────────────
+FROM base AS runtime
+# `next start` 는 기본으로 0.0.0.0 에 바인딩한다. standalone 으로 전환하면
+# server.js 가 HOSTNAME 을 읽으므로 그때 ENV HOSTNAME=0.0.0.0 을 추가해라.
+ENV NODE_ENV=production \
+    PORT=3000
+# standalone 이 아니므로 node_modules 를 통째로 들고 간다.
+# (pnpm 심볼릭 링크 구조가 깨지지 않게 /app 전체를 한 번에 옮긴다)
+COPY --from=build --chown=node:node /app /app
+WORKDIR /app/apps/web
+USER node
+EXPOSE 3000
+# apps/web 의 "start": "next start -p 3000"
+CMD ["pnpm", "start"]

@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+  색·폰트 토큰. Tailwind v4 는 CSS-first 라 여기가 유일한 디자인 토큰 출처다.
+  라이트를 기본값으로 두고, 다크는 아래 `@layer base` 에서 같은 변수를 덮는다
+  (Tailwind 의 레이어 순서가 theme → base 라 base 의 덮어쓰기가 이긴다).
+  다크 전용 클래스를 만들지 않는 이유: 화면 코드가 두 벌이 되면 한쪽이 조용히 썩는다.
+*/
+@theme {
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
+    "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 면 */
+  --color-canvas: #fbfbf9;
+  --color-surface: #ffffff;
+  --color-raised: #f4f4f1;
+  --color-border: #e4e3de;
+  --color-border-strong: #cfcec8;
+
+  /* 글자 */
+  --color-ink: #1a1a17;
+  --color-muted: #6a6960;
+  --color-faint: #93928a;
+
+  /* 강조 */
+  --color-accent: #2f6b4f;
+  --color-accent-hover: #255741;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #e6f0ea;
+
+  /* 상태 알약 (보장선 B4 — 색 + 사람 문장) */
+  --color-ok: #2f6b4f;
+  --color-ok-soft: #e6f0ea;
+  --color-healing: #8a6210;
+  --color-healing-soft: #fbf0d6;
+  --color-attention: #a63a29;
+  --color-attention-soft: #fbe7e2;
+  --color-paused: #5b5a53;
+  --color-paused-soft: #ececea;
+
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-canvas: #0f100e;
+      --color-surface: #171815;
+      --color-raised: #1f201c;
+      --color-border: #2c2d28;
+      --color-border-strong: #3d3e38;
+
+      --color-ink: #f2f1ec;
+      --color-muted: #a3a297;
+      --color-faint: #74736b;
+
+      --color-accent: #6cc79a;
+      --color-accent-hover: #86d5ac;
+      --color-accent-ink: #0f100e;
+      --color-accent-soft: #1c2c24;
+
+      --color-ok: #6cc79a;
+      --color-ok-soft: #1c2c24;
+      --color-healing: #e0b661;
+      --color-healing-soft: #2e2717;
+      --color-attention: #f0907c;
+      --color-attention-soft: #33201c;
+      --color-paused: #9b9a91;
+      --color-paused-soft: #24251f;
+    }
+  }
+
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 표 안에서 값이 잘리지 않게 */
+  th,
+  td {
+    text-align: left;
+    vertical-align: top;
+  }
+}
+
+@utility scroll-x {
+  overflow-x: auto;
+  max-width: 100%;
+}

@@ -1,100 +1,163 @@
-# 세상을 악기로 만드는 카메라
+# endpointer
 
-> **물건을 10초 찍으면, 그 물건이 화면 안에서 연주 가능한 악기가 된다.**
+> **같은 종류의 웹사이트 여러 곳을, 내가 정한 스키마 하나로 계속 받아보는 도구.**
 
-유리컵을 찍으면 화면 속 유리컵을 두드려 소리를 낼 수 있다. 입구를 치면 맑게, 바닥을 치면 둔탁하게 — 실제 그 컵과 같은 소리로. 채집한 물건들을 모아 합주하고, 링크 하나로 친구에게 보내면 친구도 내 컵을 연주할 수 있다.
+다나와는 남이 정해준 카테고리만 비교할 수 있다. 내가 궁금한 건 이번 달 마감인 디자인 공모전인데, 그런 다나와는 세상에 없다.
+URL 몇 개를 붙이면 그 주제의 다나와가 생기고, 표로도·읽기로도·API 로도·MCP 로도 쓴다.
+**"계속"이 핵심이다** — 한 번 뽑고 끝나는 추출 도구가 아니라, 한번 만들면 살아서 갱신되는 컬렉션이다.
 
-**이 소리는 합성음이 아니라 그 물체에서 실제로 측정한 값이다.** 이것이 유일한 주장.
+제품의 전모는 [`docs/기획서-v2.md`](./docs/기획서-v2.md) 에 있다. 이 README 는 저장소를 돌리는 법만 다룬다.
 
-몰입캠프 1주 프로젝트. 전체 논의와 결정 근거는 [docs/프로젝트_전체_논의_정리.md](docs/프로젝트_전체_논의_정리.md) 참고.
-
-## 어떻게 동작하나
-
-단단한 물체의 타격음은 감쇠 사인파들의 합 `y(t) = Σ aᵢ·e^(−dᵢt)·sin(2πfᵢt)` — 공진 주파수 **f**와 감쇠 **d**는 물체 전역, 진폭 **a**만 때린 위치에 따라 달라진다. 물체를 여러 지점에서 톡톡 치며 녹음하면 (f, d, a) 를 실물에서 직접 측정할 수 있다 (임팩트 해머 시험의 폰 버전). 학습 모델 없이 전부 결정론적 신호처리.
-
-- **오디오가 소리를 담당** (200~5,000Hz), **영상은 어디를 때렸는지만 담당** (타격 위치). 영상은 소리를 만들지 않고, 소리에 공간을 부여한다.
-
-```
-[촬영] 물체를 5~10지점에서 톡톡 침
-  ├ 오디오 → 타격 검출 → 모드 추출 (f, d, a)
-  └ 비디오 → 타격 위치 → 앵커 좌표
-  ↓
-[모드 정렬] 타격별 피크를 ±1~2% 로 클러스터링 → 전역 모드 + 앵커별 진폭
-  ↓
-[.inst 파일] 사진 + 모드 + 앵커 — 수백 KB
-  ↓
-[플레이어] 탭 → IDW 보간 → Web Audio 발화 (지연 30ms 이내)
-  ↓
-[공유] 링크로 즉시 연주 / 잼 세션 (터치 이벤트만 브로드캐스트, 소리는 로컬 합성)
-```
+---
 
 ## 저장소 구조
 
 ```
-server/            # 역할 A — .inst 를 만드는 쪽 (Python, FastAPI)
-  app/dsp/         #   타격 검출·모드 추출·모드 정렬·재합성
-  app/api/         #   처리 API, 알림음 렌더링
-  app/ws/          #   잼 세션 WebSocket
-  cli/analyze.py   #   D1 검증 CLI (wav → 모드 → 재합성 wav)
-web/               # 역할 B — .inst 를 소비하는 쪽 (React + Vite + TS)
-  src/inst/        #   .inst 타입·로더 (계약 코드)
-  src/audio/       #   리조네이터 뱅크, IDW 보간
-  src/pages/       #   채집·연주·공유 뷰어·소리 도감
-shared/examples/   # 목 .inst (유리/나무) — 계약의 실체
-docs/
-  inst-schema.md   # .inst v0.2 명세 — A/B 경계선, 변경은 합의+버전업으로만
-  프로젝트_전체_논의_정리.md
+26s-w4-c1-02/
+├─ apps/
+│  ├─ web/            @endpointer/web     Next 16 App Router · 포트 3000
+│  │                                      화면 · 인증 · 관리 API · 공개 v1 API   [트랙 B]
+│  ├─ worker/          @endpointer/worker  tsx 실행 · 진입점 src/index.ts
+│  │  └─ src/probe/                        수집 · 어댑터 컴파일 · 검증 · 자가 치유 · 발송  [트랙 A]
+│  └─ mcp/             @endpointer/mcp     tsx 실행 · 포트 3002
+│                                          MCP Streamable HTTP 서버              [트랙 B]
+├─ packages/
+│  └─ core/            @endpointer/core    빌드 없음. 세 앱이 소스 그대로 소비한다  [공유]
+│     ├─ src/types/       도메인 타입 — Collection · Source · Adapter · Item · Run · Subscription
+│     ├─ src/spec/        어댑터 스펙(zod) · 변환 연산자 · 경로 평가 · 해석기
+│     ├─ src/normalize/   date · money · number · text · link · enum 파서
+│     ├─ src/validate/    드리프트 판정 · 기준선 · 겹침률
+│     ├─ src/query/       REST 와 MCP 가 공유하는 쿼리·응답 조립
+│     ├─ src/db/          Drizzle 스키마 · 클라이언트 · 마이그레이션 러너 · 시드
+│     └─ src/env.ts       환경변수 zod 검증
+├─ deploy/            배포용 compose · Caddyfile · Dockerfile 3종 → deploy/README.md
+├─ docs/              기획서 · 관문 · 보장선 · ADR
+├─ docker-compose.yml   로컬 인프라만 (postgres 16 · redis 7)
+├─ tsconfig.base.json   전 패키지 공통 컴파일러 옵션
+└─ pnpm-workspace.yaml
 ```
+
+`core` 가 웹과 워커와 MCP 모두에 들어간다. **어댑터 스펙 해석기가 여기 있는 게 중요하다** —
+화면의 "미리보기"와 워커의 "정기 수집"이 같은 코드로 돌아야 미리보기가 거짓말을 하지 않는다.
 
 ## 시작하기
 
-### server (Python ≥ 3.11)
+필요한 것: **Node 24** (또는 22 이상), **Docker**, pnpm.
 
 ```bash
-cd server && python3 -m venv .venv && source .venv/bin/activate && pip install -e . pytest && uvicorn app.main:app --reload
+corepack enable                    # package.json 의 packageManager 로 pnpm 11.17 고정
+pnpm install
+
+cp .env.example .env               # DATABASE_URL 은 기본값 그대로 두면 아래 컨테이너와 맞는다
+                                   # AUTH_SECRET 은 `openssl rand -base64 32`
+
+pnpm infra:up                      # postgres 5432 · redis 6379
+pnpm db:generate                   # 마이그레이션 SQL 생성 (packages/core/drizzle/)
+pnpm db:migrate
+pnpm db:seed                       # 가짜 컬렉션 1개 · 사이트 2개 · 항목 20개 (멱등)
+
+pnpm dev                           # web 3000 · worker · mcp 3002
 ```
 
-- 테스트: `pytest`
-- D1 CLI: `python -m cli.analyze recording.wav --out resynth.wav`
-- uv 사용자는 `uv sync && uv run uvicorn app.main:app --reload` 로도 가능.
+`pnpm db:generate` 는 **처음 한 번 반드시 돌려야 한다.** 마이그레이션 SQL(`packages/core/drizzle/`)이
+아직 저장소에 없다 — 스키마에서 생성한 뒤 커밋한다. 이후에는 `packages/core/src/db/schema.ts` 를 고칠 때만 다시 돌린다.
 
-### web (Node ≥ 20)
+구글 로그인을 쓰려면 `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` 이 필요하다
+(승인된 리디렉션 URI: `http://localhost:3000/api/auth/callback/google`).
+LLM 은 컴파일 시에만 호출되므로 화면과 API 만 볼 거면 `GEMINI_API_KEY` 없이도 돈다.
 
-```bash
-cd web && npm install && npm run dev
-```
+### 그 밖의 명령
 
-- 폰 실기 테스트(오디오 지연·언락은 데스크톱과 다름): `npm run dev -- --host` 후 같은 와이파이에서 접속.
+| 명령 | 하는 일 |
+|---|---|
+| `pnpm typecheck` | 전 패키지 `tsc --noEmit`. 커밋 전 필수 |
+| `pnpm test` | 전 패키지 vitest |
+| `pnpm db:reset` | 볼륨까지 날리고 migrate + seed |
+| `pnpm db:studio` | Drizzle Studio |
+| `pnpm infra:down` / `infra:logs` | 컨테이너 내리기 / 로그 |
+| `pnpm dev:web` · `dev:worker` · `dev:mcp` | 하나만 띄우기 |
 
-## 역할 분담 (2인) — 경계선은 .inst 파일
+## 지금 무엇이 되고 무엇이 안 되나
 
-| | **A — DSP + 백엔드** | **B — 프론트 + 제품** |
+**현재 상태: G0(계약 고정) 스캐폴딩.** 제품이 아니라 두 트랙이 병렬로 일할 수 있는 뼈대다.
+관문별 판정 조건과 현재 체크 상태는 [`docs/gates.md`](./docs/gates.md) 에 있다.
+
+| 영역 | 상태 | 비고 |
 |---|---|---|
-| 한 줄 | .inst 를 **만든다** | .inst 를 **소비한다** |
-| 담당 | 녹음 분석, 모드 추출·정렬, 처리 서버 API, 잼 세션 WebSocket, 알림음 렌더링, 실물 녹음·물체 사냥 | 채집 UI, 연주 화면, Web Audio 리조네이터 뱅크, IDW, 공유 뷰어, 소리 도감, 온보딩, 발표 |
-| 코드 위치 | `server/` | `web/` |
+| 도메인 타입 · 상태 값 집합 | **돌아간다** | `packages/core/src/types` — 트랙 계약 #1 |
+| 어댑터 스펙 스키마 · 변환 연산자 | **돌아간다** | zod 로 정의된 닫힌 집합. 목록 밖 `op` 는 파싱에서 거부 |
+| 스펙 해석기 (json/html/browser) | **돌아간다** | 순수 함수. HTML 평가는 주입 (ADR A18) |
+| 정규화 파서 6종 | **돌아간다** | `~2026-08-21`, `최대 100,000천원`, `D-7`, `상시` 같은 실제 표기 처리 |
+| 드리프트 검증기 | **돌아간다** | 기획서 9-3 의 판정 네 가지 |
+| DB 스키마 · 마이그레이션 · 시드 | **돌아간다** | 단, 마이그레이션 SQL 은 `pnpm db:generate` 로 처음 한 번 생성해야 한다 |
+| 쿼리·응답 조립 (`items`/`sources`/`schema_version`) | **돌아간다** | web 과 mcp 가 공유 (ADR A22) |
+| 보장선 B2 자동 점검 | **돌아간다** | `apps/web/lib/guardrails.test.ts` — 화면 문자열에서 내부 명사를 잡는다 (ADR A26) |
+| `GET /api/v1/{slug}` | 자리만 | 트랙 B — G0 마무리 |
+| 화면 (목록 · 표 · 상세) | 자리만 | **G1(B)** 에서 채운다 |
+| 구글 로그인 | 자리만 | **G1(B)** |
+| probe 4단계 (인라인 JSON → 네트워크 관찰 → DOM → 브라우저) | 자리만 | **G1(A)** |
+| Gemini 어댑터 컴파일 | 자리만 | **G1(A)** · LLM 은 컴파일 경로에만 |
+| 두 번째 소스 자동 매핑 | 자리만 | **G2** — 제품의 정체성 |
+| 원문 대조 (값 → 원문 조각) | 자리만 | **G2** · 시드에 `raw_json`/`provenance_json` 은 이미 들어 있다 |
+| 스케줄 수집 · 자가 치유 | 자리만 | **G3(A)** |
+| 읽기 피드 · 웹훅 구독 발송 | 자리만 | **G3(B)** |
+| MCP 도구 4개 실행 로직 | 자리만 | **G4** |
+| 배포 (Caddy · compose · Dockerfile) | 자리만 | **G4** — 파일은 있으나 아직 올려보지 않았다 → [deploy/README.md](./deploy/README.md) |
+| 이메일 구독 | 없음 | **G4** (P7 의 "이어서") |
 
-- 리조네이터 뱅크가 B 소속인 이유: 합성은 .inst 의 (f,d,a)만으로 프론트 단독 구동이 가능하고, 30ms 지연 튜닝은 UI와 한 몸이라서.
-- 스키마([docs/inst-schema.md](docs/inst-schema.md)) 변경은 두 사람 합의 + 버전 업으로만. 변경 시 양쪽 코드 동기화까지가 완료 조건.
+"자리만"은 **시그니처와 흐름이 기획서대로 잡혀 있고 컴파일이 깨지지 않는다**는 뜻이다.
+각 스텁에 어느 관문에서 채우는지가 `TODO(G1)` / `TODO(G3)` 형식으로 적혀 있다.
 
-### 일자별 계획 (요약)
+## 역할 분담
 
-| 날짜 | A | B | 관문 |
+두 사람 모두 Claude Max 5x 를 쓴다(P8). 코드 생산이 병목이 아니므로 **분담의 기준은
+"누가 더 빨리 짜는가"가 아니라 "어디에서 사람의 판단이 필요한가"** 다.
+
+| | **트랙 A — 파이프라인** | **트랙 B — 표면** |
+|---|---|---|
+| 디렉터리 | `apps/worker` | `apps/web` · `apps/mcp` |
+| 담당 | probe · 어댑터 컴파일 · 스펙 해석기 · 정규화 · 검증 · 자가 치유 · 스케줄러 | 인증 · 컬렉션 화면 · 표 · 피드 · REST API · MCP · 구독 발송 |
+| 사람이 판단할 것 | 후보 목록이 맞는가 / 정규화가 맞는가 / 드리프트 기준선이 적절한가 / 치유 결과를 승격해도 되는가 | 보장선 B1~B7 이 지켜지는가 / 접힘의 기본값이 맞는가 / 상태 문구가 사람 말인가 |
+| 주 관문 | G1(A) · G3(A) | G1(B) · G3(B) |
+| 공동 | G0 · G2 · G4 · G5 | |
+
+**트랙 경계가 곧 디렉터리 경계다.** 두 사람이 같은 파일을 만지지 않게 하려고 이렇게 잘랐다.
+`packages/core` 만 공유 지대이고, G0 이후 여기를 고칠 때는 **상호 통보**한다 — 조용히 고치면 상대 트랙이 조용히 깨진다.
+
+G0 에서 고정하고 이후 바꾸지 않는 다섯 가지: core 타입 정의 · DB 스키마와 마이그레이션 ·
+`GET /api/v1/{slug}` 응답 형태 · 시드가 만드는 가짜 데이터 · 상태 값 집합.
+
+## 기획서와 다르게 간 것
+
+기획서 v2 는 2026-07-25 에 쓰였고, 스캐폴딩 시점의 최신 버전과 무료 티어 현실이 달랐다.
+전부 [`docs/adr.md`](./docs/adr.md) 에 A14 이후 번호로 기록돼 있다. **기획서 쪽을 고치지 않았다** (Part II 는 교체 가능하되, 고정 문서다).
+
+| 항목 | 기획서 | 실제 | ADR |
 |---|---|---|---|
-| **D1** | 컵 녹음→추출→재합성 CLI. 추출 변형 3개(FFT+힐베르트/STFT/ESPRIT) 선발전. 실물 4종 녹음(AGC 끄기, 튜너로 f 검증) | 목 .inst 로 연주 화면 + 리조네이터 + IDW. 실기 지연 체감 검증 | **밤 첫 관통**: A의 진짜 파라미터를 B 화면에 꽂아 화면 속 컵이 낮에 녹음한 소리를 냄 |
-| **D2** | 타격 검출·분리, 모드 정렬 완성, 처리 서버 API | 촬영/녹음 UI, 타격 위치(폴백: 수동 탭 지정), 업로드→처리→연주 연결 | 내 폰으로 실물 채집→그 자리에서 연주, 두 지점이 다른 소리 |
-| **D3** | **물체 사냥 15~20종** (핵심 일정), 알림음 API | 핫스팟 패드, 누르기=음소거, 반음 스냅, 햅틱, 지연 튜닝 | 재질 다른 3개 물체가 다른 음색으로 구분 |
-| **D4** | 잼 세션 WebSocket (방 생성/입장) | 링크 뷰어, 남의 터치 파문, QR | 폰 두 대가 같은 링크에서 같은 컵을 두드리고 서로 보임 |
-| **D5** | 알림음 완성, 부하 테스트(동시 50+), 서버 안정화 | 소리 도감, 온보딩(첫 채집 3분), 이펙트 | 처음 보는 사람이 도움 없이 채집~연주 완주 |
-| **D6** | 기능 동결. 발표 물체 10개 실측→3개 확정, 백업 .inst | 발표장 조건 리허설 ×2 | — |
-| **D7** | 발표. 라이브 실패 시 백업 전환 스크립트 암기 | 〃 | — |
+| Node | 22 LTS | **24.13.0** (`engines` 는 `>=22`) | A24 |
+| Next.js | 15 | **16.2.11** (App Router · Turbopack 기본) | A16 |
+| Tailwind | 3 + shadcn/ui | **4.3.3** CSS-first (`tailwind.config.js` 없음) | A16 |
+| UI 컴포넌트 | shadcn/ui | **자체 최소 컴포넌트** (clsx + tailwind-merge + lucide-react) | A17 |
+| LLM 모델 | `gemini-2.5-pro` / `-flash` 배분 | **`gemini-3.1-flash-lite` 하나** — 무료 티어에 pro 쿼터가 없다 | A14 |
+| Gemini SDK | (미지정) | `@google/genai` 2.13 (구 `@google/generative-ai` 아님) | A14 |
+| DB 드라이버 | (미지정) | **postgres.js** (`pg` 아님) | A23 |
+| 상태 컬럼 | (미지정) | `pgEnum` 대신 **`text().$type<...>()`** | A19 |
+| core 소비 방식 | (미지정) | **빌드 없이 소스 그대로** (Next `transpilePackages` + tsx) | A15 |
+| worker · mcp 실행 | (미지정) | 번들 없이 **tsx** | A20 |
+| 검증 라이브러리 | (미지정) | **zod 4** — 스펙·환경변수·쿼리의 단일 검증기 | A21 |
+| 로컬 compose | web·worker 포함 | **인프라만** (postgres·redis). 배포용은 `deploy/` 로 분리 | A25 |
 
-- 매일 저녁 관문 미통과 시 **다음 날 신규 기능 하나 삭제.**
-- 상세 계획·리스크·폴백 표는 [논의 정리 문서 §8](docs/프로젝트_전체_논의_정리.md) 참고.
+## 문서
 
-## 필수 제약 (전 구간 공통)
+| 문서 | 무엇 |
+|---|---|
+| [`docs/기획서-v2.md`](./docs/기획서-v2.md) | **진실의 원천.** 고정 문서다 — 고치지 않는다 |
+| [`docs/gates.md`](./docs/gates.md) | 관문 G0~G5 판정 체크리스트 + 강등 규칙 |
+| [`docs/guardrails.md`](./docs/guardrails.md) | 비개발자 보장선 B1~B7 점검 절차 (G4 전수 점검용) |
+| [`docs/adr.md`](./docs/adr.md) | 기술 결정과 "이걸 다시 보게 만드는 조건" — **기술 변경은 여기부터** |
+| [`deploy/README.md`](./deploy/README.md) | VM 1대 배포 |
+| [`CLAUDE.md`](./CLAUDE.md) | 이 저장소에서 일하는 Claude 를 위한 지침 |
 
-- **터치→소리 30ms 이내** — 넘으면 뇌가 가짜로 판정. AudioContext 사전 언락, touchstart 발화.
-- **타격 순간 20ms 햅틱.**
-- **녹음 시 AGC 끄기** — 감쇠값 오염 방지.
-- 스코프는 빼기 싸움: 채집 → 모드 정렬 → IDW 연주 → 공유 → 잼 세션 → 알림음 → 도감. 이 밖은 안 한다.
+---
+
+*제품명 `endpointer` 와 "커스텀 다나와"는 모두 가칭이다. 프로젝트성 제작이며 수익 모델·법인·계약을 전제하지 않는다.*

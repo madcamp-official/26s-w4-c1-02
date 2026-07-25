@@ -1,0 +1,37 @@
+{
+  "name": "@endpointer/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "화면 + 인증 + 관리 API + 공개 v1 API (트랙 B)",
+  "scripts": {
+    "dev": "next dev --turbopack -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@auth/drizzle-adapter": "^1.11.3",
+    "@endpointer/core": "workspace:*",
+    "@tanstack/react-table": "^8.21.3",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.26.0",
+    "next": "^16.2.11",
+    "next-auth": "5.0.0-beta.32",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^10.7.0",
+    "eslint-config-next": "^16.2.11",
+    "postcss": "^8.5.22",
+    "tailwindcss": "^4.3.3"
+  }
+}

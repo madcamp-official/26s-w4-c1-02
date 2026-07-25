@@ -1,18 +1,35 @@
-# Node / web
+# deps
 node_modules/
+.pnpm-store/
+
+# build
 dist/
-*.local
+.next/
+out/
+*.tsbuildinfo
 
-# Python / server
-__pycache__/
-*.pyc
-.venv/
-venv/
-.pytest_cache/
-*.egg-info/
+# env — .env.example 만 커밋한다
+.env
+.env.*
+!.env.example
 
-# 실측 녹음 원본 (용량 큼 — 필요한 것만 shared/examples 에 선별 커밋)
-recordings/
+# 로컬 인프라 데이터
+.docker-data/
+
+# 수집 캐시 · 로컬 스냅샷 (probe 가 저장하는 HTML/JSON 샘플)
+.cache/
+samples/
+!samples/.gitkeep
+
+# 로그
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 테스트 산출물
+coverage/
+test-results/
+playwright-report/
 
 # OS / editor
 .DS_Store

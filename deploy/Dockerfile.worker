@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1.7
+#
+# apps/worker — 수집 · 어댑터 컴파일 · 검증 · 자가 치유 · 구독 발송
+# 빌드 컨텍스트는 레포 루트다 (compose 에서 context: ..).
+#
+# 세 이미지 중 유일하게 Playwright 베이스를 쓴다 (기획서 8장).
+# mcr.microsoft.com/playwright 이미지는 Chromium/Firefox/WebKit 과 그 OS 의존성이
+# 이미 들어 있다 — slim 베이스에 apt 로 직접 깔면 목록이 길고 자주 깨진다.
+#
+# ⚠ 태그의 버전은 apps/worker 의 playwright 버전과 정확히 같아야 한다.
+#   다르면 "Executable doesn't exist at /ms-playwright/..." 로 런타임에 죽는다.
+#   playwright 를 올릴 때 이 줄도 같이 올려라.
+#
+# 빌드 산출물은 없다. worker 는 tsx 로 TS 를 직접 실행한다 (@endpointer/core 도 소스 소비).
+
+FROM mcr.microsoft.com/playwright:v1.61.1-noble AS base
+ENV PNPM_HOME=/pnpm \
+    PATH=/pnpm:$PATH \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    COREPACK_HOME=/opt/corepack
+# COREPACK_HOME 을 공용 경로로: 기본값은 $HOME 아래라서 USER 를 pwuser 로 바꾸면
+# root 가 받아둔 pnpm 캐시를 못 찾고 런타임에 다시 받으러 나간다
+RUN corepack enable \
+ && corepack prepare pnpm@11.17.0 --activate \
+ && chmod -R a+rX /opt/corepack
+WORKDIR /app
+
+# ── deps: 매니페스트 먼저 (레이어 캐시) ───────────────────────────────
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml .npmrc package.json ./
+COPY packages/core/package.json  packages/core/package.json
+COPY apps/web/package.json       apps/web/package.json
+COPY apps/worker/package.json    apps/worker/package.json
+COPY apps/mcp/package.json       apps/mcp/package.json
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# ── browsers: 베이스 이미지와 node_modules 의 playwright 를 맞춘다 ────
+# 베이스에 이미 있으면 사실상 no-op 이고, 어긋나 있으면 여기서 잡힌다.
+# chromium 만 받는다 (P3 — 목적은 네트워크 관찰이다).
+FROM deps AS browsers
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN pnpm --filter @endpointer/worker exec playwright install --with-deps chromium
+
+# ── runtime ───────────────────────────────────────────────────────────
+FROM browsers AS runtime
+ENV NODE_ENV=production \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+COPY tsconfig.base.json ./
+COPY packages/core packages/core
+COPY apps/worker apps/worker
+# LLM 컴파일 캐시 자리 (compose 가 named volume 을 여기 붙인다).
+# /app 전체를 chown 하면 node_modules 가 통째로 복제된 레이어가 하나 더 생긴다.
+# 실행에는 읽기 권한이면 충분하므로 쓰는 디렉터리만 넘긴다.
+RUN mkdir -p /app/.cache/llm && chown -R pwuser:pwuser /app/.cache
+# playwright 이미지에 있는 비루트 계정. 브라우저를 루트로 띄우지 않는다
+USER pwuser
+WORKDIR /app/apps/worker
+# apps/worker 의 "start": "tsx src/index.ts"
+CMD ["pnpm", "start"]

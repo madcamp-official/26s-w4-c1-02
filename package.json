@@ -1,0 +1,35 @@
+{
+  "name": "endpointer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "아무 목록 페이지나 내 API로 — 커스텀 다나와",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:web": "pnpm --filter @endpointer/web dev",
+    "dev:worker": "pnpm --filter @endpointer/worker dev",
+    "dev:mcp": "pnpm --filter @endpointer/mcp dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @endpointer/core db:generate",
+    "db:migrate": "pnpm --filter @endpointer/core db:migrate",
+    "db:seed": "pnpm --filter @endpointer/core db:seed",
+    "db:studio": "pnpm --filter @endpointer/core db:studio",
+    "db:reset": "pnpm infra:reset && pnpm db:migrate && pnpm db:seed",
+    "infra:up": "docker compose up -d && docker compose ps",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v && docker compose up -d && sleep 3",
+    "infra:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

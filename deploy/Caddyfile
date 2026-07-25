@@ -1,0 +1,121 @@
+# endpointer 리버스 프록시 (기획서 8장 배포 · ADR A9)
+#
+# Caddy 를 고른 이유: 설정 세 줄로 Let's Encrypt 인증서가 자동 발급·자동 갱신된다.
+# 사이트 블록에 도메인만 적으면 HTTP-01 챌린지, 인증서 저장, 만료 전 갱신,
+# HTTP→HTTPS 리다이렉트가 전부 기본값으로 붙는다.
+# Nginx + certbot 은 같은 결과를 얻는 데 설정 파일 두 벌과 갱신 크론이 필요하고,
+# 5일 일정에서 그건 순수한 손실이다.
+#
+# 도메인은 아직 미정이다 (16장 O1). 셋 다 환경변수로 받는다 —
+# deploy/.env 에 APP_DOMAIN / API_DOMAIN / MCP_DOMAIN / ACME_EMAIL 을 채우면
+# docker-compose.prod.yml 이 caddy 컨테이너에 넘긴다.
+#
+#   APP_DOMAIN  → web:3000            화면
+#   API_DOMAIN  → web:3000/api/v1/*   공개 REST API
+#   MCP_DOMAIN  → mcp:3002            MCP Streamable HTTP
+#
+# 인증서 저장소는 caddy_data 볼륨이다. 이 볼륨을 지우면 재발급이 일어나고
+# Let's Encrypt 주간 발급 한도에 걸릴 수 있다. 실험은 staging 으로 해라 (아래 acme_ca 주석).
+
+{
+	email {$ACME_EMAIL}
+
+	# 인증서 발급을 시험할 때만 주석을 풀어라. staging 인증서는 브라우저가 신뢰하지 않지만
+	# 한도가 넉넉해서 도메인·방화벽 설정을 확인하는 데 쓴다.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+
+	servers {
+		# MCP 는 서버가 응답을 흘려보내는 동안 연결을 붙잡는다. 쓰기 타임아웃을 걸지 않는다.
+		timeouts {
+			read_header 10s
+			idle 10m
+		}
+	}
+}
+
+# 모든 사이트가 공유하는 것.
+# 압축(encode)은 여기 넣지 않는다 — MCP 는 스트리밍이라 압축기가 끼면 이벤트가 버퍼에 갇힌다.
+# 압축이 필요한 사이트에서만 따로 켠다.
+(base) {
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
+
+# 공개 API·MCP 는 브라우저와 외부 에이전트가 직접 부른다 → CORS 필요.
+# 지금은 전면 허용이다. 컬렉션이 private(=Bearer 키)이 되면 credentials 를 안 쓰므로
+# 와일드카드로 충분하다. 쿠키 인증을 붙이게 되면 그때 오리진을 좁혀라.
+(cors) {
+	@preflight method OPTIONS
+	handle @preflight {
+		header {
+			Access-Control-Allow-Origin "*"
+			Access-Control-Allow-Methods "GET, POST, OPTIONS"
+			Access-Control-Allow-Headers "Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID"
+			Access-Control-Max-Age "86400"
+		}
+		respond 204
+	}
+	header {
+		Access-Control-Allow-Origin "*"
+		Access-Control-Expose-Headers "Mcp-Session-Id"
+		Vary "Origin"
+	}
+}
+
+# ── ① 화면 ─────────────────────────────────────────────────────────────
+{$APP_DOMAIN} {
+	import base
+	encode zstd gzip
+
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-Host {host}
+	}
+}
+
+# ── ② 공개 REST API ────────────────────────────────────────────────────
+# api.example.com/contest?limit=50  →  web:3000/api/v1/contest?limit=50
+# 사용자에게 보이는 주소에서 /api/v1 접두사를 지우는 게 목적이다 (기획서 8장·12장).
+{$API_DOMAIN} {
+	import base
+	import cors
+	encode zstd gzip
+
+	# TODO(G4): 남용 방지. Caddy 기본 빌드에는 rate limit 이 없다.
+	#   caddy-ratelimit 모듈을 넣은 커스텀 이미지를 쓰거나, web 라우트 핸들러에서
+	#   Redis 기반으로 센다. 후자가 컬렉션별 키 단위로 세기 쉬워서 아마 맞다.
+	#   rate_limit {
+	#     zone public_api { key {remote_host}  events 120  window 1m }
+	#   }
+
+	# {uri} 는 경로 + 쿼리스트링을 통째로 담는다. 접두사만 붙이고 나머지는 그대로 넘긴다.
+	rewrite * /api/v1{uri}
+
+	reverse_proxy web:3000 {
+		header_up X-Forwarded-Host {host}
+	}
+}
+
+# ── ③ MCP (Streamable HTTP) ────────────────────────────────────────────
+# mcp.example.com/{slug} → mcp:3002/{slug}
+{$MCP_DOMAIN} {
+	import base
+	import cors
+
+	reverse_proxy mcp:3002 {
+		# 핵심: 스트리밍이므로 버퍼링을 끈다.
+		# -1 = 응답을 모으지 않고 쓰는 즉시 클라이언트로 흘려보낸다.
+		# 이게 없으면 SSE 이벤트가 버퍼에 갇혀 커넥터가 응답을 못 받는다.
+		flush_interval -1
+
+		header_up X-Forwarded-Host {host}
+	}
+}
