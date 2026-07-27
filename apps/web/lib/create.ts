@@ -31,10 +31,10 @@ function workerTarget(): { url: string; token: string } | null {
   return { url, token }
 }
 
-const WORKER_UNAVAILABLE =
+export const WORKER_UNAVAILABLE =
   '지금은 사이트를 살펴보지 못하고 있어요. 잠시 뒤에 다시 시도해 주세요.'
 
-interface WorkerFailure {
+export interface WorkerFailure {
   ok: false
   message: string
   stage: string
@@ -57,7 +57,7 @@ type WorkerCreateBody =
   | { ok: true; slug: string; name: string; items_inserted: number }
 
 /** 워커에 POST 하나. 네트워크 실패도 값으로 돌려준다 — 화면까지 예외를 올리지 않는다 */
-async function callWorker<T>(path: string, body: Record<string, unknown>): Promise<T | null> {
+export async function callWorker<T>(path: string, body: Record<string, unknown>): Promise<T | null> {
   const target = workerTarget()
   if (target === null) return null
   try {
