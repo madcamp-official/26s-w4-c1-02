@@ -4,7 +4,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { currentUser } from '@/auth'
+import { currentUser, isAuthReady } from '@/auth'
 import type { SubscribeState } from '@/components/subscribe-form'
 import { getCollectionBySlug } from '@/lib/collections'
 import { createWebhookSubscription, removeSubscription } from '@/lib/subscriptions'
@@ -41,8 +41,12 @@ export async function subscribeWebhookAction(
     return { status: 'problem', message: '이 컬렉션을 찾지 못했어요. 화면을 새로 고쳐 주세요.' }
   }
 
-  // 로그인 설정이 아직 없는 동안은 컬렉션 주인 몫으로 저장한다 (listCollections 와 같은 데모 경로)
+  // 컬렉션 상세는 로그인 없이 볼 수 있으므로(미들웨어) 쓰기는 여기서 막는다
   const user = await currentUser()
+  if (isAuthReady && user === null) {
+    return { status: 'problem', message: '받아보기는 로그인한 뒤에 걸 수 있어요.' }
+  }
+  // 로그인 설정이 아직 없는 동안은 컬렉션 주인 몫으로 저장한다 (데모 경로)
   const userId = user?.id ?? found.data.owner_id
 
   const result = await createWebhookSubscription(found.data.id, userId, target)

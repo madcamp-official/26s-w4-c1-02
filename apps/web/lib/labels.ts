@@ -135,3 +135,21 @@ export function closingCopy(fieldLabel: string): string {
 export function lastSentCopy(formatted: string): string {
   return `마지막으로 보낸 시각 — ${formatted}`
 }
+
+/** 상단 상태 줄 (델타 4-3). null 을 받는 쪽이 걸러서 이어붙인다 */
+export function checkedAgoCopy(lastOkAt: Date | null): string {
+  if (lastOkAt === null) return '아직 받아온 적 없어요'
+  const minutes = Math.max(0, Math.floor((Date.now() - lastOkAt.getTime()) / 60_000))
+  if (minutes < 60) return '방금 확인'
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}시간 전 확인`
+  return `${Math.floor(hours / 24)}일 전 확인`
+}
+
+export function newCountCopy(count: number): string | null {
+  return count > 0 ? `새 항목 ${count}건` : null
+}
+
+export function closingCountCopy(count: number | null): string | null {
+  return count !== null && count > 0 ? `마감 7일 이내 ${count}건` : null
+}
