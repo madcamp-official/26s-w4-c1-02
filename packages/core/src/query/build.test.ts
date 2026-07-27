@@ -22,12 +22,12 @@ const dialect = new PgDialect()
 const render = (fragment: SQL) => dialect.sqlToQuery(fragment)
 
 const FIELDS: FieldDef[] = [
-  { key: 'title', label: '사업명', type: 'text', required: true, mapping: null },
-  { key: 'organization', label: '주관기관', type: 'text', required: false, mapping: null },
-  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null },
-  { key: 'amount', label: '지원금', type: 'money', required: false, mapping: null },
-  { key: 'category', label: '분야', type: 'enum', required: false, mapping: { 'R&D': 'rnd' } },
-  { key: 'link', label: '원문', type: 'link', required: true, mapping: null },
+  { key: 'title', label: '사업명', type: 'text', required: true, mapping: null, value_labels: null },
+  { key: 'organization', label: '주관기관', type: 'text', required: false, mapping: null, value_labels: null },
+  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null, value_labels: null },
+  { key: 'amount', label: '지원금', type: 'money', required: false, mapping: null, value_labels: null },
+  { key: 'category', label: '분야', type: 'enum', required: false, mapping: { 'R&D': 'rnd' }, value_labels: null },
+  { key: 'link', label: '원문', type: 'link', required: true, mapping: null, value_labels: null },
 ]
 
 const COLLECTION_ID = '00000000-0000-0000-0000-0000000000c1'
@@ -105,7 +105,7 @@ describe('조건 조립', () => {
 
   it('text 필드가 하나도 없으면 q 는 조건이 되지 않는다', () => {
     const onlyDate: FieldDef[] = [
-      { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null },
+      { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null, value_labels: null },
     ]
     const { query } = parseCollectionQuery('q=창업', onlyDate)
     const p = planItemsQuery(query, { collectionId: COLLECTION_ID, fields: onlyDate })

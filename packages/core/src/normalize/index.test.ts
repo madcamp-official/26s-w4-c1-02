@@ -171,7 +171,7 @@ describe('normalizeRecord — 두 소스가 같은 형식으로 수렴한다', (
   })
 
   it('필드별 mapping 이 ctx.mapping 을 덮어쓴다', () => {
-    const fields = [{ key: 'category', type: 'enum' as const, mapping: { 기술개발: 'tech' } }]
+    const fields = [{ key: 'category', type: 'enum' as const, mapping: { 기술개발: 'tech' }, value_labels: null }]
     const { data } = normalizeRecord(fields, { category: '기술개발' }, CTX)
     expect(data['category']).toBe('tech')
   })

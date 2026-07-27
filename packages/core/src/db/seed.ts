@@ -159,12 +159,34 @@ const CATEGORY_MAPPING: Record<string, string> = {
 /** 매핑에 없는 표기는 버리지 않고 `etc` 로 받는다 (원칙 ④ 부분 성공) */
 const CATEGORY_FALLBACK = 'etc'
 
+/**
+ * 정규화된 키를 화면에서 다시 사람 말로 (보장선 B2).
+ * CATEGORY_MAPPING 과 방향이 반대다 — 저 표는 여러 원값을 하나로 모으고, 이 표는 그걸 되돌린다.
+ * API 응답은 계속 `rnd` 를 내보낸다. `?category=rnd` 가 성립해야 하므로 (기획서 12장).
+ */
+const CATEGORY_LABELS: Record<string, string> = {
+  rnd: '기술개발·R&D',
+  startup: '창업지원',
+  commercialize: '사업화',
+  market: '판로·해외진출',
+  fund: '자금지원',
+  talent: '인력양성',
+  [CATEGORY_FALLBACK]: '기타',
+}
+
 const COLLECTION_SCHEMA: CollectionSchemaJson = CollectionSchemaJsonSchema.parse([
   { key: 'title', label: '사업명', type: 'text', required: true, mapping: null },
   { key: 'organization', label: '주관기관', type: 'text', required: false, mapping: null },
   { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null },
   { key: 'amount', label: '지원금액', type: 'money', required: false, mapping: null },
-  { key: 'category', label: '분야', type: 'enum', required: false, mapping: CATEGORY_MAPPING },
+  {
+    key: 'category',
+    label: '분야',
+    type: 'enum',
+    required: false,
+    mapping: CATEGORY_MAPPING,
+    value_labels: CATEGORY_LABELS,
+  },
   { key: 'link', label: '원문 보기', type: 'link', required: true, mapping: null },
 ])
 

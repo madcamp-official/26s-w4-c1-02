@@ -277,9 +277,21 @@ function squash(text: string): string {
   return text.replace(/\s+/g, '').toLowerCase()
 }
 
+function digitsOnly(text: string): string {
+  return text.replace(/\D/g, '')
+}
+
+/** `2026.09.30` `2026-09-30` `20260930` 처럼 구분자만 다른 날짜 표기 */
+const DATE_LIKE = /^\d{4}[.\-/]?\d{1,2}[.\-/]?\d{1,2}\.?$/
+
 function compare(haystack: string, needle: string): MatchKind | null {
   if (haystack === '' || needle === '') return null
   if (haystack === needle) return 'exact'
+  // 날짜는 구분자만 다른 경우가 대부분이다. 사용자가 화면에서 `2026.09.30` 을 복사했는데
+  // 내부 API 는 `20260930` 으로 들고 있는 상황이 한국 공공 사이트의 기본값에 가깝다.
+  if (DATE_LIKE.test(haystack) && DATE_LIKE.test(needle) && digitsOnly(haystack) === digitsOnly(needle)) {
+    return 'exact'
+  }
   if (haystack.includes(needle)) return 'contains'
   // 사용자가 앞뒤를 더 긁어온 경우. 너무 짧은 조각이 우연히 걸리는 걸 막는다.
   if (needle.includes(haystack) && haystack.length >= Math.max(4, needle.length * 0.5)) return 'contained_by'

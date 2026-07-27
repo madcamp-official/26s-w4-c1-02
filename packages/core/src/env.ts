@@ -34,9 +34,11 @@ export const EnvSchema = z.object({
   AUTH_GOOGLE_SECRET: optionalString,
 
   // ── LLM (P6 · ADR A1) ────────────────────────────────────────────────
+  // 기획서 8장의 pro/flash 배분표는 폐기됐다 (ADR A14). gemini-2.5-pro 는 무료 티어 쿼터가
+  // 사실상 0 이고, 2.5 계열은 2026-10-16 종료 예정이다. 3.x 세대에 무료 pro 는 없다.
   GEMINI_API_KEY: optionalString,
-  GEMINI_MODEL_COMPILE: z.string().default('gemini-2.5-pro'),
-  GEMINI_MODEL_MATCH: z.string().default('gemini-2.5-flash'),
+  GEMINI_MODEL_COMPILE: z.string().default('gemini-3.1-flash-lite'),
+  GEMINI_MODEL_MATCH: z.string().default('gemini-3.1-flash-lite'),
 
   // ── 구독 발송 (P7 · ADR A11) ─────────────────────────────────────────
   RESEND_API_KEY: optionalString,

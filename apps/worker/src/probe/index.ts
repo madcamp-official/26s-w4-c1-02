@@ -85,9 +85,11 @@ export async function probe(url: string, opts: ProbeOptions = {}): Promise<Probe
     // 응답 자체가 JSON 이면 견줄 "화면 텍스트" 가 없다. 값끼리 비교할 게 없으므로
     // 겹침률 판정을 건너뛰고 통과시킨다.
     pageText = collectText(directJson)
-    steps.push(step('inline_json', true, collected.length, staticStart, '응답이 곧 JSON 이었습니다'))
+    // 경로는 'network' 로 남긴다 — 사용자가 붙여넣은 것이 곧 내부 API 였다는 뜻이고,
+    // 그게 이 단계에서 "목격" 한 것과 같은 종류의 후보다 (G1 판정 로그가 이 값을 읽는다).
+    steps.push(step('network', true, collected.length, staticStart, '붙여넣은 주소의 응답이 곧 JSON 이었습니다'))
     const ranked = rankCandidates({ pageText, candidates: collected })
-    return finish(url, page, startedAt, steps, ranked, warnings, 'network')
+    return finish(url, page, pageText, startedAt, steps, ranked, warnings, 'network')
   }
 
   // 1단계(정적 GET)는 독립된 probe 경로가 아니라 나머지의 입력이다.
@@ -111,7 +113,7 @@ export async function probe(url: string, opts: ProbeOptions = {}): Promise<Probe
   let ranked = rankCandidates({ pageText, candidates: collected })
   if (good(ranked, minOverlap)) {
     log.info({ probe_path: 'inline_json', overlap: ranked[0]?.overlap }, '인라인 JSON 으로 뚫림')
-    return finish(url, page, startedAt, steps, ranked, warnings, 'inline_json')
+    return finish(url, page, pageText, startedAt, steps, ranked, warnings, 'inline_json')
   }
 
   // ── 3단계 · 네트워크 관찰 (브라우저) ─────────────────────────────────
@@ -132,7 +134,7 @@ export async function probe(url: string, opts: ProbeOptions = {}): Promise<Probe
     ranked = rankCandidates({ pageText, candidates: collected })
     if (good(ranked, minOverlap)) {
       log.info({ probe_path: 'network', overlap: ranked[0]?.overlap }, '네트워크 관찰로 뚫림')
-      return finish(url, page, startedAt, steps, ranked, warnings, 'network')
+      return finish(url, page, pageText, startedAt, steps, ranked, warnings, 'network')
     }
   }
 
@@ -155,7 +157,7 @@ export async function probe(url: string, opts: ProbeOptions = {}): Promise<Probe
     ranked = rankCandidates({ pageText, candidates: collected })
     if (good(ranked, minOverlap)) {
       log.info({ probe_path: domOrigin, overlap: ranked[0]?.overlap }, 'DOM 반복 구조로 뚫림')
-      return finish(url, page, startedAt, steps, ranked, warnings, domOrigin)
+      return finish(url, page, pageText, startedAt, steps, ranked, warnings, domOrigin)
     }
   }
 
@@ -196,9 +198,15 @@ function step(path: ProbePath, ran: boolean, candidates: number, since: number, 
   return { path, ran, candidates, duration_ms: Date.now() - since, note }
 }
 
+/**
+ * `pageText` 를 따로 받는 이유: 브라우저가 렌더한 화면이 정적 HTML 보다 글자가 많으면
+ * 그쪽을 쓴다. 이 텍스트는 순위 판정의 기준일 뿐 아니라 **컴파일 프롬프트의 입력** 이라
+ * (`compile-spec.ts` 의 `pageText`) 여기서 정적 HTML 것으로 되돌리면 프롬프트가 빈 화면을 본다.
+ */
 function finish(
   url: string,
   page: StaticPage,
+  pageText: string,
   startedAt: number,
   steps: ProbeStep[],
   ranked: RankedCandidate[],
@@ -217,7 +225,7 @@ function finish(
     best,
     candidates: ranked,
     steps,
-    page: { title: page.page.title, text: page.page.text, html_bytes: page.html.length },
+    page: { title: page.page.title, text: pageText, html_bytes: page.html.length },
     warnings,
     duration_ms: Date.now() - startedAt,
   }

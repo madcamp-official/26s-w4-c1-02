@@ -17,10 +17,10 @@ import {
 import { decodeCursor } from './params'
 
 const FIELDS: FieldDef[] = [
-  { key: 'title', label: '사업명', type: 'text', required: true, mapping: null },
-  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null },
-  { key: 'amount', label: '지원금', type: 'money', required: false, mapping: null },
-  { key: 'link', label: '원문', type: 'link', required: true, mapping: null },
+  { key: 'title', label: '사업명', type: 'text', required: true, mapping: null, value_labels: null },
+  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null, value_labels: null },
+  { key: 'amount', label: '지원금', type: 'money', required: false, mapping: null, value_labels: null },
+  { key: 'link', label: '원문', type: 'link', required: true, mapping: null, value_labels: null },
 ]
 
 const NOW = new Date('2026-07-26T12:00:00.000Z')

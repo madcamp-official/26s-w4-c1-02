@@ -9,7 +9,7 @@
     "start": "tsx src/index.ts",
     "build": "echo 'mcp는 tsx로 실행된다 (번들 없음)'",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@endpointer/core": "workspace:*",

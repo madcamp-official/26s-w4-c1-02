@@ -16,18 +16,19 @@ import {
 
 /** G0 계약 (4) 의 시드 스키마와 같은 6개 */
 const FIELDS: FieldDef[] = [
-  { key: 'title', label: '사업명', type: 'text', required: true, mapping: null },
-  { key: 'organization', label: '주관기관', type: 'text', required: false, mapping: null },
-  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null },
-  { key: 'amount', label: '지원금', type: 'money', required: false, mapping: null },
+  { key: 'title', label: '사업명', type: 'text', required: true, mapping: null, value_labels: null },
+  { key: 'organization', label: '주관기관', type: 'text', required: false, mapping: null, value_labels: null },
+  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null, value_labels: null },
+  { key: 'amount', label: '지원금', type: 'money', required: false, mapping: null, value_labels: null },
   {
     key: 'category',
     label: '분야',
     type: 'enum',
     required: false,
     mapping: { 'R&D': 'rnd', 기술개발: 'rnd', 창업: 'startup' },
+    value_labels: null,
   },
-  { key: 'link', label: '원문', type: 'link', required: true, mapping: null },
+  { key: 'link', label: '원문', type: 'link', required: true, mapping: null, value_labels: null },
 ]
 
 const parse = (qs: string) => parseCollectionQuery(qs, FIELDS)

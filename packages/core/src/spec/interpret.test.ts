@@ -474,7 +474,7 @@ describe('fieldStats', () => {
 describe('컬렉션 스키마 연결', () => {
   const schema: CollectionSchemaJson = CollectionSchemaJsonSchema.parse([
     { key: 'title', label: '공고명', type: 'text', required: true },
-    { key: 'category', label: '분야', type: 'enum', mapping: { 기술개발: 'rnd', 'R&D': 'rnd' } },
+    { key: 'category', label: '분야', type: 'enum', mapping: { 기술개발: 'rnd', 'R&D': 'rnd' }, value_labels: null },
   ])
 
   const catSpec = spec({

@@ -11,7 +11,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 
-import type { ApiItem, FieldDef, FieldType } from '@endpointer/core'
+import type { ApiItem, FieldDef } from '@endpointer/core'
 
 import { Badge } from '@/components/ui/badge'
 import { Table, TBody, TableShell, TD, TH, THead, TR } from '@/components/ui/table'
@@ -29,13 +29,17 @@ function readKey(item: ApiItem, key: string): unknown {
 
 const numberFormat = new Intl.NumberFormat('ko-KR')
 
-function formatValue(value: unknown, type: FieldType): string {
+function formatValue(value: unknown, field: FieldDef): string {
   if (value === null || value === undefined || value === '') return EMPTY_MARK
-  switch (type) {
+  switch (field.type) {
     case 'money':
       return typeof value === 'number' ? `${numberFormat.format(value)}원` : String(value)
     case 'number':
       return typeof value === 'number' ? numberFormat.format(value) : String(value)
+    case 'enum':
+      // 저장된 값은 정규화된 키(`rnd`)다. 화면에는 사람 말로 돌려놓는다 (보장선 B2).
+      // API 응답은 키를 그대로 유지한다 — `?category=rnd` 가 성립해야 하므로 (기획서 12장).
+      return field.value_labels?.[String(value)] ?? String(value)
     default:
       return String(value)
   }
@@ -91,7 +95,7 @@ function ValueCell({ item, field }: { item: ApiItem; field: FieldDef }) {
     )
   }
 
-  const text = formatValue(value, field.type)
+  const text = formatValue(value, field)
   const left = field.type === 'date' ? daysLeft(value) : null
 
   return (

@@ -35,6 +35,9 @@ export interface NetworkProbeResult {
   note: string
 }
 
+/** 페이지 안에서 도는 평가식. 문자열인 이유는 아래 호출부 주석 참조 */
+const RENDERED_TEXT = 'document.body ? document.body.innerText : ""'
+
 const EMPTY: NetworkProbeResult = {
   candidates: [],
   renderedHtml: null,
@@ -100,7 +103,10 @@ export async function probeNetwork(input: NetworkProbeInput): Promise<NetworkPro
     await page.waitForLoadState('networkidle', { timeout: input.timeoutMs }).catch(() => {})
 
     renderedHtml = await page.content()
-    renderedText = await page.evaluate(() => document.body?.innerText ?? '').catch(() => null)
+    // 평가식을 문자열로 넘긴다 — 워커 tsconfig 의 lib 에 "dom" 이 없어 콜백 안에서
+    // `document` 를 쓰면 타입 오류가 난다 (fetchers/browser.ts 에 같은 메모가 있다).
+    const text: unknown = await page.evaluate(RENDERED_TEXT).catch(() => null)
+    renderedText = typeof text === 'string' ? text : null
   } catch {
     // 타임아웃·차단·리다이렉트 루프. 결과는 그때까지 본 것으로 만든다.
   } finally {

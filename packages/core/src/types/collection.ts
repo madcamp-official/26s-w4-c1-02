@@ -33,10 +33,25 @@ export const FieldDefSchema = z
     type: FieldTypeSchema,
     required: z.boolean().default(false),
     mapping: z.record(z.string(), z.string()).nullable().default(null),
+    /**
+     * enum 값의 화면 표시 이름 — `{ 정규화키: 사람이 읽는 말 }`.
+     * 예: `{ "rnd": "기술개발·R&D", "startup": "창업지원" }`
+     *
+     * **`mapping` 과 방향이 반대다.** mapping 은 여러 사이트의 원값을 하나의 키로 모으고(정규화),
+     * 이건 그 키를 다시 사람 말로 돌려놓는다(표시). 둘 다 있어야 한다 —
+     * API 는 안정적인 키를 내보내야 `?category=rnd` 가 성립하고(기획서 12장),
+     * 화면은 `rnd` 가 아니라 "기술개발"을 보여줘야 한다(보장선 B2).
+     * 없으면 화면은 키를 그대로 쓴다.
+     */
+    value_labels: z.record(z.string(), z.string()).nullable().default(null),
   })
   .refine((f) => f.type === 'enum' || f.mapping === null, {
     message: 'mapping 은 enum 타입 필드에만 쓸 수 있습니다',
     path: ['mapping'],
+  })
+  .refine((f) => f.type === 'enum' || f.value_labels === null, {
+    message: 'value_labels 는 enum 타입 필드에만 쓸 수 있습니다',
+    path: ['value_labels'],
   })
 
 export type FieldDef = z.infer<typeof FieldDefSchema>

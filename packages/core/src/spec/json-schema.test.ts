@@ -27,7 +27,7 @@ const SEED_SCHEMA: CollectionSchemaJson = CollectionSchemaJsonSchema.parse([
   { key: 'organization', label: '주관기관', type: 'text' },
   { key: 'deadline', label: '마감일', type: 'date' },
   { key: 'amount', label: '지원금', type: 'money' },
-  { key: 'category', label: '분야', type: 'enum', mapping: { 기술개발: 'rnd' } },
+  { key: 'category', label: '분야', type: 'enum', mapping: { 기술개발: 'rnd' }, value_labels: null },
   { key: 'link', label: '원문 링크', type: 'link', required: true },
 ])
 

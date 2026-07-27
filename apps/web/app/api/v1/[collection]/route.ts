@@ -4,7 +4,7 @@
 // 여기에 로직을 다시 짜지 않는다. 파라미터 해석도 응답 조립도 core 가 한다 —
 // MCP 의 list_items 와 **같은 코드**여야 두 표면이 갈라지지 않는다.
 
-import { parseCollectionQuery } from '@endpointer/core/query'
+import { buildCollectionResponse, parseCollectionQuery } from '@endpointer/core/query'
 
 import { getCollectionBySlug } from '@/lib/collections'
 import { loadCore } from '@/lib/db'
@@ -45,7 +45,6 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   const { query, warnings } = parseCollectionQuery(url.searchParams, collection.schema_json)
 
   try {
-    const { buildCollectionResponse } = await import('@endpointer/core/query')
     const body = await buildCollectionResponse(core.db, collection, query)
     const payload: PublicApiBody = warnings.length > 0 ? { ...body, warnings } : body
     return jsonResponse(payload)

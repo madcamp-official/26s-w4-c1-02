@@ -35,9 +35,9 @@ function input(over: Partial<DriftInput> = {}): DriftInput {
 }
 
 const SCHEMA: FieldDef[] = [
-  { key: 'title', label: '공고명', type: 'text', required: true, mapping: null },
-  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null },
-  { key: 'amount', label: '지원금액', type: 'money', required: false, mapping: null },
+  { key: 'title', label: '공고명', type: 'text', required: true, mapping: null, value_labels: null },
+  { key: 'deadline', label: '마감일', type: 'date', required: false, mapping: null, value_labels: null },
+  { key: 'amount', label: '지원금액', type: 'money', required: false, mapping: null, value_labels: null },
 ]
 
 const SPEC = {

@@ -1,4 +1,15 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { config as loadDotenv } from 'dotenv'
 import type { NextConfig } from 'next'
+
+// Next 는 **앱 디렉터리 기준**으로만 .env 를 찾는다 (apps/web/.env). 이 모노레포의 .env 는
+// 레포 루트에 하나뿐이므로, 아무것도 안 하면 DATABASE_URL 이 undefined 가 되어
+// 화면과 공개 API 가 통째로 "불러오지 못했어요" 상태가 된다.
+// next.config 는 서버가 뜨기 전에 Node 에서 평가되므로 여기서 채우면 런타임 전체에 전달된다.
+// worker/src/config.ts · core/drizzle.config.ts 와 같은 방식.
+loadDotenv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../..', '.env'), quiet: true })
 
 const nextConfig: NextConfig = {
   // @endpointer/core 는 빌드 산출물이 없다 (noEmit). .ts 소스가 그대로 들어오므로
