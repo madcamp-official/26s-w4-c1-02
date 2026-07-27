@@ -365,9 +365,10 @@ function fieldSpecSchema(fieldType: string, label: string): GeminiSchema {
     type: { type: 'STRING', enum: [fieldType], description: '이 필드의 타입' },
     transform: {
       type: 'ARRAY',
-      description: '위에서부터 순서대로 적용할 변환. 필요 없으면 비운다',
+      // `maxItems` 를 붙이지 마라 — 원소가 anyOf 인 배열이라 Gemini 가 스키마 전체를
+      // 400 으로 거부한다 (머리말). 실제로 heal-spec 이 이걸로 죽었다 (2026-07-27).
+      description: '위에서부터 순서대로 적용할 변환. 필요 없으면 비운다. 최대 8개',
       items: { anyOf: transformOpSchemas() },
-      maxItems: 8,
     },
   }
   return {
@@ -523,9 +524,9 @@ export function buildDiscoveryResponseSchema(): GeminiSchema {
     path: S('이 값이 있는 위치. json 모드면 $. 로 시작하는 JSONPath, 아니면 css: 로 시작하는 CSS 선택자'),
     transform: {
       type: 'ARRAY',
-      description: '위에서부터 순서대로 적용할 변환. 필요 없으면 비운다',
+      // `maxItems` 금지 — 위 fieldSpecSchema 의 주석과 같은 이유 (anyOf 원소)
+      description: '위에서부터 순서대로 적용할 변환. 필요 없으면 비운다. 최대 8개',
       items: { anyOf: transformOpSchemas() },
-      maxItems: 8,
     },
   }
 

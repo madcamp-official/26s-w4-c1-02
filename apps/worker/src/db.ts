@@ -333,6 +333,25 @@ export async function loadRun(runId: string): Promise<RunRow | null> {
 }
 
 /** 오늘 이 소스에 대해 자가 치유를 몇 번 시도했는지 (15장 하루 상한의 진짜 근거) */
+/**
+ * 유령 런 청소 (day2 §8 후보 → 확인). 프로세스가 수집 도중 죽으면 `finished_at` 없는
+ * `status:'ok'` 행이 영원히 남아 화면에 "수집 중"이 걸린다. 상태 집합에 'running' 을
+ * 추가하는 것은 G0 계약 변경이라, 대신 부팅할 때 오래된 미완 런을 실패로 닫는다.
+ * 30분이면 어떤 정상 수집보다 길다 (페이지 3장 + LLM 2회 < 1분).
+ */
+export async function closeAbandonedRuns(olderThanMinutes = 30): Promise<number> {
+  const rows = await queryClient<{ id: string }[]>`
+    update runs
+    set finished_at = now(),
+        status = 'failed',
+        error_summary = '수집이 도중에 멈췄어요. 다음 수집 때 다시 시도합니다.'
+    where finished_at is null
+      and started_at < now() - make_interval(mins => ${olderThanMinutes})
+    returning id
+  `
+  return rows.length
+}
+
 export async function healAttemptsToday(sourceId: string): Promise<number> {
   const rows = await queryClient<{ n: number }[]>`
     select count(*)::int as n from runs
