@@ -687,6 +687,18 @@ function stripCodeFence(text: string): string {
   return m?.[1] ?? trimmed
 }
 
+/**
+ * 변환 파이프라인의 Gemini 스키마 조각.
+ *
+ * 두 번째 사이트를 붙이는 경로(`match-fields`)도 **같은 연산자 집합**을 써야 한다.
+ * 거기만 다른 표현을 열어 주면 그게 곧 ADR A2 가 막으려던 구멍이다.
+ *
+ * `maxItems` 를 붙이지 마라 — 이 파일 머리말 참조 (Gemini 가 스키마 전체를 거부한다).
+ */
+export function buildTransformPipelineSchema(description: string): GeminiSchema {
+  return { type: 'ARRAY', description, items: { anyOf: transformOpSchemas() } }
+}
+
 /** 프롬프트에 같이 넣을 연산자 목록 — ops.ts 의 닫힌 집합에서 그대로 온다 */
 export const PROMPTABLE_TRANSFORM_OPS: readonly string[] = TRANSFORM_OPS.filter(
   (op) => !(GEMINI_OMITTED_OPS as readonly string[]).includes(op),

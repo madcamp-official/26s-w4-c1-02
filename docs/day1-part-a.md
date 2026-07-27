@@ -26,16 +26,15 @@
 **URL 하나가 표가 되어 화면까지 나온다. 이제 두 번째 사이트를 붙이는 일이 남았다.**
 
 ```
-소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 794개 통과 (core 657 · web 33 · worker 104)
+소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 802개 통과 (core 657 · web 33 · worker 112)
 트랙 A(파이프라인) 5,262줄 — probe·컴파일·수집·치유·발송 전부 코드가 있다
 트랙 B(표면)     2,909줄 — 표·REST·MCP 는 돈다. 피드·구독 화면은 없다
 
 2026-07-27: apps/worker ──✅── DB ──✅── apps/web · apps/mcp  한 줄로 이어졌다
 ```
 
-가장 중요한 한 문장: **이제 남은 것은 `matchFields` 와 `traceValue` 다.**
-첫 사이트를 붙이는 흐름(9-1)은 이어졌다. 두 번째 사이트를 붙이는 흐름(9-2)이 아직 배선되지 않았고,
-**그게 사수 대상 ② 이자 이 제품이 다른 제품과 갈라지는 유일한 지점이다.**
+가장 중요한 한 문장: **두 번째 사이트가 같은 표에 담긴다** (§5-9). 사수 대상 ②가 CLI 로 돈다.
+남은 것은 그걸 **저장**하는 경로와 **화면**이다.
 
 ---
 
@@ -44,7 +43,7 @@
 ```
 G0 계약고정   ████████░░  80%   타입·스펙·DB·마이그레이션 있음 / DB 실기동 미검증
 G1 URL→아이템 ██████████ 100%   낯선 URL 4곳 전부 표가 나왔다 (2026-07-27) ✅
-G2 소스 접합  ███░░░░░░░  30%   "제품이 성립하는 지점" ← 지금 여기. 파이프는 이어졌고 matchFields 가 남았다
+G2 소스 접합  ███████░░░  70%   두 번째 사이트가 같은 표에 담긴다 ← 지금 여기. 저장 경로와 화면이 남았다
 G3 계속 돈다  ███░░░░░░░  30%   워커 코드 있음 / 피드·구독 화면 없음
 G4 배포·MCP   ██░░░░░░░░  20%   MCP 완성 / 배포는 파일만
 G5 데모       ░░░░░░░░░░   0%
@@ -61,7 +60,7 @@ G5 데모       ░░░░░░░░░░   0%
 | 전 패키지 타입 검사 | `pnpm typecheck` → 4개 패키지 Done |
 | core 단위 테스트 657개 | `pnpm --filter @endpointer/core test` |
 | 보장선 B2 자동 점검 33개 | `pnpm --filter @endpointer/web test` |
-| worker 테스트 104개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문·인코딩 판정 |
+| worker 테스트 112개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문·인코딩 판정 |
 | 임의 URL probe (CLI) | `pnpm --filter @endpointer/worker probe <url>` |
 | URL → 표 배선 (CLI) | `pnpm --filter @endpointer/worker create-collection <url>` — **LLM 키가 있어야 끝까지 간다** |
 | 시드 데이터 표 화면 | 정렬·필터·출처 뱃지·원문 대조·"자동 복구 N회" 전부 있음 |
@@ -71,7 +70,7 @@ G5 데모       ░░░░░░░░░░   0%
 **구글 로그인 키는 채워졌다** (2026-07-27). 다만 **로그인한 화면을 아직 아무도 확인하지 않았다** —
 `/collections/*` 는 전부 로그인 뒤에 있어서, 사람이 한 번 들어가 보기 전까지 표 화면은 미검증이다.
 
-**테스트가 없는 곳: `apps/mcp` 0개.** (`apps/worker` 는 0개였다가 104개가 됐다 — probe·표 파싱·관문·인코딩.)
+**테스트가 없는 곳: `apps/mcp` 0개.** (`apps/worker` 는 0개였다가 112개가 됐다 — probe·표 파싱·관문·인코딩.)
 아직 무검증인 곳이 **사수 대상 ②④ 자체다** — `matchFields`·`traceValue`·자가 치유에는 테스트가 없다.
 
 ---
@@ -118,8 +117,8 @@ G5 데모       ░░░░░░░░░░   0%
 |---|---|---|
 | [`compile/gemini.ts`](../apps/worker/src/compile/gemini.ts) | ⚠️ 구현됨 | — |
 | [`compile/compile-spec.ts`](../apps/worker/src/compile/compile-spec.ts) | ⚠️ 구현됨 | **`compileSpec` 없음** / `recompileSpec` 은 heal 이 부름 |
-| [`compile/match-fields.ts`](../apps/worker/src/compile/match-fields.ts) | ⚠️ 구현됨 | ⬜ **없음** ← 기능 ② |
-| [`compile/trace-value.ts`](../apps/worker/src/compile/trace-value.ts) | ⚠️ 구현됨 | ⬜ **없음** ← 보장선 B1 |
+| [`compile/match-fields.ts`](../apps/worker/src/compile/match-fields.ts) | ✅ **검증됨** — 낯선 사이트 2곳 (§5-9) | `pipeline/attach-source.ts` |
+| [`compile/trace-value.ts`](../apps/worker/src/compile/trace-value.ts) | ✅ **검증됨** — 붙여넣기 루프 완주 (§5-9) | `pipeline/attach-source.ts` |
 | [`compile/budget.ts`](../apps/worker/src/compile/budget.ts) | ⚠️ 프로세스 메모리 카운터 | 재시작하면 0 |
 
 ### 잡 · 큐
@@ -321,6 +320,54 @@ LLM 이 낸 변환이 그걸 지웠다:
 **칸을 지운 게 아니라 살렸다.** 다른 캐시 스펙에서는 링크 경로가 `javascript:go_view(...)` 를 집어
 정규화가 전부 거절했고, 그때는 규칙대로 칸이 빠지면서 "값이 하나도 없어서 상세링크 칸은 뺐어요" 가 떴다.
 
+### 5-9. 두 번째 사이트 접합 — 기능 ② 가 돈다 ✅ **(2026-07-27)**
+
+[`pipeline/attach-source.ts`](../apps/worker/src/pipeline/attach-source.ts) + `pnpm --filter @endpointer/worker attach <slug> <url>`.
+
+이 기능의 성패는 숫자 하나다: **사용자가 손으로 채워야 하는 칸이 몇 개인가.**
+
+| 붙인 사이트 | 자동 | 물어봄 | 항목 |
+|---|---|---|---|
+| k-startup → `bizinfo` 표 | **5/6** | 1 (원문 링크) | 15 |
+| wevity → `bizinfo` 표 | 4/6 | 2 (마감일·등록일) | 21 |
+| wevity + `--paste "deadline=D-32"` | **5/6** | 1 (등록일) | 21 |
+
+붙여넣기 루프가 실제로 돈다 — `D-32` 를 넣으니 `css:div.day` 를 찾았고, 날짜 정규화가
+`D-32 접수중` 을 **`2026-08-28`** 로 바꿨다. **LLM 없이** 결정론적으로 (보장선 B1).
+
+**이 흐름을 만들면서 잡은 결함 넷** — 넷 다 "그럴듯한데 틀린" 부류다:
+
+1. **매핑이 CSS 경로를 지어냈다.** `matchFields` 가 `candidate.rows` 를 프롬프트에 넣었는데,
+   그건 화면에 보이는 **글자**다 (`probe/types.ts` 의 rows 주석). HTML 을 한 번도 못 본 채
+   선택자를 쓰라고 시킨 셈이라 `.tit`·`.organ` 같은 걸 지어내고 확신도는 1.0 으로 적었다.
+   **"6개 전부 찾음" 인데 항목은 0개였다.** `discover.ts` 는 처음부터 `row_html` 을 쓰고 있었다.
+2. **LLM 의 `list` 가 probe 의 것을 덮었다.** probe 는 선택자를 실제로 돌려 몇 행이 나오는지까지
+   보고 고른다. 그걸 검증 안 된 추측(`css:.list_item` — 없는 선택자)으로 덮어써서 0건이 됐다.
+   **확인된 값이 이긴다.**
+3. **`missing` 이 있으면 스펙이 통째로 거절됐다.** `validateSpec` 이 필수 칸을 전부 요구해서,
+   등록일 하나 못 찾은 wevity 는 미리보기조차 못 봤다. 그런데 **못 찾은 칸을 물어보는 게
+   이 기능의 핵심이다.** 찾은 칸만 담은 스키마로 검증하게 고쳤다.
+4. **지어낸 주소가 모든 검사를 통과했다** ([`verify-link.ts`](../apps/worker/src/pipeline/verify-link.ts)).
+   href 가 `javascript:go_view(178642);` 인 사이트에서 LLM 이 번호를 뽑아 주소 틀에 끼웠는데,
+   그 틀을 지어냈다:
+
+   ```
+   https://www.k-startup.go.kr/web/contents/bizpbanc-ongoing.do?view=178642
+   → HTTP 200 · 그런데 열리는 건 목록 페이지다 (서버가 ?view 를 무시한다)
+   진짜는 .../detail.do?sn=178642
+   ```
+
+   **주소 문법 맞고, 칸 안 비고, 항목마다 값이 다 다르다.** 우리가 가진 어떤 검사도 못 잡는다.
+   사용자가 눌러 보고서야 아는데, 그때는 이미 "이 제품은 거짓말을 한다" 가 된다.
+   그래서 **첫 링크를 한 번 열어 본다** — 열린 페이지에 다른 항목 제목이 여러 개 있으면 목록이다.
+   확실하지 않으면 통과시킨다 (멀쩡한 링크를 의심해 물어보면 그게 지는 싸움이다).
+
+**아직 저장은 안 된다.** `persistNewCollection` 은 컬렉션을 *만드는* 것뿐이라
+이미 있는 표에 사이트를 더 앉히는 경로가 없다 (`db.insertSource` 는 만들어 뒀다).
+
+> **곁가지** — wevity 의 `소관부처` 첫 값이 `주최사` 로 나온다. 목록의 첫 행이 머리글인데
+> probe 가 그걸 항목으로 센다. 머리글 행 걸러내기는 아직 없다.
+
 ---
 
 ## 6. 미검증 결함 후보 ⚠️
@@ -466,8 +513,10 @@ LLM 이 낸 변환이 그걸 지웠다:
    - `create-collection.ts` 는 DB 를 모른다 → 화면의 "미리보기" 가 저장 없이 같은 코드를 부를 수 있다
    - 저장은 `pipeline/persist.ts` 가 따로 한다 → 사용자가 표를 **보고 나서** 저장한다 (보장선 B3)
 5-1. ~~항상 비는 칸을 만들어 내지 않게 한다~~ — **됐다** (2026-07-27). §5-8.
-6. **`matchFields` 배선** — 두 번째 소스의 자동 매핑 (기능 ②).
-7. **`traceValue` 배선** — 못 찾은 필드를 값 붙여넣기로 해결 (보장선 B1).
+6. ~~`matchFields` 배선~~ — **됐다** (2026-07-27). §5-9.
+7. ~~`traceValue` 배선~~ — **됐다.** 붙여넣기 루프가 실제로 돈다. §5-9.
+7-1. **접합 결과를 저장하는 경로** — `persistNewCollection` 은 컬렉션을 **만드는** 것뿐이다.
+   이미 있는 표에 사이트를 하나 더 앉히는 `persistAttachedSource` 가 없다 (`db.insertSource` 는 만들어 뒀다).
 8. **§5-4 ISO 시각 소실 수정** — 두 소스의 날짜 형식이 같아야 G2 통과다.
 
 ### 7-3. 그 다음 (G3(A) — 자가 치유)

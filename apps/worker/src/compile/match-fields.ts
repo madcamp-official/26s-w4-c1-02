@@ -26,6 +26,15 @@ export const DEFAULT_MIN_CONFIDENCE = 0.6
 export interface FieldMatch {
   /** 항목 하나를 기준으로 한 경로 */
   path: string
+  /**
+   * 뽑은 값을 그 칸의 모양으로 바꾸는 변환.
+   * 경로만으로 안 되는 칸이 실제로 있다 — href 가 `javascript:go_view(178642);` 인 사이트에서
+   * 링크 칸은 번호를 뽑아 주소 틀에 끼워야 값이 된다. 없으면 undefined.
+   *
+   * 검증은 하지 않고 그대로 실어 보낸다. **닫힌 연산자 집합 검사는 `validateSpec` 이 한다** —
+   * 관문을 두 벌 만들면 한쪽에만 있는 구멍이 생긴다 (ADR A2).
+   */
+  transform?: unknown[]
   /** 0~1 */
   confidence: number
   /** 왜 이게 그 값이라고 판단했는지 (한국어 한 문장) */
@@ -67,7 +76,11 @@ export async function matchFields(input: MatchInput): Promise<MatchOutcome> {
   const prompt = buildMatchPrompt({
     schema: input.schema,
     existingSample: sampleRows(input.existingSample, 4),
-    candidateSample: sampleRows(input.candidate.rows, 6),
+    // **`rows` 를 넘기면 안 된다.** html·browser 후보의 `rows` 는 화면에 보이는 **글자**라서
+    // (probe/types.ts 의 rows 주석) 그걸 보여주면 LLM 이 CSS 경로를 짚을 자리가 없다 —
+    // 그럼 `.tit`·`.organ` 같은 그럴듯한 선택자를 **지어내고**, 확신도는 1.0 으로 적는다.
+    // 실제로 그래서 매핑이 "6개 전부 찾음" 인데 항목은 0개였다. discover.ts 와 같은 규칙이다.
+    candidateSample: sampleRows(input.candidate.row_html ?? input.candidate.rows, 6),
     url: input.url,
     fetchMode: input.candidate.fetch_mode,
   })
@@ -122,7 +135,13 @@ export function parseMatchOutput(
   if (input === null || typeof input !== 'object') return null
   const obj = input as Record<string, unknown>
 
-  const list = typeof obj['list'] === 'string' && obj['list'].trim() !== '' ? obj['list'] : fallbackList
+  // **probe 가 찾은 경로가 이긴다.** probe 는 선택자를 실제로 돌려서 몇 행이 나오는지,
+  // 화면 글자와 얼마나 겹치는지까지 보고 고른 것이다. LLM 의 것은 검증되지 않은 추측이라
+  // 덮게 두면 확인된 값을 추측으로 바꾸는 꼴이 된다 (실제로 `css:.list_item` 이라는
+  // 없는 선택자로 덮어써서 항목이 0개가 됐다).
+  // TODO(G3): 그러면 애초에 물어보지 않는 게 맞다 — 응답 스키마에서 `list` 를 빼라.
+  const llmList = typeof obj['list'] === 'string' ? obj['list'].trim() : ''
+  const list = fallbackList.trim() !== '' ? fallbackList : llmList
   const dedupeRaw = obj['dedupe_key']
   const dedupe_key = typeof dedupeRaw === 'string' && dedupeRaw.trim() !== '' ? dedupeRaw : null
 
@@ -146,8 +165,10 @@ export function parseMatchOutput(
       missing.push(field.key)
       continue
     }
+    const transform = Array.isArray(e['transform']) && e['transform'].length > 0 ? e['transform'] : undefined
     matched[field.key] = {
       path,
+      ...(transform !== undefined ? { transform } : {}),
       confidence,
       why: typeof e['why'] === 'string' ? e['why'] : null,
     }
