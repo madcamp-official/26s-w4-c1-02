@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 const TABS = [
   { suffix: '', label: '표' },
   { suffix: '/feed', label: '읽기 피드' },
-  { suffix: '/subscribe', label: '구독' },
+  { suffix: '/workshop', label: '작업실' },
   { suffix: '/connect', label: '연결' },
 ] as const
 

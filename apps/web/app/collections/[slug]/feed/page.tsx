@@ -40,7 +40,7 @@ export default async function CollectionFeedPage({ params }: PageProps) {
           </span>
         )}
         <Link
-          href={`/collections/${collection.slug}/subscribe`}
+          href={`/collections/${collection.slug}/workshop`}
           className="ml-auto rounded-[9px] border-[1.5px] border-accent px-4 py-2 text-[13.5px] font-bold text-accent hover:bg-accent-soft hover:no-underline"
         >
           새 항목 받아보기 →

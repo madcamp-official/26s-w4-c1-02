@@ -52,7 +52,7 @@ export async function subscribeWebhookAction(
   const result = await createWebhookSubscription(found.data.id, userId, target)
   if (!result.ok) return { status: 'problem', message: result.message }
 
-  revalidatePath(`/collections/${slug}/subscribe`)
+  revalidatePath(`/collections/${slug}/workshop`)
   if (!result.data.created) {
     return { status: 'exists', message: '이미 이 주소로 받아보고 있어요.' }
   }
@@ -67,5 +67,5 @@ export async function stopSubscriptionAction(slug: string, formData: FormData): 
   if (!found.ok || found.data === null) return
 
   await removeSubscription(found.data.id, subscriptionId)
-  revalidatePath(`/collections/${slug}/subscribe`)
+  revalidatePath(`/collections/${slug}/workshop`)
 }
