@@ -169,3 +169,49 @@ describe('페이지', () => {
     expect(p.fetchLimit).toBe(11)
   })
 })
+
+describe('뷰 술어 (A33·A35) — 같은 안전성 규약을 지킨다', () => {
+  function planQuery(partial: Record<string, unknown>) {
+    const q: CollectionQuery = CollectionQuerySchema.parse(partial)
+    return planItemsQuery(q, { collectionId: COLLECTION_ID, fields: FIELDS })
+  }
+
+  it('in 은 완전일치(@>)의 OR — 값은 전부 바인딩된다', () => {
+    const p = planQuery({ in: { category: ['rnd', 'startup'] } })
+    const { sql: text, params } = render(p.where)
+    expect(text).toContain(' or ')
+    expect(text).toContain('@>')
+    expect(text).not.toContain('rnd') // 값이 SQL 문자열에 섞이면 안 된다
+    expect(params.some((v) => String(v).includes('rnd'))).toBe(true)
+  })
+
+  it('not_in 은 not(...) — 값이 비어 있는 행도 "목록에 없음"으로 포함된다', () => {
+    const p = planQuery({ not_in: { category: ['rnd'] } })
+    expect(render(p.where).sql).toContain('not (')
+  })
+
+  it('contains 는 필드 하나 대상 ilike — 메타문자는 이스케이프된다', () => {
+    const p = planQuery({ contains: { title: '100%' } })
+    const { sql: text, params } = render(p.where)
+    expect(text).toContain('ilike')
+    expect(params).toContain('%100\\%%')
+  })
+
+  it('is_null 은 빈 문자열도 "비어 있음"으로 본다 (상시 가 어느 쪽으로 저장돼도)', () => {
+    const p = planQuery({ is_null: ['deadline'] })
+    expect(render(p.where).sql).toContain('nullif')
+  })
+
+  it('스키마에 없는 키는 어느 술어로도 SQL 에 닿지 않는다', () => {
+    const p = planQuery({
+      in: { ghost: ['x'] },
+      not_in: { ghost: ['x'] },
+      contains: { ghost: 'x' },
+      not_contains: { ghost: 'x' },
+      is_null: ['ghost'],
+    })
+    const { sql: text, params } = render(p.where)
+    expect(text).not.toContain('ghost')
+    expect(params.every((v) => !String(v).includes('ghost'))).toBe(true)
+  })
+})

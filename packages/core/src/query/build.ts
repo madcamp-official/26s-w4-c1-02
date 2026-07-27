@@ -273,6 +273,46 @@ export function buildItemsWhere(query: CollectionQuery, ctx: BuildWhereContext):
     conditions.push(sql`${fieldExpr(field)} <= ${bindValue(field, value)}`)
   }
 
+  // ── 뷰 술어 (A33·A35) — 전부 화이트리스트 + 바인딩. 머리말의 안전성 문단이 그대로 적용된다
+  for (const [key, values] of Object.entries(query.in)) {
+    const field = byKey.get(key)
+    if (!field || values.length === 0) continue
+    // 완전일치의 OR — 각각이 GIN 인덱스를 타는 @> 다
+    const anyOf = values.map((v) => equalityCondition(field, v))
+    conditions.push(sql`(${sql.join(anyOf, sql` or `)})`)
+  }
+
+  for (const [key, values] of Object.entries(query.not_in)) {
+    const field = byKey.get(key)
+    if (!field || values.length === 0) continue
+    // 값이 비어 있는 행은 "목록에 없음"이 맞으므로 포함된다 (@> 가 false → not → true)
+    const anyOf = values.map((v) => equalityCondition(field, v))
+    conditions.push(sql`not (${sql.join(anyOf, sql` or `)})`)
+  }
+
+  for (const [key, term] of Object.entries(query.contains)) {
+    const field = byKey.get(key)
+    if (!field) continue
+    // 값이 비어 있는 행은 아무것도 포함하지 않는다 — null ilike → null → 제외 (coalesce 없이)
+    conditions.push(sql`(${items.data_json} ->> ${field.key}) ilike ${`%${escapeLikePattern(term)}%`}`)
+  }
+
+  for (const [key, term] of Object.entries(query.not_contains)) {
+    const field = byKey.get(key)
+    if (!field) continue
+    // 값이 비어 있는 행은 "포함하지 않음"이 맞으므로 coalesce 로 포함시킨다
+    conditions.push(
+      sql`coalesce(${items.data_json} ->> ${field.key}, '') not ilike ${`%${escapeLikePattern(term)}%`}`,
+    )
+  }
+
+  for (const key of query.is_null) {
+    const field = byKey.get(key)
+    if (!field) continue
+    // 키 없음 · json null · 빈 문자열 셋 다 "비어 있음"이다 (`상시` 가 이 셋 중 무엇으로 저장돼도)
+    conditions.push(sql`nullif(${items.data_json} ->> ${field.key}, '') is null`)
+  }
+
   if (query.q) {
     const search = searchCondition(query.q, ctx.fields)
     if (search) conditions.push(search)

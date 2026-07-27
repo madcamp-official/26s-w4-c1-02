@@ -86,6 +86,18 @@ export const CollectionQuerySchema = z.object({
   gte: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
   /** date·number·money 타입에만. 예) `?amount_lte=100000000` */
   lte: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
+  // ── 아래 다섯은 뷰 계약(A33·A35)이 추가했다. 기본값이 있어 기존 쿼리는 그대로 동작한다.
+  //    URL 파라미터로는 아직 안 받는다 — viewToQuery(query/view.ts)만 채운다.
+  /** 값이 목록 중 하나 (enum). 빈 배열은 허용하지 않는다 — 파싱이 거른다 */
+  in: z.record(z.string(), z.array(z.union([z.string(), z.number()])).min(1)).default({}),
+  /** 값이 목록에 없음 (enum). 값이 비어 있는 행도 "목록에 없음"으로 포함된다 */
+  not_in: z.record(z.string(), z.array(z.union([z.string(), z.number()])).min(1)).default({}),
+  /** 특정 text 필드가 이 문자열을 포함 (`q` 는 전 필드 대상, 이건 한 필드 대상) */
+  contains: z.record(z.string(), z.string().min(1)).default({}),
+  /** 특정 text 필드가 이 문자열을 포함하지 않음. 값이 비어 있는 행도 포함된다 */
+  not_contains: z.record(z.string(), z.string().min(1)).default({}),
+  /** 값이 비어 있는 행만 (`상시` 같은 것). 빈 문자열도 "비어 있음"으로 본다 */
+  is_null: z.array(z.string()).default([]),
   /** text 타입 필드 전체 대상 검색 */
   q: z.string().optional(),
   /** 출처 호스트명 */

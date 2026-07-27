@@ -11,3 +11,4 @@
 export * from './params'
 export * from './build'
 export * from './respond'
+export * from './view'

@@ -43,8 +43,10 @@ G2 와 G4 가 합류 지점이다. 이 두 곳에서만 서로의 결과물이 �
 - [x] 정규화 파서가 date / money / number / text / link / enum 여섯 타입을 처리한다 (`src/normalize/*`)
 - [x] 정규화·연산자·해석기·검증기에 단위 테스트가 붙어 있다 (`src/**/*.test.ts`)
 - [x] `pnpm --filter @endpointer/core test` 가 실제로 통과한다 — 07-27 실측 657개
-- [ ] `[Δ]` **뷰 계약 신설** — `View`(where·sort·columns·notify·owner·health) 타입 + 술어(op) 닫힌 집합
-      (델타 2-2·2-7 · 13-2). **G3 착수 전에 두 트랙이 같이 고정한다** — 뷰는 G0 계약과 같은 급의 공유물이다
+- [x] `[Δ]` **뷰 계약 신설** — 계약 확정(07-27 저녁 · [view-contract-draft.md](./view-contract-draft.md) §7)
+      + core 반영 완료: `types/view.ts`(술어 닫힌 집합 zod) · `query/view.ts`(`viewToQuery` — 네 출구의 단일 진입)
+      · 마이그레이션 `0001`(views·view_matches·notification_log). health 는 저장하지 않는다(결정 ③).
+      검증: `pnpm --filter @endpointer/core test` 687개 (+30)
 
 ### DB 와 시드
 

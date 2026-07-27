@@ -28,6 +28,7 @@ import type { ItemData, ItemProvenance, ItemRaw } from '../types/item'
 import type { RunStatus, ValidationReport } from '../types/run'
 import type { FetchMode, SourceStatus } from '../types/source'
 import type { DeliveryStatus, SubscriptionChannel } from '../types/subscription'
+import type { ViewCondition, ViewNotify, ViewSort } from '../types/view'
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' })
 
@@ -281,6 +282,94 @@ export const deliveries = pgTable(
 )
 
 // ════════════════════════════════════════════════════════════════════════
+// 뷰 (뷰 계약 — docs/view-contract-draft.md · G0 계약 #6)
+// ════════════════════════════════════════════════════════════════════════
+
+export const views = pgTable(
+  'views',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    collection_id: uuid('collection_id')
+      .notNull()
+      .references(() => collections.id, { onDelete: 'cascade' }),
+    /** REST ?view= 와 MCP 도구명. ASCII 라야 한다 (suggestViewSlug — 계약 §1 ※) */
+    slug: text('slug').notNull(),
+    name: text('name').notNull(),
+    /** 술어 닫힌 집합만 (A35). 저장 전에 ViewConditionSchema + validateViewDefinition 을 통과해야 한다 */
+    where_json: jsonb('where_json')
+      .$type<ViewCondition[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    sort_json: jsonb('sort_json')
+      .$type<ViewSort[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** null = 컬렉션 기본 열 */
+    columns_json: jsonb('columns_json').$type<string[]>(),
+    /** null = 알림 꺼짐 (기본). channels 는 subscriptions.id 목록 (계약 §4-b) */
+    notify_json: jsonb('notify_json').$type<ViewNotify>(),
+    owner_id: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    pinned: boolean('pinned').notNull().default(false),
+    created_at: ts('created_at').notNull().defaultNow(),
+    updated_at: ts('updated_at').notNull().defaultNow(),
+    // health 컬럼은 **없다** — 읽을 때 계산한다 (계약 §7 결정 ③).
+    // 컬럼으로 두면 갱신 시점을 전부 정의해야 하고 하나 빠지면 썩은 값이 화면에 남는다.
+  },
+  (t) => [
+    unique('views_collection_slug_uq').on(t.collection_id, t.slug),
+    index('views_owner_idx').on(t.owner_id),
+  ],
+)
+
+/**
+ * 뷰별 현재 매칭 집합. **현재 상태와 동기화한다** — enter 는 추가, exit 는 삭제 (계약 §7 결정 ①).
+ * 재진입은 새 enter 다. run 후 차집합(지금 매칭 − 이 테이블)이 곧 enter 목록이다.
+ */
+export const viewMatches = pgTable(
+  'view_matches',
+  {
+    view_id: uuid('view_id')
+      .notNull()
+      .references(() => views.id, { onDelete: 'cascade' }),
+    item_id: uuid('item_id')
+      .notNull()
+      .references(() => items.id, { onDelete: 'cascade' }),
+    /** "이번 진입" 시각 — 재진입하면 갱신된다 */
+    matched_at: ts('matched_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.view_id, t.item_id] })],
+)
+
+/**
+ * 발송 기록 (구 notification_dedupe — 계약 §3). dedupe 는 "같은 전이 사건에 채널당 1회"이고
+ * 재진입은 새 사건이므로 평생 1회 PK 가 아니라 **기록**이다 (A36).
+ * 같은 (channel_key, item_id) 는 24시간 안에 재발송하지 않는다 — 발송 잡이 이 테이블로 판정한다.
+ * 부수 효과: 뷰 카드의 "최근 enter 2건 (어제)" 재료.
+ */
+export const notificationLog = pgTable(
+  'notification_log',
+  {
+    /** 채널 id 가 아니라 kind + 정규화된 target 의 해시 — 같은 URL 이 두 행이어도 1회 (계약 §4-b) */
+    channel_key: text('channel_key').notNull(),
+    item_id: uuid('item_id')
+      .notNull()
+      .references(() => items.id, { onDelete: 'cascade' }),
+    /** 이 발송이 어느 뷰들에 걸려 나갔는지 — "3개 뷰에 걸림" 표시의 재료 */
+    view_ids_json: jsonb('view_ids_json')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    sent_at: ts('sent_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.channel_key, t.item_id, t.sent_at] }),
+    index('notification_log_item_sent_idx').on(t.item_id, t.sent_at),
+  ],
+)
+
+// ════════════════════════════════════════════════════════════════════════
 // 관계
 // ════════════════════════════════════════════════════════════════════════
 
@@ -304,6 +393,18 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
   sources: many(sources),
   items: many(items),
   subscriptions: many(subscriptions),
+  views: many(views),
+}))
+
+export const viewsRelations = relations(views, ({ one, many }) => ({
+  collection: one(collections, { fields: [views.collection_id], references: [collections.id] }),
+  owner: one(users, { fields: [views.owner_id], references: [users.id] }),
+  matches: many(viewMatches),
+}))
+
+export const viewMatchesRelations = relations(viewMatches, ({ one }) => ({
+  view: one(views, { fields: [viewMatches.view_id], references: [views.id] }),
+  item: one(items, { fields: [viewMatches.item_id], references: [items.id] }),
 }))
 
 export const sourcesRelations = relations(sources, ({ one, many }) => ({
@@ -363,3 +464,7 @@ export type SubscriptionRow = typeof subscriptions.$inferSelect
 export type NewSubscriptionRow = typeof subscriptions.$inferInsert
 export type DeliveryRow = typeof deliveries.$inferSelect
 export type NewDeliveryRow = typeof deliveries.$inferInsert
+export type ViewRow = typeof views.$inferSelect
+export type NewViewRow = typeof views.$inferInsert
+export type ViewMatchRow = typeof viewMatches.$inferSelect
+export type NotificationLogRow = typeof notificationLog.$inferSelect

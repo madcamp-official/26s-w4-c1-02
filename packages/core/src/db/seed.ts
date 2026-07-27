@@ -925,6 +925,12 @@ async function seed(): Promise<void> {
     eq: { category: 'rnd' },
     gte: { amount: 50_000_000 },
     lte: {},
+    // 뷰 술어 다섯 자리 (A33) — 시드 구독은 쓰지 않으므로 빈 값
+    in: {},
+    not_in: {},
+    contains: {},
+    not_contains: {},
+    is_null: [],
     sort: 'deadline',
   }
 

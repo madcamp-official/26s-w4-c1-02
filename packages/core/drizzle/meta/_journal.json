@@ -8,6 +8,13 @@
       "when": 1785012993284,
       "tag": "0000_quiet_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785138713631,
+      "tag": "0001_wide_mephistopheles",
+      "breakpoints": true
     }
   ]
 }
