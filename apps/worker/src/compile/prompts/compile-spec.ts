@@ -88,7 +88,9 @@ export function buildCompilePrompt(input: CompilePromptInput): string {
     `- 어디서 찾았나: ${candidate.where} (${candidate.origin})`,
     `- 항목을 집는 경로(list) 후보: \`${candidate.list_path}\``,
     `- 화면에 보이는 글자와의 겹침: ${Math.round(candidate.overlap * 100)}%`,
-    candidate.keys.length > 0 ? `- 항목의 키: ${candidate.keys.join(', ')}` : '',
+    // 빈 배열을 펼쳐 없애는 방식으로 뺀다. `''` 를 넣고 뒤에서 filter 하면
+    // **의도한 빈 줄 구분자까지 같이 지워져** 섹션 제목이 앞 블록에 달라붙는다.
+    ...(candidate.keys.length > 0 ? [`- 항목의 키: ${candidate.keys.join(', ')}`] : []),
     '',
     jsonBlock('항목 표본', candidate.sample),
     '',
@@ -104,7 +106,7 @@ export function buildCompilePrompt(input: CompilePromptInput): string {
     )
   }
 
-  return parts.filter((p) => p !== '').join('\n')
+  return parts.join('\n')
 }
 
 /**

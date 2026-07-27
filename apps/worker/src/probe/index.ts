@@ -94,7 +94,10 @@ export async function probe(url: string, opts: ProbeOptions = {}): Promise<Probe
 
   // 1단계(정적 GET)는 독립된 probe 경로가 아니라 나머지의 입력이다.
   // ProbePath 에 'static' 을 두지 않는 이유가 그것이고, 대신 2단계 note 에 합쳐 남긴다.
-  const staticNote = `HTML ${page.html.length.toLocaleString('ko-KR')}자 (${Date.now() - staticStart}ms)`
+  // utf-8 이 아니면 적어 둔다. 안 적으면 글자가 깨진 채로도 겹침률 100% 가 나와서
+  // 아무도 알아채지 못한다 (`fetchers/charset.ts` 머리말).
+  const charsetNote = page.charset === 'utf-8' ? '' : ` · ${page.charset} 로 읽음`
+  const staticNote = `HTML ${page.html.length.toLocaleString('ko-KR')}자 (${Date.now() - staticStart}ms)${charsetNote}`
 
   // ── 2단계 · 인라인 JSON ──────────────────────────────────────────────
   const inlineStart = Date.now()

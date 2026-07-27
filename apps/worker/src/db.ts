@@ -18,12 +18,24 @@ import type {
   SourceRow,
   SubscriptionRow,
 } from '@endpointer/core/db'
-import { db, queryClient, adapters, items, runs } from '@endpointer/core/db'
-import type { ItemData, ItemProvenance, ItemRaw, RunStatus, SourceStatus, ValidationReport } from '@endpointer/core'
+import { db, queryClient, adapters, collections, items, runs, sources } from '@endpointer/core/db'
+import type {
+  CollectionSchemaJson,
+  FetchMode,
+  ItemData,
+  ItemProvenance,
+  ItemRaw,
+  RunStatus,
+  SourceStatus,
+  ValidationReport,
+} from '@endpointer/core'
 import type { AdapterSpec, InterpretedItem } from '@endpointer/core/spec'
 import { hashString, stableStringify } from '@endpointer/core/spec'
 
 export { db, queryClient } from '@endpointer/core/db'
+// pipeline/persist.ts 가 INSERT 를 하려면 테이블 객체가 필요하다.
+// worker 에 drizzle-orm 이 없어서 여기를 거쳐 간다 (위 주석 참조).
+export { collections, sources, adapters, items, runs } from '@endpointer/core/db'
 export type { SourceRow, CollectionRow, AdapterRow, ItemRow, RunRow, SubscriptionRow }
 
 // ── 읽기 ───────────────────────────────────────────────────────────────
@@ -94,6 +106,44 @@ export async function loadCollection(collectionId: string): Promise<CollectionRo
   return row ?? null
 }
 
+/** 두 번째 사이트를 붙일 때 필요한 것 — 표의 칸과 **이미 담긴 값의 실례** (9-2②) */
+export interface CollectionForAttach {
+  collection: CollectionRow
+  schema: CollectionSchemaJson
+  /**
+   * 이미 표에 있는 항목 표본. 매핑 프롬프트가 "이 칸에는 이런 값이 온다" 를 이걸로 안다.
+   * 표본이 없으면(첫 사이트도 아직 안 돈 표) 매핑이 칸 이름만 보고 찍게 된다.
+   */
+  sample: unknown[]
+}
+
+export async function loadCollectionForAttach(slug: string): Promise<CollectionForAttach | null> {
+  const collection = await db.query.collections.findFirst({ where: (c, { eq }) => eq(c.slug, slug) })
+  if (collection === undefined) return null
+
+  const rows = await db.query.items.findMany({
+    where: (i, { eq }) => eq(i.collection_id, collection.id),
+    columns: { data_json: true },
+    limit: 8,
+  })
+
+  return { collection, schema: collection.schema_json, sample: rows.map((r) => r.data_json) }
+}
+
+/** 이미 있는 표에 사이트를 하나 더 붙인다 (9-2). 컬렉션은 만들지 않는다 */
+export async function insertSource(input: {
+  collection_id: string
+  host: string
+  entry_url: string
+  fetch_mode: FetchMode
+}): Promise<SourceRow | null> {
+  const rows = await db
+    .insert(sources)
+    .values({ ...input, status: 'ok' })
+    .returning()
+  return rows[0] ?? null
+}
+
 /** 아이템의 출처 호스트명 — 발송 페이로드의 `_source` */
 export async function hostsBySourceId(sourceIds: readonly string[]): Promise<Map<string, string>> {
   if (sourceIds.length === 0) return new Map()
@@ -150,13 +200,17 @@ export async function finishRun(
     error_summary: string | null
   },
 ): Promise<void> {
+  // jsonb 는 `queryClient.json()` 이 아니라 직접 문자열로 만든다.
+  // 클라이언트를 `prepare: false` 로 만들었는데 (client.ts — PgBouncer 대비)
+  // 그 조합에서 postgres.js 3.4 가 객체를 그대로 넘겨
+  // "The string argument must be of type string" 으로 죽는다.
   await queryClient`
     update runs set
       finished_at     = now(),
       status          = ${patch.status},
       items_found     = ${patch.items_found},
       items_new       = ${patch.items_new},
-      validation_json = ${patch.validation_json === null ? null : queryClient.json(patch.validation_json)},
+      validation_json = ${patch.validation_json === null ? null : JSON.stringify(patch.validation_json)},
       error_summary   = ${patch.error_summary}
     where id = ${runId}
   `

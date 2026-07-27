@@ -127,6 +127,10 @@ async function main(): Promise<void> {
     })
   }
 
+  // 화면이 파이프라인을 부르는 문 (ADR A30). 토큰이 없으면 열리지 않는다.
+  const { startHttpServer } = await import('./http')
+  const httpServer = startHttpServer()
+
   logger.info(
     {
       queues: [QUEUE_COLLECT, QUEUE_HEAL, QUEUE_DELIVER],
@@ -134,6 +138,7 @@ async function main(): Promise<void> {
       browser_concurrency: cfg.browserConcurrency,
       channels: registeredChannels(),
       gemini: gemini.ready ? gemini.model : 'off',
+      http: httpServer === null ? 'off' : cfg.workerHttpPort,
     },
     '워커 시작',
   )
@@ -155,6 +160,7 @@ async function main(): Promise<void> {
     timer.unref()
 
     try {
+      httpServer?.close()
       await Promise.all(workers.map((w) => w.close()))
       await closeQueues()
       const { closeDb } = await import('@endpointer/core/db')

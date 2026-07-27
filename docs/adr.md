@@ -67,14 +67,29 @@
 | **A25** | 로컬 `docker-compose.yml` 은 **인프라(postgres·redis)만**. 앱은 호스트에서 `pnpm dev` | `accepted` | 개발 중 앱까지 컨테이너에 넣으면 HMR·tsx watch 가 느려지고 Playwright 디버깅이 어려워진다. 배포용 전체 구성(web·worker·mcp·caddy)은 `deploy/docker-compose.prod.yml` 로 분리한다 | 로컬과 배포의 차이 때문에 "내 컴퓨터에서는 됐는데"가 실제로 발생하면 | 루트 `docker-compose.yml`, `deploy/`, 루트 `package.json` `infra:*` 스크립트 |
 | **A26** | 보장선 B2(내부 명사 금지)를 **테스트로 강제**한다 | `accepted` | 기획서 15장이 "보장선이 조용히 무너짐"을 리스크로 꼽았다. 급할 때 붙인 상태 문구 한 줄이 보장선을 깨고, 사람 눈으로만 지키면 G4 전수 점검에서야 발견된다. 문자열 규약은 기계가 잡을 수 있는 유일한 보장선이므로 잡는다 | 오탐이 잦아 개발이 막히면 (그때는 패턴을 좁히지, 테스트를 끄지 않는다) | `apps/web/lib/guardrails.ts`, `guardrails.test.ts`, `docs/guardrails.md` |
 
-## A27 — 배포(G4)에서 생긴 결정
+## A27~ — G1 작업 중 생긴 결정
 
 날짜는 2026-07-27 이다.
 
+> ⚠️ **A27 은 코드가 먼저 들어갔다.** 절차(ADR 먼저)를 어긴 것이라 여기 적어 둔다.
+> 되돌릴 수 있는 결정이므로 남긴다.
+
 | # | 결정 | 상태 | 근거 | 이걸 다시 보게 만드는 조건 | 영향받는 곳 |
 |---|---|---|---|---|---|
-| **A27** | HTTPS 는 Let's Encrypt 가 아니라 **Caddy 내부 CA(자체 서명)** | `superseded` (→ A28) | 캠프 VM(172.10.8.235)은 VPN 안 사설 IP 라 HTTP-01 챌린지가 불가능하고, 캠프 DNS API 가 언더스코어 레코드(`_acme-challenge`)를 금지해 DNS-01 도 불가능하다. HTTP 평문으로는 구글 OAuth 리디렉션 URI(https 필수)가 성립하지 않는다. 남는 선택지는 내부 CA 하나 — 첫 접속 시 브라우저 경고 1회를 감수한다 | 공인 IP VM 으로 옮기거나 DNS API 가 TXT `_acme-challenge` 를 허용하게 되면 → Caddyfile 의 `tls internal` 세 줄을 지우면 A9 원안(자동 LE)으로 복귀한다 | `deploy/Caddyfile`, deploy/README 의 G4 체크 "유효한 인증서(경고 없음)" 항목은 이 조건에서 "경고 후 진행"으로 완화 |
-| **A28** | 외부 공개는 **Cloudflare Tunnel** — Caddy 는 8080 평문으로 터널을 받고, TLS 는 Cloudflare 엣지가 끝낸다 | `accepted` | A27 의 조건(사설 IP)이 그대로인 채로 "VPN 없는 방문자"가 필요해졌다. 캠프 DNS API 의 터널 기능이 `cloudflared` 아웃바운드 연결 + 정식 인증서를 제공한다 — 브라우저 경고가 사라지고 G4 "유효한 인증서" 체크가 원래 의미로 복원된다. Caddy 의 :443(내부 CA)은 VPN 직접 접속용으로 남긴다. 평문 블록은 `X-Forwarded-Proto: https` 를 명시한다 (엣지가 TLS 를 끝냈으므로 — 이게 없으면 Auth.js 콜백이 http 로 구른다) | 터널 API 가 사라지거나 순수 TCP/UDP 가 필요해지면 (터널은 HTTP 계열만 통과한다 — 7-8) | `deploy/Caddyfile` (`:8080` 블록 3개), `docker-compose.prod.yml` (caddy 에 127.0.0.1:8080 바인딩), VM 의 `cloudflared` systemd 서비스 |
+| **A27** | 나가는 요청은 **fetch 계층의 관문**에서 이름을 풀어 검사하고, 리다이렉트 **홉마다** 다시 검사한다. 확인된 IP 로 접속을 고정하지는 **않는다** | `accepted` | 이 제품은 사용자가 준 주소를 서버가 대신 연다 — 임의 URL 을 받는 것이 기능이므로 SSRF 는 부수 위험이 아니라 **기능의 이면**이다. 검사를 스펙 검증(`validateSpec`)에만 두면 probe 는 스펙이 생기기 **전에** 나가므로 아무것도 못 막는다. 이름만 보는 검사는 `evil.example → 127.0.0.1` 을 못 막아 이름 풀기가 필요하고, 첫 주소만 보면 302 한 번에 뚫려 홉마다 검사가 필요하다. IP 고정은 Node 내장 fetch 로 불가능해(undici 직접 의존) 지금 범위 밖이다 | ① DNS 리바인딩이 실제 위협이 되면 → undici 를 의존에 넣고 `lookup` 고정 (그때는 새 ADR). ② `apps/web`·`apps/mcp` 가 서버에서 임의 주소를 열게 되면 → 관문을 `packages/core` 로 올려야 한다 (지금은 worker 안에만 있다) | `apps/worker/src/fetchers/guard.ts`, `fetchers/http.ts`(수동 리다이렉트), `fetchers/browser.ts`·`probe/network.ts`(라우트 훅), `jobs/channels/webhook.ts`, `packages/core/src/spec/validate.ts`(`isPrivateHost`), `.env.example`(`ALLOW_PRIVATE_HOSTS`) |
+| **A28** | 응답 본문의 인코딩은 **BOM → 헤더 → `<meta>`(앞 4KB) → UTF-8** 순으로 정한다. 판정은 `TextDecoder` 에게 맡기고 별도 인코딩 목록을 들지 않는다 | `accepted` | `res.text()` 는 헤더의 charset 만 본다. 한국 공공·협회 목록에는 헤더에 charset 을 안 적고 `<meta charset="euc-kr">` 로만 적은 곳이 아직 있다(korcham.net 으로 재현). 이때 **목록은 정상적으로 뚫리고 겹침률도 100% 가 나온다** — 화면 텍스트도 같이 깨져 둘이 일치하기 때문이다. 즉 우리가 가진 어떤 품질 신호에도 안 걸리는 **조용한 실패**라서, 사후 탐지가 아니라 받는 지점에서 막아야 한다. 순서를 브라우저와 같게 두는 이유는 사이트들이 브라우저에서 보이는 대로 만들어졌기 때문이다 | ① 헤더가 `iso-8859-1` 인데 `<meta>` 가 EUC-KR 인 사이트가 나오면 → 브라우저는 헤더를 따르지만 우리는 `<meta>` 를 택할지 다시 판단한다(그런 주소를 아직 못 잡아 지금은 브라우저와 같게 뒀다). ② 인코딩 자동 판별(문자 빈도 추정)이 필요해지면 → 의존성이 생기므로 새 ADR | `apps/worker/src/fetchers/charset.ts`, `fetchers/http.ts`(`HttpResponse.charset`), `probe/static.ts`·`probe/index.ts`(단계 기록에 표시) |
+| **A29** | 앱의 `.env` 로딩은 **별도 모듈**(`load-env.ts`)에 두고 진입점의 **첫 import** 로 부른다 | `accepted` | ESM 은 `import` 선언을 전부 본문 코드보다 먼저 평가한다. 진입점 안에서 `loadDotenv()` 를 맨 위에 적어도, 아래에 있는 `@endpointer/core/db` 가 **먼저** 평가되면서 모듈 최상단에서 `DATABASE_URL` 을 읽다 죽는다. 실제로 `apps/mcp` 가 이 이유로 `pnpm dev:mcp` 에서 부팅조차 못 했다. 모듈로 빼면 ESM 이 import 선언 순서대로 의존 모듈을 평가하므로 순서가 보장된다 | 앱이 늘어나면 같은 파일을 복사하게 된다 → 세 번째 앱이 생기면 `packages/core` 로 올린다 | `apps/mcp/src/load-env.ts`, `apps/mcp/src/index.ts`. (`apps/worker` 는 `config.ts` 가 우연히 같은 역할을 하고 있어 지금은 무사하나 같은 함정 위에 있다) |
+| **A30** | 트랙 B 화면은 워커의 **HTTP 진입점**으로 파이프라인을 부른다. 큐가 아니고, `apps/web` 이 `apps/worker` 를 직접 import 하지도 않는다 | `accepted` | ① **미리보기는 본질적으로 요청-응답이다.** 사용자는 표를 *보고 나서* 저장한다(보장선 B3). 큐로 하면 화면이 폴링·대기 상태를 다뤄야 하고, B 가 이미 만든 create-flow 를 그만큼 고쳐야 한다. ② **직접 import 는 경계를 무너뜨린다.** cheerio·playwright·Gemini SDK 가 Next 서버 번들로 끌려 들어가고, `apps/web → apps/worker` 의존이 생겨 트랙 경계가 디렉터리 경계와 어긋난다. ③ 워커에 HTTP 진입점이 생기면 **수동 수집 트리거(G3)** 도 같은 문 하나로 풀린다 — 지금은 밖에서 파이프라인을 부를 수단이 cron 등록뿐이다. 정기 수집은 지금처럼 큐로 남는다 (그건 요청-응답이 아니다) | ① 미리보기가 느려 브라우저 시한을 넘기면 → 그때 큐 + 폴링으로 바꾼다 (새 ADR). ② 워커를 여러 대로 늘리면 → 진입점 앞에 로드밸런서가 필요하고 호스트별 간격 제어(`http.ts` 의 프로세스 메모리 맵)를 Redis 로 옮겨야 한다 | `apps/worker` 의 HTTP 진입점(신설), `apps/web/lib/create.ts`(`buildMockPreview` 를 fetch 로 교체), `.env`(워커 주소·내부 토큰) |
+
+## A31~ — 배포(G4)에서 생긴 결정
+
+날짜는 2026-07-27 이다. (트랙 B 가 A27·A28 로 적었다가 main 의 번호와 겹쳐 A31·A32 로 옮겼다 —
+커밋 메시지·과거 대화의 "A27/A28(배포)"는 이 두 줄을 가리킨다)
+
+| # | 결정 | 상태 | 근거 | 이걸 다시 보게 만드는 조건 | 영향받는 곳 |
+|---|---|---|---|---|---|
+| **A31** | HTTPS 는 Let's Encrypt 가 아니라 **Caddy 내부 CA(자체 서명)** | `superseded` (→ A32) | 캠프 VM(172.10.8.235)은 VPN 안 사설 IP 라 HTTP-01 챌린지가 불가능하고, 캠프 DNS API 가 언더스코어 레코드(`_acme-challenge`)를 금지해 DNS-01 도 불가능하다. HTTP 평문으로는 구글 OAuth 리디렉션 URI(https 필수)가 성립하지 않는다. 남는 선택지는 내부 CA 하나 — 첫 접속 시 브라우저 경고 1회를 감수한다 | 공인 IP VM 으로 옮기거나 DNS API 가 TXT `_acme-challenge` 를 허용하게 되면 → Caddyfile 의 `tls internal` 세 줄을 지우면 A9 원안(자동 LE)으로 복귀한다 | `deploy/Caddyfile`, deploy/README 의 G4 체크 "유효한 인증서(경고 없음)" 항목은 이 조건에서 "경고 후 진행"으로 완화 |
+| **A32** | 외부 공개는 **Cloudflare Tunnel** — Caddy 는 8080 평문으로 터널을 받고, TLS 는 Cloudflare 엣지가 끝낸다 | `accepted` | A31 의 조건(사설 IP)이 그대로인 채로 "VPN 없는 방문자"가 필요해졌다. 캠프 DNS API 의 터널 기능이 `cloudflared` 아웃바운드 연결 + 정식 인증서를 제공한다 — 브라우저 경고가 사라지고 G4 "유효한 인증서" 체크가 원래 의미로 복원된다. Caddy 의 :443(내부 CA)은 VPN 직접 접속용으로 남긴다. 평문 블록은 `X-Forwarded-Proto: https` 를 명시한다 (엣지가 TLS 를 끝냈으므로 — 이게 없으면 Auth.js 콜백이 http 로 구른다) | 터널 API 가 사라지거나 순수 TCP/UDP 가 필요해지면 (터널은 HTTP 계열만 통과한다 — 7-8) | `deploy/Caddyfile` (`:8080` 블록 3개), `docker-compose.prod.yml` (caddy 에 127.0.0.1:8080 바인딩), VM 의 `cloudflared` systemd 서비스 |
 
 ---
 

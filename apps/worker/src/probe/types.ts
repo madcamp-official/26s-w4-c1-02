@@ -50,8 +50,19 @@ export interface ProbeCandidate {
   fetch_mode: FetchMode
   /** 스펙의 fetch.url 후보 */
   fetch_url: string
-  /** 후보 목록의 원소들. json 후보면 객체, dom 후보면 행 HTML */
+  /**
+   * 후보 목록의 원소들. json 후보면 객체, dom 후보면 행에 보이는 글자.
+   *
+   * **화면 텍스트와 견주는 값이 여기 들어간다** (`textOverlapRatio`). 그래서 dom 후보의
+   * 행 HTML 을 여기 같이 담으면 안 된다 — 태그는 화면에 안 보이므로 세는 족족 빗나가고,
+   * 짧은 행일수록(core 의 200자 문턱 아래) 겹침률이 실제보다 낮게 나온다.
+   */
   rows: unknown[]
+  /**
+   * dom 후보의 행 HTML. 컴파일·발견 프롬프트가 **이걸 보고** `css:` 필드 경로를 쓴다.
+   * json 후보는 `rows` 자체가 이미 구조라서 필요 없다.
+   */
+  row_html?: string[]
   /** 원소들에 반복해서 나타나는 키 (json 후보만) */
   keys: string[]
   /** 사람이 읽는 한 줄 설명 */

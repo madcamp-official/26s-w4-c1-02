@@ -74,7 +74,7 @@
 # ── ① 화면 ─────────────────────────────────────────────────────────────
 {$APP_DOMAIN} {
 	import base
-	# ADR A27 — 사설망(VPN) 배포라 공인 인증서 발급이 불가능하다. 내부 CA 로 서명한다.
+	# ADR A31 — 사설망(VPN) 배포라 공인 인증서 발급이 불가능하다. 내부 CA 로 서명한다.
 	tls internal
 	encode zstd gzip
 
@@ -124,7 +124,7 @@
 	}
 }
 
-# ── ④ Cloudflare Tunnel 수신용 평문 HTTP (ADR A28) ─────────────────────
+# ── ④ Cloudflare Tunnel 수신용 평문 HTTP (ADR A32) ─────────────────────
 # cloudflared 가 localhost:8080 으로 평문을 넣어준다. TLS 는 Cloudflare 엣지가 끝냈으므로
 # X-Forwarded-Proto 를 https 로 못박는다 — 이게 없으면 Auth.js 콜백 URL 이 http 로 구른다.
 # 위의 :443 블록(내부 CA)은 VPN 직접 접속용으로 그대로 남아 있다.
