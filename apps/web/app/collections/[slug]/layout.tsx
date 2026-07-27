@@ -18,6 +18,7 @@ import {
   healedCopy,
   newCountCopy,
 } from '@/lib/labels'
+import { quietSourceLines } from '@/lib/silence'
 import { cn } from '@/lib/utils'
 
 import { deleteCollectionAction, renameCollectionAction } from './actions'
@@ -40,11 +41,13 @@ export default async function CollectionLayout({
   if (!found.ok || found.data === null) return <>{children}</>
 
   const collection = found.data
-  const [sites, healed, status] = await Promise.all([
+  const [sites, healed, status, quiet] = await Promise.all([
     listSites(collection.id),
     countHealedThisMonth(collection.id),
     collectionStatusLine(collection),
+    quietSourceLines(collection.id),
   ])
+  const quietList = quiet.ok ? quiet.data : []
   const siteList = sites.ok ? sites.data : []
   const healedCount = healed.ok ? healed.data : 0
   const troubled = siteList.filter((s) => s.status === 'healing' || s.status === 'needs_attention')
@@ -87,7 +90,7 @@ export default async function CollectionLayout({
         />
       </div>
 
-      {statusParts.length > 0 && (
+      {(statusParts.length > 0 || quietList.length > 0) && (
         <p className="mt-1.5 text-[13px] text-muted">
           {statusParts.map((part, index) => (
             <span key={part}>
@@ -99,6 +102,15 @@ export default async function CollectionLayout({
               ) : (
                 part
               )}
+            </span>
+          ))}
+          {/* 침묵 경고 (델타 4-3) — 관찰만 말한다. 판정 정본은 워커 silence 잡 */}
+          {quietList.map((line) => (
+            <span key={line.host}>
+              <span className="text-border-strong"> · </span>
+              <span className="font-semibold text-healing" title={line.sentence}>
+                ⚠ {line.short}
+              </span>
             </span>
           ))}
         </p>
