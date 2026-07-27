@@ -15,6 +15,8 @@ export interface StaticPage {
   host: string
   status: number
   contentType: string
+  /** 본문을 무엇으로 읽었는지. utf-8 이 아니면 사람이 알아야 한다 (`fetchers/charset.ts`) */
+  charset: string
   html: string
   /** 응답 자체가 JSON 이었다 — 사용자가 내부 API 주소를 바로 붙여넣은 경우 (원칙 ③ 대박) */
   isJson: boolean
@@ -52,6 +54,7 @@ export async function fetchStatic(url: string, opts: { noCache?: boolean } = {})
       host,
       status: response.status,
       contentType: response.contentType,
+      charset: response.charset,
       html: response.body,
       isJson,
       page: isJson ? { title: null, text: '', scripts: [] } : extractPage(response.body),

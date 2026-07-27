@@ -10,6 +10,7 @@
 // `redirect: 'follow'` 로 두면 302 한 번에 내부망으로 넘어가는 걸 볼 방법이 없다.
 
 import { getConfig } from '../config'
+import { decodeBody } from './charset'
 import { checkOutboundUrl } from './guard'
 
 export interface HttpResponse {
@@ -19,6 +20,8 @@ export interface HttpResponse {
   url: string
   contentType: string
   body: string
+  /** 본문을 무엇으로 읽었는지 (`charset.ts`). utf-8 이 아니면 probe 가 알려준다 */
+  charset: string
   /** 캐시에서 나왔는지 */
   cached: boolean
 }
@@ -167,15 +170,20 @@ async function followRedirects(start: URL, headers: Record<string, string>, opts
 
     const location = res.headers.get('location')
     if (!isRedirect(res.status) || location === null) {
-      const text = await res.text().catch(() => '')
+      const contentType = res.headers.get('content-type') ?? ''
+      // `res.text()` 를 쓰지 않는다 — 그러면 헤더에 charset 을 안 적은 EUC-KR 페이지가
+      // 통째로 깨진 채 통과한다. 바이트로 받아 직접 정한다 (`charset.ts`).
+      const buf = await res.arrayBuffer().catch(() => null)
+      const decoded = buf === null ? { text: '', charset: 'utf-8' } : decodeBody(new Uint8Array(buf), contentType)
       return {
         ok: true,
         response: {
           ok: res.ok,
           status: res.status,
           url: at.toString(),
-          contentType: res.headers.get('content-type') ?? '',
-          body: text,
+          contentType,
+          body: decoded.text,
+          charset: decoded.charset,
           cached: false,
         },
       }
