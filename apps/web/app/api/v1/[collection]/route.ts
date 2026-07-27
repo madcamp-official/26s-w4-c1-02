@@ -3,8 +3,12 @@
 //
 // 여기에 로직을 다시 짜지 않는다. 파라미터 해석도 응답 조립도 core 가 한다 —
 // MCP 의 list_items 와 **같은 코드**여야 두 표면이 갈라지지 않는다.
+//
+// `?view={slug}` (뷰 계약 §4): 저장된 뷰가 기본값이 되고, 쿼리 파라미터가 그 위를 덮어쓴다.
+// 조건 해석은 표·MCP·알림과 같은 문(viewToQuery) 하나다 (A33).
 
-import { buildCollectionResponse, parseCollectionQuery } from '@endpointer/core/query'
+import type { CollectionQuery } from '@endpointer/core'
+import { buildCollectionResponse, parseCollectionQuery, viewToQuery } from '@endpointer/core/query'
 
 import { getCollectionBySlug } from '@/lib/collections'
 import { loadCore } from '@/lib/db'
@@ -16,12 +20,39 @@ import {
   preflightResponse,
   type PublicApiBody,
 } from '@/lib/public-api'
+import { getViewBySlug } from '@/lib/views'
 
 // 필터·정렬·커서가 매 요청 다르다. 캐시하면 부분 성공 상태가 굳어버린다
 export const dynamic = 'force-dynamic'
 
 interface RouteContext {
   params: Promise<{ collection: string }>
+}
+
+/**
+ * 뷰(기본값) 위에 사용자의 쿼리 파라미터를 덮는다 (계약 §4).
+ * 조건 객체들은 키 단위로 사용자가 이긴다. limit·cursor·include 는 뷰에 없는 개념이라
+ * 언제나 사용자(또는 파라미터 기본값) 몫이다.
+ */
+function overlayQuery(base: CollectionQuery, user: CollectionQuery): CollectionQuery {
+  return {
+    ...base,
+    eq: { ...base.eq, ...user.eq },
+    gte: { ...base.gte, ...user.gte },
+    lte: { ...base.lte, ...user.lte },
+    in: { ...base.in, ...user.in },
+    not_in: { ...base.not_in, ...user.not_in },
+    contains: { ...base.contains, ...user.contains },
+    not_contains: { ...base.not_contains, ...user.not_contains },
+    is_null: [...new Set([...base.is_null, ...user.is_null])],
+    q: user.q ?? base.q,
+    source: user.source ?? base.source,
+    since: user.since ?? base.since,
+    sort: user.sort ?? base.sort,
+    limit: user.limit,
+    cursor: user.cursor,
+    include: user.include,
+  }
 }
 
 export async function GET(request: Request, context: RouteContext): Promise<Response> {
@@ -42,10 +73,30 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   if (core === null) return errorResponse('unavailable', API_MESSAGES.unavailable, 503)
 
   const url = new URL(request.url)
+  // view 는 여기서 소비한다 — parseCollectionQuery 에 넘기면 "모르는 조건" 경고가 난다
+  const viewSlug = url.searchParams.get('view')
+  url.searchParams.delete('view')
+
   const { query, warnings } = parseCollectionQuery(url.searchParams, collection.schema_json)
 
+  let finalQuery = query
+  if (viewSlug !== null && viewSlug.trim() !== '') {
+    const viewResult = await getViewBySlug(collection, viewSlug.trim())
+    const view = viewResult.ok ? viewResult.data : null
+    if (view === null) {
+      // 없는 뷰는 조용히 무시하지 않는다 — 무엇이 적용 안 됐는지 말한다 (B4·2-8 정신)
+      warnings.push(`'${viewSlug}' 라는 저장된 조건이 없어서 조건 없이 보여드려요.`)
+    } else if (view.health === 'broken') {
+      warnings.push(
+        `저장된 조건 '${view.name}' 에 쓰인 칸이 표에서 사라져서 그 조건 없이 보여드려요. 표 주인이 작업실에서 고칠 수 있어요.`,
+      )
+    } else {
+      finalQuery = overlayQuery(viewToQuery({ where: view.where, sort: view.sort }, new Date()), query)
+    }
+  }
+
   try {
-    const body = await buildCollectionResponse(core.db, collection, query)
+    const body = await buildCollectionResponse(core.db, collection, finalQuery)
     const payload: PublicApiBody = warnings.length > 0 ? { ...body, warnings } : body
     return jsonResponse(payload)
   } catch (cause) {
