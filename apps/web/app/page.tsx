@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 
 import { currentUser, isAuthReady } from '@/auth'
 import { AuthNotice, SignInHero } from '@/components/auth-actions'
+import { listExampleCollections } from '@/lib/collections'
+import { coverageCopy } from '@/lib/labels'
 
 // 로그인 상태에 따라 갈라지므로 미리 만들어두지 않는다
 export const dynamic = 'force-dynamic'
@@ -13,6 +15,9 @@ const SURFACE_EXAMPLES = ['표 · 즐겨찾기', '읽기 피드 · 구독', 'RES
 export default async function HomePage() {
   const user = await currentUser()
   if (user) redirect('/collections')
+
+  const examples = await listExampleCollections(3)
+  const exampleList = examples.ok ? examples.data : []
 
   return (
     <div className="flex flex-col gap-12">
@@ -40,13 +45,40 @@ export default async function HomePage() {
         ) : (
           <AuthNotice />
         )}
-        <Link
-          href="/collections"
-          className="mt-5 text-sm text-accent underline underline-offset-2"
-        >
-          미리 담아둔 예시 표 보기
-        </Link>
       </section>
+
+      {/* 예시 컬렉션 — 빈 화면 금지 (델타 5-5). 로그인 없이 열어본다: 정의권을 말로 하지 않고 보여준다 */}
+      {exampleList.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-center text-sm font-bold text-faint">
+            이런 표를 만들 수 있어요 — 눌러서 바로 구경해 보세요
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {exampleList.map((example) => (
+              <Link
+                key={example.id}
+                href={`/collections/${example.slug}`}
+                className="flex flex-col gap-2 rounded-card border border-border bg-surface p-5 transition-[border-color,box-shadow] hover:border-accent hover:no-underline hover:shadow-[0_4px_14px_rgba(30,86,200,0.12)]"
+              >
+                <span className="text-[15px] font-bold text-ink">{example.name}</span>
+                <span className="text-xs text-faint">
+                  {coverageCopy(example.site_count, example.item_count)}
+                </span>
+                <span className="mt-auto flex flex-wrap gap-1.5">
+                  {example.hosts.slice(0, 3).map((host) => (
+                    <span
+                      key={host}
+                      className="rounded-md bg-canvas px-2 py-0.5 font-mono text-[11px] text-muted"
+                    >
+                      {host}
+                    </span>
+                  ))}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 소스 → 컬렉션 → 표면. 제품의 두 동작이 한 장에 (기획서 2장) */}
       <section className="rounded-2xl border border-border bg-surface px-10 py-9 shadow-[0_1px_3px_rgba(35,48,63,0.05)]">

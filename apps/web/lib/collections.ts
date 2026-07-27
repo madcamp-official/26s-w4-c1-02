@@ -257,6 +257,91 @@ export async function countHealedThisMonth(collectionId: string): Promise<Loaded
   })
 }
 
+/** 상단 상태 줄의 재료 (델타 4-3 — "살아있다"는 인상은 기능보다 먼저) */
+export interface CollectionStatusLine {
+  /** 마지막으로 성공한 수집. null 이면 아직 받아온 적 없음 */
+  last_ok_at: Date | null
+  /** 최근 3일 새 항목 수 */
+  new_count: number
+  /** 마감(첫 날짜 필드)이 7일 이내인 항목 수. 날짜 필드가 없으면 null */
+  closing_count: number | null
+}
+
+export async function collectionStatusLine(
+  collection: Pick<CollectionRecord, 'id' | 'schema_json'>,
+): Promise<Loaded<CollectionStatusLine>> {
+  const dateField = collection.schema_json.find((f) => f.type === 'date') ?? null
+  return safeQuery(async (core) => {
+    const sql = core.queryClient
+    const today = new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10)
+    const week = new Date(Date.now() + (9 + 7 * 24) * 3_600_000).toISOString().slice(0, 10)
+
+    const rows = await sql<{ last_ok_at: Date | string | null; new_count: number }[]>`
+      select
+        (select max(s.last_ok_at) from sources s where s.collection_id = ${collection.id}) as last_ok_at,
+        (select count(*)::int from items i
+           where i.collection_id = ${collection.id}
+             and i.first_seen_at >= now() - interval '3 days') as new_count
+    `
+    let closing: number | null = null
+    if (dateField !== null) {
+      // 정규화된 YYYY-MM-DD 는 사전순 비교가 곧 시간순 비교다 (core query/build 와 같은 전제)
+      const closingRows = await sql<{ n: number }[]>`
+        select count(*)::int as n from items
+        where collection_id = ${collection.id}
+          and data_json ->> ${dateField.key} >= ${today}
+          and data_json ->> ${dateField.key} <= ${week}
+      `
+      closing = Number(closingRows[0]?.n ?? 0)
+    }
+    return {
+      last_ok_at: asDate(rows[0]?.last_ok_at ?? null),
+      new_count: Number(rows[0]?.new_count ?? 0),
+      closing_count: closing,
+    }
+  })
+}
+
+/**
+ * 랜딩의 예시 컬렉션 (델타 5-5 — 빈 화면 금지, 강점을 전달하는 장치).
+ * 공개 범위가 private 이 아닌 것만 — 로그인 없이 열어보게 하는 카드다.
+ */
+export async function listExampleCollections(limit = 3): Promise<Loaded<CollectionSummary[]>> {
+  return safeQuery(async (core) => {
+    const sql = core.queryClient
+    const rows = await sql<RawSummaryRow[]>`
+      select c.id, c.slug, c.name, c.schema_version, c.visibility, c.updated_at,
+        (select count(*)::int from items i where i.collection_id = c.id) as item_count,
+        (select count(*)::int from sources s where s.collection_id = c.id) as site_count,
+        (select coalesce(array_agg(s.host order by s.created_at), '{}')
+           from sources s where s.collection_id = c.id) as hosts,
+        0 as healing_count, 0 as attention_count, 0 as new_count, 0 as healed_count,
+        null as last_ok_at
+      from collections c
+      where c.visibility in ('unlisted', 'public')
+        and exists (select 1 from items i where i.collection_id = c.id)
+      order by c.updated_at desc
+      limit ${limit}
+    `
+    return rows.map((row) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      schema_version: row.schema_version,
+      visibility: asVisibility(row.visibility),
+      updated_at: asDate(row.updated_at) ?? new Date(0),
+      item_count: Number(row.item_count),
+      site_count: Number(row.site_count),
+      hosts: row.hosts ?? [],
+      healing_count: 0,
+      attention_count: 0,
+      new_count: 0,
+      healed_count: 0,
+      last_ok_at: null,
+    }))
+  })
+}
+
 /** 이름 변경 (컬렉션 관리 — web 단독 쓰기 경로) */
 export async function renameCollection(id: string, name: string): Promise<Loaded<null>> {
   return safeQuery(async (core) => {

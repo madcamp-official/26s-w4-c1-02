@@ -4,8 +4,20 @@ import type { ReactNode } from 'react'
 import { CollectionManage } from '@/components/collection-manage'
 import { CollectionTabs } from '@/components/collection-tabs'
 import { Badge, Dot } from '@/components/ui/badge'
-import { countHealedThisMonth, getCollectionBySlug, listSites } from '@/lib/collections'
-import { SOURCE_STATUS_COPY, VISIBILITY_COPY, healedCopy } from '@/lib/labels'
+import {
+  collectionStatusLine,
+  countHealedThisMonth,
+  getCollectionBySlug,
+  listSites,
+} from '@/lib/collections'
+import {
+  SOURCE_STATUS_COPY,
+  VISIBILITY_COPY,
+  checkedAgoCopy,
+  closingCountCopy,
+  healedCopy,
+  newCountCopy,
+} from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 import { deleteCollectionAction, renameCollectionAction } from './actions'
@@ -28,13 +40,23 @@ export default async function CollectionLayout({
   if (!found.ok || found.data === null) return <>{children}</>
 
   const collection = found.data
-  const [sites, healed] = await Promise.all([
+  const [sites, healed, status] = await Promise.all([
     listSites(collection.id),
     countHealedThisMonth(collection.id),
+    collectionStatusLine(collection),
   ])
   const siteList = sites.ok ? sites.data : []
   const healedCount = healed.ok ? healed.data : 0
   const troubled = siteList.filter((s) => s.status === 'healing' || s.status === 'needs_attention')
+
+  // 상단 상태 줄 (델타 4-3) — 있는 것만 이어붙인다. 침묵 감지(⚠)는 워커가 판정을 주면 붙는다
+  const statusParts = status.ok
+    ? [
+        checkedAgoCopy(status.data.last_ok_at),
+        newCountCopy(status.data.new_count),
+        closingCountCopy(status.data.closing_count),
+      ].filter((part): part is string => part !== null)
+    : []
 
   return (
     <div className="flex flex-col gap-0">
@@ -57,6 +79,23 @@ export default async function CollectionLayout({
           remove={deleteCollectionAction.bind(null, collection.slug)}
         />
       </div>
+
+      {statusParts.length > 0 && (
+        <p className="mt-1.5 text-[13px] text-muted">
+          {statusParts.map((part, index) => (
+            <span key={part}>
+              {index > 0 && <span className="text-border-strong"> · </span>}
+              {part.startsWith('새 항목') ? (
+                <span className="font-semibold text-accent">{part}</span>
+              ) : part.startsWith('마감') ? (
+                <span className="font-semibold text-attention">{part}</span>
+              ) : (
+                part
+              )}
+            </span>
+          ))}
+        </p>
+      )}
 
       {siteList.length > 0 && (
         <div className="mt-3.5 flex flex-wrap gap-2">

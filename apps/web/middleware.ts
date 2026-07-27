@@ -34,5 +34,8 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ['/collections', '/collections/:path*'],
+  // 내 목록과 생성만 막는다. 컬렉션 상세(slug)는 로그인 없이 볼 수 있다 —
+  // 추측 불가 slug 가 곧 접근 제어다 (O2 unlisted 의 화면 판. 델타 5-5 예시 컬렉션의 전제).
+  // 쓰기(이름 변경·삭제·받아보기)는 각 서버 액션이 주인·로그인을 따로 확인한다.
+  matcher: ['/collections', '/collections/new'],
 }
