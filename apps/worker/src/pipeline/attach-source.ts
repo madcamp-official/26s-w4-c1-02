@@ -233,31 +233,35 @@ export async function attachSourceToCollection(input: AttachSourceInput): Promis
     if (retried.items.length > 0) executed = retried
   }
   const warningsOut: string[] = []
-  const stillEmpty = [...planRepair(spec, executed.items).drop_column, ...planRepair(spec, executed.items).drop_transform]
-  if (stillEmpty.length > 0) {
-    const trimmed = dropColumns(spec, input.schema, executed.items, executed.report, stillEmpty)
-    // schema 는 버린다 — 표의 칸 구성은 그대로 두고 스펙·항목·보고서에서만 뺀다
-    spec = trimmed.spec
-    executed = { ...executed, items: trimmed.items, report: trimmed.report }
-    for (const key of trimmed.dropped) paths.delete(key)
-  }
+  const afterRetry = planRepair(spec, executed.items)
+  const stillEmpty = [...afterRetry.drop_column, ...afterRetry.drop_transform]
 
   // ── ③-c 링크는 열어서 확인한다 (verify-link.ts) ─────────────────────
   // 지어낸 주소 틀은 여기까지 전부 통과한다 — 값이 다 차 있고 항목마다 다르기 때문이다.
   // 사용자가 눌러 보고 알게 두면 그건 우리가 한 거짓말이다.
   const badLinks: string[] = []
   for (const field of input.schema) {
-    if (field.type !== 'link' || !paths.has(field.key)) continue
+    if (field.type !== 'link' || !paths.has(field.key) || stillEmpty.includes(field.key)) continue
     const verdict = await verifyLinkField(executed.items, input.schema, field.key)
     if (verdict.ok) continue
     badLinks.push(field.key)
-    paths.delete(field.key)
     warningsOut.push(`${field.label} 을 자동으로 만들지 못했어요. 값을 알려주시면 붙일 수 있어요.`)
   }
 
-  const missing = [...stillMissing, ...stillEmpty, ...badLinks].filter(
-    (k, i, a) => a.indexOf(k) === i && !paths.has(k),
-  )
+  // **빼는 것은 여기 한 번뿐이다.** 예전에 `missing` 에만 넣고 스펙·항목에서 안 빼서,
+  // "이 칸은 못 만들었어요" 라고 말해 놓고 그 값을 그대로 저장한 적이 있다.
+  // 말한 것과 저장하는 것이 다르면 그게 제일 나쁜 거짓말이다.
+  const remove = [...new Set([...stillEmpty, ...badLinks])]
+  if (remove.length > 0) {
+    // `input.schema` 는 그대로 둔다 — 표의 칸 구성은 첫 사이트가 정한 것이고
+    // 두 번째 사이트 사정으로 지울 수 없다. 스펙·항목·보고서에서만 뺀다.
+    const trimmed = dropColumns(spec, input.schema, executed.items, executed.report, remove)
+    spec = trimmed.spec
+    executed = { ...executed, items: trimmed.items, report: trimmed.report }
+    for (const key of trimmed.dropped) paths.delete(key)
+  }
+
+  const missing = [...stillMissing, ...remove].filter((k, i, a) => a.indexOf(k) === i && !paths.has(k))
 
   const attached: AttachedField[] = [...paths].map(([key, p]) => ({
     key,

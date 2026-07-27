@@ -40,7 +40,10 @@ export {
 
 export {
   persistNewCollection,
+  persistAttachedSource,
   uniqueSlug,
   type PersistInput,
   type PersistResult,
+  type AttachPersistInput,
+  type AttachPersistResult,
 } from './persist'

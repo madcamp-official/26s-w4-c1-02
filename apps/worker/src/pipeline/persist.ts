@@ -20,6 +20,7 @@ import {
   db,
   finishRun,
   insertCandidateAdapter,
+  insertSource,
   promoteAdapter,
   queryClient,
   sources,
@@ -143,6 +144,89 @@ export async function persistNewCollection(input: PersistInput): Promise<Persist
     // 반쪽짜리 컬렉션을 남기지 않는다. sources·adapters·items·runs 는
     // ON DELETE CASCADE 로 같이 지워진다 (schema.ts).
     await queryClient`delete from collections where id = ${created.collection.id}`.catch(() => {})
+    throw cause
+  }
+}
+
+// ── 두 번째 사이트 붙이기 (기획서 9-2 의 끝) ───────────────────────────
+
+export interface AttachPersistInput {
+  collection_id: string
+  host: string
+  entry_url: string
+  fetch_mode: FetchMode
+  spec: AdapterSpec
+  items: readonly InterpretedItem[]
+  report: ValidationReport
+}
+
+export interface AttachPersistResult {
+  source: SourceRow
+  adapter_version: number
+  items_inserted: number
+  items_new: number
+}
+
+/**
+ * 이미 있는 표에 사이트를 하나 더 앉힌다.
+ *
+ * `persistNewCollection` 과 순서는 같지만 **컬렉션을 만들지 않는다.**
+ * 그래서 실패했을 때 지울 것도 다르다 — 컬렉션을 지우면 첫 사이트까지 날아간다.
+ * 여기서는 **방금 만든 사이트만** 지운다 (adapters·items·runs 는 CASCADE 로 따라간다).
+ *
+ * 스키마는 건드리지 않는다. 표의 칸은 첫 사이트가 정한 것이고, 두 번째 사이트는
+ * 거기 **맞추는** 쪽이다 (attach-source.ts 머리말).
+ */
+export async function persistAttachedSource(input: AttachPersistInput): Promise<AttachPersistResult> {
+  const source = await insertSource({
+    collection_id: input.collection_id,
+    host: input.host,
+    entry_url: input.entry_url,
+    fetch_mode: input.fetch_mode,
+  })
+  if (source === null) throw new Error('사이트 행이 만들어지지 않았습니다')
+
+  try {
+    const adapter = await insertCandidateAdapter({
+      source_id: source.id,
+      spec: input.spec,
+      origin: 'llm',
+      validation: input.report,
+    })
+    if (adapter === null) throw new Error('추출 방법을 저장하지 못했습니다')
+    await promoteAdapter(source.id, adapter.id)
+
+    const runId = await startRun({ source_id: source.id, adapter_id: adapter.id })
+    const upsert = await upsertItems({
+      collection_id: input.collection_id,
+      source_id: source.id,
+      items: input.items,
+    })
+    if (runId !== null) {
+      await finishRun(runId, {
+        status: 'ok',
+        items_found: input.items.length,
+        items_new: upsert.newItemIds.length,
+        validation_json: input.report,
+        error_summary: null,
+      })
+    }
+
+    log.info(
+      { collection_id: input.collection_id, host: input.host, items: upsert.total, version: adapter.version },
+      '표에 사이트를 하나 더 붙였다',
+    )
+
+    return {
+      source,
+      adapter_version: adapter.version,
+      items_inserted: upsert.total,
+      items_new: upsert.newItemIds.length,
+    }
+  } catch (cause) {
+    // 어댑터 없는 사이트를 남기지 않는다. 그 상태면 화면에 사이트는 보이는데
+    // 정기 수집은 조용히 건너뛴다 (collect.ts 가 adapter===null 을 skip 한다).
+    await queryClient`delete from sources where id = ${source.id}`.catch(() => {})
     throw cause
   }
 }

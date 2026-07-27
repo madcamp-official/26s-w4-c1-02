@@ -13,7 +13,12 @@
 
 import { resetConfigCache } from '../config'
 import { loadCollectionForAttach } from '../db'
-import { attachSourceToCollection, resolveByPastedValue, type AttachSourceOutcome } from '../pipeline'
+import {
+  attachSourceToCollection,
+  persistAttachedSource,
+  resolveByPastedValue,
+  type AttachSourceOutcome,
+} from '../pipeline'
 
 const USAGE = `사용법: pnpm --filter @endpointer/worker attach <slug> <url> [옵션]
 
@@ -21,6 +26,7 @@ const USAGE = `사용법: pnpm --filter @endpointer/worker attach <slug> <url> [
   <url>   붙일 두 번째 사이트 주소
 
 옵션
+  --save               결과를 DB 에 저장한다 (기본은 보여주기만 한다)
   --paste "칸=값"      못 찾은 칸을 값으로 채운다. 여러 번 쓸 수 있다
                        예: --paste "deadline=2026-08-14"
   --min-confidence=N   이 확신도(0~1) 미만이면 물어본다 (기본 0.6)
@@ -33,6 +39,7 @@ const USAGE = `사용법: pnpm --filter @endpointer/worker attach <slug> <url> [
 interface CliOptions {
   slug: string
   url: string
+  save: boolean
   paste: { key: string; value: string }[]
   minConfidence: number | undefined
   skipBrowser: boolean
@@ -44,6 +51,7 @@ interface CliOptions {
 function parseArgs(argv: readonly string[]): CliOptions | null {
   const positional: string[] = []
   const paste: { key: string; value: string }[] = []
+  let save = false
   let minConfidence: number | undefined
   let skipBrowser = false
   let skipDom = false
@@ -52,7 +60,8 @@ function parseArgs(argv: readonly string[]): CliOptions | null {
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? ''
-    if (arg === '--no-browser') skipBrowser = true
+    if (arg === '--save') save = true
+    else if (arg === '--no-browser') skipBrowser = true
     else if (arg === '--no-dom') skipDom = true
     else if (arg === '--allow-private') allowPrivate = true
     else if (arg === '--json') asJson = true
@@ -82,7 +91,7 @@ function parseArgs(argv: readonly string[]): CliOptions | null {
   if (slug === undefined || rawUrl === undefined) return null
   const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`
 
-  return { slug, url, paste, minConfidence, skipBrowser, skipDom, allowPrivate, asJson }
+  return { slug, url, save, paste, minConfidence, skipBrowser, skipDom, allowPrivate, asJson }
 }
 
 /** `deadline=2026-08-14` → `{key,value}`. 값 안에 `=` 가 또 있어도 첫 번째에서만 자른다 */
@@ -142,18 +151,53 @@ async function main(): Promise<void> {
     ...(opts.minConfidence !== undefined ? { minConfidence: opts.minConfidence } : {}),
   })
 
+  // ── 저장 ────────────────────────────────────────────────────────────
+  // 못 찾은 칸이 있어도 저장할 수 있게 둔다. 다섯 칸 중 넷이 채워진 사이트를
+  // "하나 모자라서" 못 붙이게 하면 그게 기능 ②가 지는 방식이다.
+  let saved: string | null = null
+  if (opts.save && result.ok) {
+    saved = await save(result, loaded.collection.id, opts.slug)
+  }
+
   if (opts.asJson) {
-    process.stdout.write(`${JSON.stringify(result, replacer, 2)}\n`)
+    process.stdout.write(`${JSON.stringify({ ...result, saved }, replacer, 2)}\n`)
     process.exit(result.ok ? 0 : 2)
   }
 
-  process.stdout.write(render(result, loaded.collection.name, pasteNotes))
+  process.stdout.write(render(result, loaded.collection.name, pasteNotes, saved))
   process.exit(result.ok ? 0 : 2)
+}
+
+/** 저장하고 사람이 읽을 한 줄을 돌려준다. 실패해도 미리보기는 이미 보여줬으므로 던지지 않는다 */
+async function save(
+  result: Extract<AttachSourceOutcome, { ok: true }>,
+  collectionId: string,
+  slug: string,
+): Promise<string> {
+  try {
+    const r = await persistAttachedSource({
+      collection_id: collectionId,
+      host: result.host,
+      entry_url: result.final_url,
+      fetch_mode: result.spec.fetch.mode,
+      spec: result.spec,
+      items: result.items,
+      report: result.report,
+    })
+    return `저장했습니다 — ${r.source.host} · 항목 ${r.items_inserted}개(신규 ${r.items_new}) · GET /api/v1/${slug}`
+  } catch (e) {
+    return `저장하지 못했습니다: ${e instanceof Error ? e.message : String(e)}`
+  }
 }
 
 // ── 사람이 읽는 출력 ───────────────────────────────────────────────────
 
-function render(r: AttachSourceOutcome, collectionName: string, pasteNotes: readonly string[]): string {
+function render(
+  r: AttachSourceOutcome,
+  collectionName: string,
+  pasteNotes: readonly string[],
+  saved: string | null,
+): string {
   const out: string[] = []
   const line = '─'.repeat(72)
 
@@ -220,7 +264,7 @@ function render(r: AttachSourceOutcome, collectionName: string, pasteNotes: read
     out.push('')
   }
 
-  out.push('  ※ 아직 저장하지 않았습니다.')
+  out.push(saved === null ? '  ※ 아직 저장하지 않았습니다. (--save 를 붙이면 저장합니다)' : `  ${saved}`)
   out.push(line)
   out.push('')
   return out.join('\n')
