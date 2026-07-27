@@ -153,13 +153,17 @@ export async function finishRun(
     error_summary: string | null
   },
 ): Promise<void> {
+  // jsonb 는 `queryClient.json()` 이 아니라 직접 문자열로 만든다.
+  // 클라이언트를 `prepare: false` 로 만들었는데 (client.ts — PgBouncer 대비)
+  // 그 조합에서 postgres.js 3.4 가 객체를 그대로 넘겨
+  // "The string argument must be of type string" 으로 죽는다.
   await queryClient`
     update runs set
       finished_at     = now(),
       status          = ${patch.status},
       items_found     = ${patch.items_found},
       items_new       = ${patch.items_new},
-      validation_json = ${patch.validation_json === null ? null : queryClient.json(patch.validation_json)},
+      validation_json = ${patch.validation_json === null ? null : JSON.stringify(patch.validation_json)},
       error_summary   = ${patch.error_summary}
     where id = ${runId}
   `

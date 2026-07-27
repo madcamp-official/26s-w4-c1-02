@@ -43,9 +43,29 @@ describe('buildDiscoveryResponseSchema', () => {
     expect(s.required).toContain('columns')
   })
 
-  it('칸 수에 상한이 걸려 있다 (보장선 B3 — 사람이 편집할 수 있는 표)', () => {
+  it('칸 수 상한을 말로 알려준다 (보장선 B3 — 사람이 편집할 수 있는 표)', () => {
     const columns = buildDiscoveryResponseSchema().properties?.['columns']
-    expect(columns?.maxItems).toBe(MAX_DISCOVERED_COLUMNS)
+    expect(columns?.description).toContain(String(MAX_DISCOVERED_COLUMNS))
+  })
+
+  it('columns 에 maxItems 를 붙이지 않는다 — 붙이면 Gemini 가 스키마 전체를 거부한다', () => {
+    // 2026-07-27 실측: `maxItems: 12` 를 붙이면 400 INVALID_ARGUMENT.
+    // 그 한 줄만 빼면 통과한다. 되돌리면 새 사이트를 하나도 읽어내지 못하게 되므로
+    // 여기서 막는다. 상한은 위의 설명 문구와 아래 parseDiscoveryOutput 이 건다.
+    expect(buildDiscoveryResponseSchema().properties?.['columns']?.maxItems).toBeUndefined()
+  })
+
+  it('상한을 넘는 출력은 파서가 거부한다 — 진짜 관문은 여기다', () => {
+    const many = Array.from({ length: MAX_DISCOVERED_COLUMNS + 1 }, (_, i) => ({
+      key: `c${i}`,
+      label: `칸 ${i}`,
+      type: 'text',
+      path: `css:.c${i}`,
+    }))
+    const r = parseDiscoveryOutput({ ...jsonOutput(), columns: many }, { host: HOST })
+
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.errors.join(' ')).toContain('칸이 너무 많습니다')
   })
 })
 

@@ -5,7 +5,7 @@
 
 | | |
 |---|---|
-| 기준 커밋 | `fdebef9` — feat: 워커 실행층, 마이그레이션, 모노레포 .env 로딩 |
+| 기준 커밋 | `f0a8b21` — fix: mcp 가 .env 를 못 읽어 부팅에 실패하던 것 |
 | 기준일 | 2026-07-27 |
 | 판정 근거 | `pnpm typecheck` · `pnpm test` 실제 실행 + 전 소스 감사 |
 
@@ -23,18 +23,19 @@
 
 ## 1. 30초 요약
 
-**부품은 대부분 만들어졌는데 조립이 안 됐다.**
+**URL 하나가 표가 되어 화면까지 나온다. 이제 두 번째 사이트를 붙이는 일이 남았다.**
 
 ```
-소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 778개 통과 (core 655 · web 33 · worker 90)
+소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 780개 통과 (core 657 · web 33 · worker 90)
 트랙 A(파이프라인) 5,262줄 — probe·컴파일·수집·치유·발송 전부 코드가 있다
 트랙 B(표면)     2,909줄 — 표·REST·MCP 는 돈다. 피드·구독 화면은 없다
 
-그런데 apps/web ──✗── apps/worker  둘이 이어진 적이 없다
+2026-07-27: apps/worker ──✅── DB ──✅── apps/web · apps/mcp  한 줄로 이어졌다
 ```
 
-가장 중요한 한 문장: **`compileSpec` · `matchFields` · `traceValue` 를 부르는 곳이 저장소에 하나도 없다.**
-컬렉션을 만드는 흐름(기획서 9-1 · 9-2)이 통째로 배선되지 않았다. 부품은 다 있는데 조립 라인이 없다.
+가장 중요한 한 문장: **이제 남은 것은 `matchFields` 와 `traceValue` 다.**
+첫 사이트를 붙이는 흐름(9-1)은 이어졌다. 두 번째 사이트를 붙이는 흐름(9-2)이 아직 배선되지 않았고,
+**그게 사수 대상 ② 이자 이 제품이 다른 제품과 갈라지는 유일한 지점이다.**
 
 ---
 
@@ -42,8 +43,8 @@
 
 ```
 G0 계약고정   ████████░░  80%   타입·스펙·DB·마이그레이션 있음 / DB 실기동 미검증
-G1 URL→아이템 █████░░░░░  50%   B는 됨 / A는 낯선 URL로 판정한 적 없음  ← 지금 여기
-G2 소스 접합  ██░░░░░░░░  20%   "제품이 성립하는 지점" — 못 넘음
+G1 URL→아이템 ██████████ 100%   낯선 URL 4곳 전부 표가 나왔다 (2026-07-27) ✅
+G2 소스 접합  ███░░░░░░░  30%   "제품이 성립하는 지점" ← 지금 여기. 파이프는 이어졌고 matchFields 가 남았다
 G3 계속 돈다  ███░░░░░░░  30%   워커 코드 있음 / 피드·구독 화면 없음
 G4 배포·MCP   ██░░░░░░░░  20%   MCP 완성 / 배포는 파일만
 G5 데모       ░░░░░░░░░░   0%
@@ -58,7 +59,7 @@ G5 데모       ░░░░░░░░░░   0%
 | 되는 것 | 확인 방법 |
 |---|---|
 | 전 패키지 타입 검사 | `pnpm typecheck` → 4개 패키지 Done |
-| core 단위 테스트 655개 | `pnpm --filter @endpointer/core test` |
+| core 단위 테스트 657개 | `pnpm --filter @endpointer/core test` |
 | 보장선 B2 자동 점검 33개 | `pnpm --filter @endpointer/web test` |
 | worker 테스트 90개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문·인코딩 판정 |
 | 임의 URL probe (CLI) | `pnpm --filter @endpointer/worker probe <url>` |
@@ -315,16 +316,29 @@ utf-8 이 아니면 **probe 단계 기록에 적는다** (`euc-kr 로 읽음`). 
 3. ~~SSRF·사설망 차단~~ — **됐다** (2026-07-27). §5-6 에 세 겹과 재현 명령이 있다.
 4. ~~charset~~ — **됐다** (2026-07-27). korcham.net 으로 재현하고 고쳤다. §5-7.
    **§6 의 🔴 는 이제 없다.**
-5. **`GEMINI_API_KEY` 를 실제로 채우기 — G1 의 유일한 잔여물.**
-   `.env` 27번 줄에 `GEMINI_API_KEY=` 가 **값 없이** 있다 (2026-07-27 13:0x 확인).
-   그래서 `create-collection` 은 아직 한 번도 못 돌았다. probe 3곳은 다 뚫렸지만
-   **그건 probe 까지의 판정**이고, G1 은 "URL 하나로 항목이 나오는가" 다.
-   키가 채워지면 그 즉시 아래 한 줄이 진짜 판정이다:
+5. ~~`GEMINI_API_KEY` 로 진짜 G1 판정~~ — **통과했다 (2026-07-27). 아래 참조.**
 
-   ```bash
-   pnpm --filter @endpointer/worker create-collection \
-     "https://www.k-startup.go.kr/web/contents/bizpbanc-ongoing.do" --no-browser
-   ```
+#### G1(A) 판정 결과 ✅ — 낯선 URL 4곳 전부 표가 나왔다
+
+`create-collection <url> --no-browser`. 판정 조건은 "3개 중 2개 이상" 이었다.
+
+| 사이트 | 칸 | 항목 | LLM | 시간 |
+|---|---|---|---|---|
+| k-startup.go.kr | 6 | 15 | 2회 | 4.9초 |
+| bizinfo.go.kr | 6 | 15 | 2회 | 8.6초 |
+| wevity.com | 5 | 20 | 2회 | 10.0초 |
+| korcham.net (EUC-KR) | 4 | 15 | 2회 | 5.6초 |
+
+네 곳 다 `DOM 반복 구조` 로 뚫렸고 겹침 100%. 날짜는 `2026-08-05` 로, 링크는 절대 주소로 정규화됐다.
+**정기 수집 경로에 LLM 은 없다** — 컴파일 때 2회가 전부다 (원칙 ①).
+
+**여기까지 오는 데 두 가지를 고쳐야 했다:**
+
+- **`columns` 의 `maxItems: 12` 때문에 Gemini 가 스키마 전체를 400 으로 거부했다.**
+  키가 있어도 `create-collection` 이 한 번도 못 돌던 진짜 이유다. 지원 목록에 있는 키워드인데도
+  원소가 복잡한 배열에서는 거부된다. 상한은 설명 문구와 파서에서 건다 (`json-schema.ts` 머리말).
+- **`queryClient.json()` 이 `prepare: false` 와 함께 깨진다** (postgres.js 3.4.9).
+  `finishRun` 이 매번 죽어서 `--save` 가 불가능했다. `JSON.stringify` 로 바꿨다.
 
 ### 7-2. 그 다음 (G2 — 합류 지점 · 트랙 B와 같이)
 
@@ -350,8 +364,29 @@ utf-8 이 아니면 **probe 단계 기록에 적는다** (`euc-kr 로 읽음`). 
 > `@endpointer/core/db` 가 먼저 돌았기 때문이다. `load-env.ts` 로 빼서 첫 import 로 부른다 (ADR A29).
 > **`apps/mcp` 는 트랙 B 디렉터리지만 깨뜨린 커밋이 `fdebef9`(내 것)이라 내가 고쳤다 — B 에게 알릴 것.**
 >
-> 즉 **파이프(DB→API→화면→MCP)는 뚫려 있고, 그 파이프에 트랙 A 가 만든 데이터를 흘려보낸 적이 없다.**
-> 그러려면 `create-collection --save` 가 돌아야 하고, 그건 `GEMINI_API_KEY` 를 기다린다 (§7-1 5번).
+> #### 트랙 A 가 만든 데이터를 파이프에 흘려봤다 (2026-07-27) ✅
+>
+> ```bash
+> pnpm --filter @endpointer/worker create-collection \
+>   "https://www.k-startup.go.kr/web/contents/bizpbanc-ongoing.do" \
+>   --no-browser --save --name="창업 지원사업" --slug=startup
+> ```
+>
+> **URL 하나 → 표 → DB → REST → MCP 가 처음으로 한 줄로 이어졌다.**
+>
+> - `GET /api/v1/startup` → 15항목 · `sources` 에 `www.k-startup.go.kr` `status: ok`
+> - MCP `list_items` → 같은 항목이 사람이 읽는 문장으로
+>
+> **다만 칸 하나(`organization`)가 15/15 전부 비었다.** 셀렉터는 맞았고 원값도 잡혔다
+> (`raw_json._fields.organization` = `"재단법인 글로벌디지털혁신네트워크"`). LLM 이 낸 변환이 지웠다:
+>
+> ```json
+> {"op": "replace", "flags": "g", "pattern": ".*", "replacement": ""}
+> ```
+>
+> `replace(/.*/g, '')` 는 무엇을 넣든 빈 문자열이다. 검증 보고서는 `null_ratio: 1` 로 **정확히 기록했고**
+> CLI 도 "값이 자주 비는 칸" 으로 찍는다. **그런데 저장을 막는 것은 아무것도 없었다** —
+> 영원히 비는 칸이 그대로 API 로 나간다. 아래 7-2 의 새 항목.
 
 5. ~~컬렉션 생성 경로 배선~~ — **함수까지는 됐다** (`pipeline/create-collection.ts`).
    `probe → discoverSpec → runAdapter` 가 한 함수로 묶였고 CLI 로 끝까지 돌려볼 수 있다.
@@ -359,6 +394,12 @@ utf-8 이 아니면 **probe 단계 기록에 적는다** (`euc-kr 로 읽음`). 
    워커 HTTP 엔드포인트냐. **어느 쪽으로 할지 B와 먼저 합의할 것.**
    - `create-collection.ts` 는 DB 를 모른다 → 화면의 "미리보기" 가 저장 없이 같은 코드를 부를 수 있다
    - 저장은 `pipeline/persist.ts` 가 따로 한다 → 사용자가 표를 **보고 나서** 저장한다 (보장선 B3)
+5-1. **항상 비는 칸을 만들어 내지 않게 한다** 🔴 (2026-07-27 발견 · 위 합류 기록 참조).
+   LLM 이 `replace(/.*/g, '')` 같은 **값을 반드시 지우는 변환**을 낸다. 보고서는 `null_ratio: 1` 로
+   기록하지만 아무도 막지 않아 그대로 저장되고 API 로 나간다.
+   정적 검사(어떤 정규식이 파괴적인가)는 일반적으로 풀 수 없다. **실측으로 막는 게 맞다** —
+   컴파일 시점에 이미 행을 들고 있으므로, 원값은 있는데 변환 뒤 전부 비면 그 변환을 버리거나
+   칸을 뺀다. 조용히 넘기면 데모에서 빈 열이 보인다.
 6. **`matchFields` 배선** — 두 번째 소스의 자동 매핑 (기능 ②).
 7. **`traceValue` 배선** — 못 찾은 필드를 값 붙여넣기로 해결 (보장선 B1).
 8. **§5-4 ISO 시각 소실 수정** — 두 소스의 날짜 형식이 같아야 G2 통과다.

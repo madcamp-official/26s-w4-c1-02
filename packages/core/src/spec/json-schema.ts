@@ -11,6 +11,12 @@
 // 그런데 zod → JSON Schema 변환은 판별 유니온을 `oneOf` + `const` 로,
 // `z.record` 를 `additionalProperties` 로 낸다. 그대로는 못 쓴다.
 //
+// 지원 목록에 있는데도 **거부되는** 것이 하나 더 있다: 원소가 복잡한 배열의 `maxItems`.
+// `columns` 에 `maxItems: 12` 를 붙였더니 400 INVALID_ARGUMENT 가 왔다 (2026-07-27, gemini-3.1-flash-lite).
+// 같은 스키마에서 그 한 줄만 빼면 통과한다 — 원소 스키마(중첩 anyOf 를 가진 객체)를
+// 그만큼 펼치다 한도를 넘는 것으로 보인다. 더 작은 배열의 `maxItems: 8` 은 통과했다.
+// **상한은 전선이 아니라 설명 문구와 파서에서 건다** (`MAX_DISCOVERED_COLUMNS`).
+//
 // 그래서 두 갈래를 둔다:
 //   1. `toGeminiSchema()`  — 일반 JSON Schema 를 Gemini 형태로 평탄화 (기계적 변환)
 //   2. `buildAdapterSpecResponseSchema()` — 손으로 축약한 스펙 스키마 (실제로 보내는 것)
@@ -525,8 +531,9 @@ export function buildDiscoveryResponseSchema(): GeminiSchema {
 
   const columns: GeminiSchema = {
     type: 'ARRAY',
+    // `maxItems` 를 붙이지 마라 — Gemini 가 스키마 전체를 400 으로 거부한다 (머리말 참조).
+    // 상한은 이 설명 문구와 `parseDiscoveryOutput` 의 검사, 두 곳에서 건다.
     description: `표에 둘 칸들. 왼쪽부터의 순서 그대로. 최대 ${MAX_DISCOVERED_COLUMNS}개`,
-    maxItems: MAX_DISCOVERED_COLUMNS,
     items: {
       type: 'OBJECT',
       properties: columnProps,
