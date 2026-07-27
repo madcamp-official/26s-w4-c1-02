@@ -74,6 +74,8 @@
 # ── ① 화면 ─────────────────────────────────────────────────────────────
 {$APP_DOMAIN} {
 	import base
+	# ADR A27 — 사설망(VPN) 배포라 공인 인증서 발급이 불가능하다. 내부 CA 로 서명한다.
+	tls internal
 	encode zstd gzip
 
 	reverse_proxy web:3000 {
@@ -87,6 +89,7 @@
 {$API_DOMAIN} {
 	import base
 	import cors
+	tls internal
 	encode zstd gzip
 
 	# TODO(G4): 남용 방지. Caddy 기본 빌드에는 rate limit 이 없다.
@@ -109,6 +112,7 @@
 {$MCP_DOMAIN} {
 	import base
 	import cors
+	tls internal
 
 	reverse_proxy mcp:3002 {
 		# 핵심: 스트리밍이므로 버퍼링을 끈다.

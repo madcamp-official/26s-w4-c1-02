@@ -67,6 +67,14 @@
 | **A25** | 로컬 `docker-compose.yml` 은 **인프라(postgres·redis)만**. 앱은 호스트에서 `pnpm dev` | `accepted` | 개발 중 앱까지 컨테이너에 넣으면 HMR·tsx watch 가 느려지고 Playwright 디버깅이 어려워진다. 배포용 전체 구성(web·worker·mcp·caddy)은 `deploy/docker-compose.prod.yml` 로 분리한다 | 로컬과 배포의 차이 때문에 "내 컴퓨터에서는 됐는데"가 실제로 발생하면 | 루트 `docker-compose.yml`, `deploy/`, 루트 `package.json` `infra:*` 스크립트 |
 | **A26** | 보장선 B2(내부 명사 금지)를 **테스트로 강제**한다 | `accepted` | 기획서 15장이 "보장선이 조용히 무너짐"을 리스크로 꼽았다. 급할 때 붙인 상태 문구 한 줄이 보장선을 깨고, 사람 눈으로만 지키면 G4 전수 점검에서야 발견된다. 문자열 규약은 기계가 잡을 수 있는 유일한 보장선이므로 잡는다 | 오탐이 잦아 개발이 막히면 (그때는 패턴을 좁히지, 테스트를 끄지 않는다) | `apps/web/lib/guardrails.ts`, `guardrails.test.ts`, `docs/guardrails.md` |
 
+## A27 — 배포(G4)에서 생긴 결정
+
+날짜는 2026-07-27 이다.
+
+| # | 결정 | 상태 | 근거 | 이걸 다시 보게 만드는 조건 | 영향받는 곳 |
+|---|---|---|---|---|---|
+| **A27** | HTTPS 는 Let's Encrypt 가 아니라 **Caddy 내부 CA(자체 서명)** | `accepted` | 캠프 VM(172.10.8.235)은 VPN 안 사설 IP 라 HTTP-01 챌린지가 불가능하고, 캠프 DNS API 가 언더스코어 레코드(`_acme-challenge`)를 금지해 DNS-01 도 불가능하다. HTTP 평문으로는 구글 OAuth 리디렉션 URI(https 필수)가 성립하지 않는다. 남는 선택지는 내부 CA 하나 — 첫 접속 시 브라우저 경고 1회를 감수한다 | 공인 IP VM 으로 옮기거나 DNS API 가 TXT `_acme-challenge` 를 허용하게 되면 → Caddyfile 의 `tls internal` 세 줄을 지우면 A9 원안(자동 LE)으로 복귀한다 | `deploy/Caddyfile`, deploy/README 의 G4 체크 "유효한 인증서(경고 없음)" 항목은 이 조건에서 "경고 후 진행"으로 완화 |
+
 ---
 
 ## 열린 결정 (기획서 16장) — 정해지면 여기로 승격
