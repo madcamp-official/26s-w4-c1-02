@@ -250,11 +250,17 @@ export function normalizeUrl(raw: string): URL | null {
  * 빈 이름을 주면 사용자가 이름부터 지어야 하고 그건 B3 이 막으려던 그 시작이다.
  */
 export function collectionNameFrom(title: string | null, host: string): string {
-  const cleaned = (title ?? '')
-    // 사이트 이름이 " | " · " - " 뒤에 붙는 관행
-    .split(/[|·\-–—]/)[0]
-    ?.trim()
-  if (cleaned !== undefined && cleaned !== '' && cleaned.length <= 40) return cleaned
+  // 빵부스러기(`기업마당>정책정보>지원사업 공고`)는 **끝**이 알맹이다. 앞을 쓰면 사이트 이름이 된다.
+  const crumbs = (title ?? '').split('>')
+  const last = crumbs[crumbs.length - 1] ?? ''
+
+  // 사이트 이름은 " | " · " - " **뒤에** 붙는 관행이라 앞을 쓴다.
+  // 구분자 양옆에 공백이 있어야 자른다 — 그냥 하이픈에서 자르면 `K-Startup` 이 `K` 가 되고
+  // `e-나라도움` 이 `e` 가 된다. 실제로 k-startup 의 이름 기본값이 "K" 로 나왔다.
+  const cleaned = last.split(/\s+[|·\-–—]\s+|[|·]/)[0]?.trim()
+
+  // 너무 짧으면 이름 구실을 못 한다. 호스트가 낫다.
+  if (cleaned !== undefined && cleaned.length >= 2 && cleaned.length <= 40) return cleaned
   return host.replace(/^www\./, '')
 }
 
@@ -268,8 +274,11 @@ export function slugFrom(host: string, title: string | null): string {
     .replace(/[^a-z0-9가-힣]+/g, '-')
     .replace(/^-+|-+$/g, '')
   // 한국어 제목이면 라틴 문자가 안 남는다. 그때는 호스트를 쓴다.
-  const latin = fromTitle.replace(/[^a-z0-9-]/g, '')
-  if (latin.length >= 3 && latin.length <= 40) return latin
+  const latin = fromTitle.replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-+|-+$/g, '')
+  // **글자 수가 아니라 글자를 센다.** 길이만 보면 한국어 제목에서 남은 `---` 가
+  // 3자라고 통과해 버린다 (실제로 bizinfo 가 그랬다 — 빵부스러기 제목이라 하이픈만 남았다).
+  const alnum = latin.replace(/-/g, '').length
+  if (alnum >= 3 && latin.length <= 40) return latin
   return (
     host
       .replace(/^www\./, '')

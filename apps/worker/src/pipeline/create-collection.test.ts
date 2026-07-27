@@ -72,6 +72,18 @@ describe('collectionNameFrom — 빈 이름을 주지 않는다 (보장선 B3)',
     expect(collectionNameFrom('공모전 목록 - 씽굿', 'thinkcontest.com')).toBe('공모전 목록')
   })
 
+  it('낱말 안의 하이픈에서 자르지 않는다', () => {
+    // 실제로 이렇게 나왔다 — 워커 문으로 미리보기를 부르니 이름 기본값이 "K" 였다.
+    // 브랜드 이름에 하이픈이 들어가는 곳이 흔하다.
+    expect(collectionNameFrom('K-Startup 사업공고', 'www.k-startup.go.kr')).toBe('K-Startup 사업공고')
+    expect(collectionNameFrom('e-나라도움 공고', 'gosims.go.kr')).toBe('e-나라도움 공고')
+  })
+
+  it('빵부스러기 제목은 끝을 쓴다 — 앞을 쓰면 사이트 이름이 된다', () => {
+    // bizinfo 의 실제 제목이다. 앞을 쓰면 컬렉션 이름이 "기업마당" 이 된다.
+    expect(collectionNameFrom('기업마당>정책정보>지원사업 공고', 'www.bizinfo.go.kr')).toBe('지원사업 공고')
+  })
+
   it('제목이 없으면 호스트로 짓는다 — 절대 비지 않는다', () => {
     expect(collectionNameFrom(null, 'www.k-startup.go.kr')).toBe('k-startup.go.kr')
     expect(collectionNameFrom('', 'bizinfo.go.kr')).toBe('bizinfo.go.kr')
@@ -92,6 +104,8 @@ describe('slugFrom — API 경로에 그대로 들어간다', () => {
   it('한국어 제목이면 호스트에서 짓는다 — 라틴 문자가 안 남기 때문', () => {
     expect(slugFrom('www.k-startup.go.kr', '사업공고')).toBe('k-startup')
     expect(slugFrom('bizinfo.go.kr', '지원사업 목록')).toBe('bizinfo')
+    // 실제로 이렇게 나왔다 — 한국어만 남고 하이픈 세 개가 "3글자" 로 통과해 slug 가 `---` 이 됐다
+    expect(slugFrom('www.bizinfo.go.kr', '기업마당>정책정보>지원사업 공고')).toBe('bizinfo')
   })
 
   it('소문자·숫자·하이픈만 남는다', () => {

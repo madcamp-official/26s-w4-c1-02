@@ -26,7 +26,7 @@
 **URL 하나가 표가 되어 화면까지 나온다. 이제 두 번째 사이트를 붙이는 일이 남았다.**
 
 ```
-소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 780개 통과 (core 657 · web 33 · worker 90)
+소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 797개 통과 (core 657 · web 48 · worker 92)
 트랙 A(파이프라인) 5,262줄 — probe·컴파일·수집·치유·발송 전부 코드가 있다
 트랙 B(표면)     2,909줄 — 표·REST·MCP 는 돈다. 피드·구독 화면은 없다
 
@@ -60,20 +60,18 @@ G5 데모       ░░░░░░░░░░   0%
 |---|---|
 | 전 패키지 타입 검사 | `pnpm typecheck` → 4개 패키지 Done |
 | core 단위 테스트 657개 | `pnpm --filter @endpointer/core test` |
-| 보장선 B2 자동 점검 33개 | `pnpm --filter @endpointer/web test` |
-| worker 테스트 90개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문·인코딩 판정 |
+| 보장선 B2 자동 점검 48개 | `pnpm --filter @endpointer/web test` |
+| worker 테스트 92개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문·인코딩 판정 |
 | 임의 URL probe (CLI) | `pnpm --filter @endpointer/worker probe <url>` |
 | URL → 표 배선 (CLI) | `pnpm --filter @endpointer/worker create-collection <url>` — **LLM 키가 있어야 끝까지 간다** |
 | 시드 데이터 표 화면 | 정렬·필터·출처 뱃지·원문 대조·"자동 복구 N회" 전부 있음 |
 | `GET /api/v1/{slug}` | 필터·정렬·커서·`sources` 부분성공 블록 |
 | MCP 도구 4개 | `list_items` · `search_items` · `get_schema` · `get_sources_status` |
 
-**구글 로그인은 아직 안 된다** ❌ — 코드는 다 있으나 `.env` 의 `AUTH_GOOGLE_ID` · `AUTH_GOOGLE_SECRET`
-가 비어 있어 [`auth.ts:34`](../apps/web/auth.ts) 의 `isAuthReady` 가 `false` 다. 버튼을 눌러도 구글로 안 넘어간다.
-구글 클라우드 콘솔에서 OAuth 클라이언트를 발급해 `.env` 에 넣으면 켜진다
-(리디렉션 URI: `http://localhost:3000/api/auth/callback/google`).
+**구글 로그인 키는 채워졌다** (2026-07-27). 다만 **로그인한 화면을 아직 아무도 확인하지 않았다** —
+`/collections/*` 는 전부 로그인 뒤에 있어서, 사람이 한 번 들어가 보기 전까지 표 화면은 미검증이다.
 
-**테스트가 없는 곳: `apps/mcp` 0개.** (`apps/worker` 는 0개였다가 90개가 됐다 — probe·표 파싱·관문·인코딩.)
+**테스트가 없는 곳: `apps/mcp` 0개.** (`apps/worker` 는 0개였다가 92개가 됐다 — probe·표 파싱·관문·인코딩.)
 아직 무검증인 곳이 **사수 대상 ②④ 자체다** — `matchFields`·`traceValue`·자가 치유에는 테스트가 없다.
 
 ---
@@ -135,8 +133,9 @@ G5 데모       ░░░░░░░░░░   0%
 | [`queues.ts`](../apps/worker/src/queues.ts) | ⚠️ `enqueueCollect/Heal/Deliver` 있음 |
 | [`index.ts`](../apps/worker/src/index.ts) | ⚠️ 워커 3개 기동 · graceful shutdown |
 
-> **워커에 HTTP 진입점이 없다.** 밖에서 파이프라인을 부를 수단은 BullMQ 큐가 유일하고,
-> 큐에 잡을 미는 코드는 워커 부팅 시 cron 등록뿐이다 — 수동 수집·최초 수집을 부르는 경로가 없다.
+> **워커에 HTTP 진입점이 생겼다** ([`http/index.ts`](../apps/worker/src/http/index.ts) · ADR A30).
+> 미리보기·생성은 이 문으로 부른다. 정기 수집은 지금처럼 큐로 남는다.
+> **수동 수집 트리거(G3)는 아직 없다** — 같은 문에 경로 하나를 더 내면 된다.
 
 ---
 
@@ -388,7 +387,40 @@ utf-8 이 아니면 **probe 단계 기록에 적는다** (`euc-kr 로 읽음`). 
 > CLI 도 "값이 자주 비는 칸" 으로 찍는다. **그런데 저장을 막는 것은 아무것도 없었다** —
 > 영원히 비는 칸이 그대로 API 로 나간다. 아래 7-2 의 새 항목.
 
-5. ~~컬렉션 생성 경로 배선~~ — **함수까지는 됐다** (`pipeline/create-collection.ts`).
+> #### 이음매가 뚫렸다 (2026-07-27) ✅ — ADR A30
+>
+> 워커에 HTTP 진입점이 생겼다 ([`http/index.ts`](../apps/worker/src/http/index.ts)).
+>
+> | | |
+> |---|---|
+> | `GET /healthz` | |
+> | `POST /internal/preview` | 주소 → 이미 채워진 표. **저장하지 않는다** |
+> | `POST /internal/collections` | 같은 것 + DB 에 앉히기 |
+>
+> **`WORKER_INTERNAL_TOKEN` 이 없거나 16자 미만이면 문을 아예 열지 않는다.** 열어 두면
+> 이 서버는 "아무 주소나 대신 열어 주는 공개 서비스" 가 된다 — 관문이 사설망을 막아도
+> 공인 주소로는 얼마든지 남을 대신 때릴 수 있다. 기본 바인드는 `127.0.0.1` 이다.
+>
+> **클라이언트가 준 스펙을 실행하지 않는다.** 미리보기 스펙을 화면에 내려보냈다가 저장할 때
+> 돌려받는 설계가 편해 보이지만, 스펙은 "어느 주소를 어떻게 긁을지" 이므로 그건 곧 임의 요청
+> 실행이다. 저장할 때 **주소만 받아 다시 돈다** — HTTP·LLM 캐시 덕에 두 번째는 거의 공짜다.
+>
+> ```bash
+> curl -s -X POST http://127.0.0.1:3003/internal/collections \
+>   -H "Authorization: Bearer $WORKER_INTERNAL_TOKEN" -H "Content-Type: application/json" \
+>   -d '{"url":"https://www.bizinfo.go.kr/...","owner_id":"...","skip_browser":true}'
+> # → {"ok":true,"slug":"bizinfo","name":"지원사업 공고","items_inserted":15}
+> ```
+>
+> **남은 것은 트랙 B 쪽 한 곳** — `apps/web/lib/create.ts` 의 `buildMockPreview` 를 이 문 호출로 바꾸는 일.
+>
+> 이 문을 붙이며 잡은 결함 둘 (둘 다 화면 첫인상에 바로 보이는 것):
+> - `collectionNameFrom('K-Startup 사업공고')` → **`"K"`**. 낱말 안 하이픈에서 잘랐다.
+>   구분자 양옆에 공백이 있을 때만 자르고, 빵부스러기(`A>B>C`)는 **끝**을 쓰게 고쳤다.
+> - `slugFrom(host, '기업마당>정책정보>지원사업 공고')` → **`"---"`**. 한국어를 지우고 남은
+>   하이픈 세 개가 "3글자" 로 통과했다. 길이가 아니라 **글자 수**를 세게 고쳤다.
+
+5. ~~컬렉션 생성 경로 배선~~ — **함수까지는 됐고, 부르는 문도 생겼다** (`pipeline/create-collection.ts` + `http/index.ts`).
    `probe → discoverSpec → runAdapter` 가 한 함수로 묶였고 CLI 로 끝까지 돌려볼 수 있다.
    **남은 것은 그것을 트랙 B 가 부를 수 있게 노출하는 일이다** — 큐 잡(`enqueueCreate` 신설)이냐
    워커 HTTP 엔드포인트냐. **어느 쪽으로 할지 B와 먼저 합의할 것.**
@@ -433,7 +465,7 @@ apps/web                          apps/worker
 
 - `apps/web` 에 `POST`/`PUT`/`PATCH`/`DELETE` 라우트가 **하나도 없다**
 - `apps/web` 에 Redis 의존성이 **없다** → 잡을 밀 수단이 없다
-- `apps/worker` 에 HTTP 진입점이 **없다** → 밖에서 부를 수단이 큐뿐이다
+- ~~`apps/worker` 에 HTTP 진입점이 **없다**~~ → 생겼다 (ADR A30). 남은 건 web 쪽 `buildMockPreview` 교체 한 곳
 
 **7-2 의 5번이 이 그림을 바꾸는 한 수다.** 그거 하나 붙는 순간 기능 ①②④가 동시에 살아난다.
 반대로 그걸 안 붙이면 코드를 아무리 더 써도 G5 에서 녹화할 장면이 안 생긴다.
