@@ -183,6 +183,58 @@ export function validateViewDefinition(
   return { ok: errors.length === 0, errors }
 }
 
+// ── 사람 문장 요약 (B2 — 내부 표현을 화면·도구 설명에 내보내지 않는다) ────
+// 화면(작업실 카드·이름 자동 제안)과 MCP(뷰별 도구 설명)가 같이 쓴다.
+// 두 표면이 각자 요약을 짜면 "표에서 보이는 조건과 도구 설명이 다르다"가 된다.
+
+const summaryNumber = new Intl.NumberFormat('ko-KR')
+
+function summaryLabelOf(fields: readonly FieldDef[], key: string): string {
+  return fields.find((f) => f.key === key)?.label ?? key
+}
+
+function summaryEnumLabelOf(fields: readonly FieldDef[], key: string, value: string): string {
+  return fields.find((f) => f.key === key)?.value_labels?.[value] ?? value
+}
+
+/** 조건 하나 → 사람 문장 조각 */
+export function summarizeViewCondition(cond: ViewCondition, fields: readonly FieldDef[]): string {
+  const label = summaryLabelOf(fields, cond.field)
+  switch (cond.op) {
+    case 'within':
+      return cond.value === 'this_week' ? `이번 주 ${label}` : `이번 달 ${label}`
+    case 'd_within':
+      return `${label} D-${cond.value} 이내`
+    case 'before':
+      return `지난 ${label}`
+    case 'after':
+      return `다가올 ${label}`
+    case 'is_null':
+      return `${label} 없음`
+    case 'gte':
+      return `${label} ${summaryNumber.format(cond.value)} 이상`
+    case 'lte':
+      return `${label} ${summaryNumber.format(cond.value)} 이하`
+    case 'between':
+      return `${label} ${summaryNumber.format(cond.value[0])}~${summaryNumber.format(cond.value[1])}`
+    case 'in':
+      return `${label}: ${cond.value.map((v) => summaryEnumLabelOf(fields, cond.field, v)).join('/')}`
+    case 'not_in':
+      return `${label} 제외: ${cond.value.map((v) => summaryEnumLabelOf(fields, cond.field, v)).join('/')}`
+    case 'contains':
+      return `‘${cond.value}’ 포함`
+    case 'not_contains':
+      return `‘${cond.value}’ 제외`
+  }
+}
+
+export function summarizeViewConditions(
+  conds: readonly ViewCondition[],
+  fields: readonly FieldDef[],
+): string {
+  return conds.map((c) => summarizeViewCondition(c, fields)).join(' · ')
+}
+
 // ── slug ─────────────────────────────────────────────────────────────────
 
 /**

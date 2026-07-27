@@ -32,6 +32,8 @@ import {
   type SourcesStatusResponse,
 } from '@endpointer/core'
 
+import { summarizeViewConditions } from '@endpointer/core'
+
 import type { AccessibleCollection } from './auth'
 import {
   BUILTIN_SORT_KEYS,
@@ -40,7 +42,9 @@ import {
   RESERVED_PARAMS,
   buildCollectionResponse,
   parseCollectionQuery,
+  viewToQuery,
 } from './core-query'
+import type { McpView } from './views'
 
 export interface ToolContext {
   db: Db
@@ -401,14 +405,70 @@ export function registerCollectionTools(server: McpServer, ctx: ToolContext): vo
   )
 }
 
+// ── 뷰별 도구 (뷰 계약 §4 · 델타 2-4) ────────────────────────────────────
+// `search_items(view=…)` 가 아니라 **뷰마다 도구 하나** — 도구 설명에 뷰 이름·조건이
+// 그대로 들어가야 클라이언트 LLM 이 "이번 달 마감 뭐 있어?" 를 바로 맞는 도구로 잇는다.
+
+/** 고정 도구 4개와 이름이 겹치면 뷰 쪽을 양보시킨다 (slug 규칙상 언더스코어가 없어 실제로는 안 겹친다) */
+const FIXED_TOOL_NAMES = new Set(['list_items', 'search_items', 'get_schema', 'get_sources_status'])
+
+export function registerViewTools(server: McpServer, ctx: ToolContext, views: readonly McpView[]): void {
+  const { db, collection } = ctx
+  const fields = collection.schema_json
+
+  for (const view of views) {
+    const toolName = FIXED_TOOL_NAMES.has(view.slug) ? `view-${view.slug}` : view.slug
+    const summary = summarizeViewConditions(view.where, fields)
+
+    server.registerTool(
+      toolName,
+      {
+        title: view.name,
+        description: [
+          `사용자가 저장해 둔 조건 "${view.name}" 에 지금 맞는 항목을 가져온다.`,
+          summary === '' ? '조건 없이 전체를 본다.' : `조건: ${summary}`,
+          '이 조건에 대한 질문이면 list_items 로 조건을 다시 만들지 말고 이 도구를 그대로 부른다.',
+        ].join('\n'),
+        inputSchema: {
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_PAGE_LIMIT)
+            .optional()
+            .describe(`한 번에 가져올 개수 (기본 ${DEFAULT_PAGE_LIMIT})`),
+        },
+        annotations: { readOnlyHint: true, openWorldHint: true },
+      },
+      async (args) => {
+        if (view.broken) {
+          return stateResult(
+            `"${view.name}" 조건에 쓰인 칸이 표에서 사라져 지금은 답할 수 없습니다. 표 주인이 작업실에서 고쳐야 합니다.`,
+          )
+        }
+        // 화면·REST·알림과 같은 문 — viewToQuery 하나 (A33)
+        const query = viewToQuery({ where: view.where, sort: view.sort }, new Date())
+        const response = await buildCollectionResponse(db, collection, {
+          ...query,
+          ...(args.limit !== undefined ? { limit: args.limit } : {}),
+        })
+        return textResult(renderCollectionResponse(response, collection, []), response)
+      },
+    )
+  }
+}
+
 /**
  * 서버 수준 안내 — 커넥터가 붙자마자 클라이언트 LLM 에게 한 번 전달된다.
  * 도구 이름을 외우게 하는 게 아니라 "먼저 무엇을 물어보면 되는지" 를 알려주는 자리다.
  */
-export function instructionsFor(collection: AccessibleCollection): string {
+export function instructionsFor(collection: AccessibleCollection, viewNames: readonly string[] = []): string {
   return [
     `이 서버는 "${collection.name}" 컬렉션 하나를 다룬다. 여러 사이트에서 모은 항목이 한 표로 합쳐져 있다.`,
     `항목 구성: ${collectionOverview(collection)}`,
+    ...(viewNames.length > 0
+      ? [`사용자가 저장해 둔 조건이 도구로 나와 있다: ${viewNames.join(' · ')}. 그 조건에 대한 질문이면 그 도구를 먼저 쓴다.`]
+      : []),
     '조건이 붙는 질문이면 list_items, 찾는 말이 있으면 search_items 를 쓴다.',
     '어떤 조건을 걸 수 있는지 모르겠으면 get_schema 를 먼저 부른다.',
     '응답에 사이트별 상태가 늘 함께 온다. 어떤 사이트가 "다시 맞추는 중" 이면 그 사이트 몫은 마지막으로 받아온 내용이라는 뜻이니, 사용자에게 그 사실을 같이 알려 준다.',

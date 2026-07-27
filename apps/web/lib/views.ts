@@ -8,6 +8,7 @@ import {
   ViewConditionSchema,
   ViewDefinitionSchema,
   suggestViewSlug,
+  summarizeViewConditions,
   validateViewDefinition,
   type CollectionResponse,
   type FieldDef,
@@ -230,54 +231,13 @@ export async function fetchViewPage(
   })
 }
 
-// ── 사람 문장 요약 (B2 — 내부 표현을 화면에 내보내지 않는다) ─────────────
-
-const numberFormat = new Intl.NumberFormat('ko-KR')
-
-function fieldLabel(fields: readonly FieldDef[], key: string): string {
-  return fields.find((f) => f.key === key)?.label ?? key
-}
-
-function enumLabel(fields: readonly FieldDef[], key: string, value: string): string {
-  return fields.find((f) => f.key === key)?.value_labels?.[value] ?? value
-}
-
-/** 조건 하나 → 사람 문장 조각. 이름 자동 제안과 뷰 카드가 같이 쓴다 */
-export function summarizeCondition(cond: ViewCondition, fields: readonly FieldDef[]): string {
-  const label = fieldLabel(fields, cond.field)
-  switch (cond.op) {
-    case 'within':
-      return cond.value === 'this_week' ? `이번 주 ${label}` : `이번 달 ${label}`
-    case 'd_within':
-      return `${label} D-${cond.value} 이내`
-    case 'before':
-      return `지난 ${label}`
-    case 'after':
-      return `다가올 ${label}`
-    case 'is_null':
-      return `${label} 없음`
-    case 'gte':
-      return `${label} ${numberFormat.format(cond.value)} 이상`
-    case 'lte':
-      return `${label} ${numberFormat.format(cond.value)} 이하`
-    case 'between':
-      return `${label} ${numberFormat.format(cond.value[0])}~${numberFormat.format(cond.value[1])}`
-    case 'in':
-      return `${label}: ${cond.value.map((v) => enumLabel(fields, cond.field, v)).join('/')}`
-    case 'not_in':
-      return `${label} 제외: ${cond.value.map((v) => enumLabel(fields, cond.field, v)).join('/')}`
-    case 'contains':
-      return `‘${cond.value}’ 포함`
-    case 'not_contains':
-      return `‘${cond.value}’ 제외`
-  }
-}
+// ── 사람 문장 요약 — core 것을 그대로 쓴다 (MCP 도구 설명과 갈라지지 않게) ─
 
 export function summarizeConditions(
   conds: readonly ViewCondition[],
   fields: readonly FieldDef[],
 ): string {
-  return conds.map((c) => summarizeCondition(c, fields)).join(' · ')
+  return summarizeViewConditions(conds, fields)
 }
 
 /** 뷰 건강 → 사람 문장 (B2 — `warn`/`broken` 키를 그대로 내보내지 않는다) */

@@ -33,7 +33,8 @@ import { closeDb, db, getEnv } from '@endpointer/core/db'
 import type { ApiErrorResponse } from '@endpointer/core'
 
 import { KEY_QUERY_PARAM, presentedKeyFrom, resolveCollectionAccess } from './auth'
-import { instructionsFor, registerCollectionTools } from './tools'
+import { instructionsFor, registerCollectionTools, registerViewTools } from './tools'
+import { loadViewsForMcp, type McpView } from './views'
 
 const env = getEnv()
 
@@ -96,11 +97,22 @@ app.all('/:slug', async (req: Request, res: Response) => {
 
   const collection = grant.collection
 
+  // 저장된 뷰 → 도구 (뷰 계약 §4). stateless 라 요청마다 읽는다 —
+  // 화면에서 뷰를 만들면 다음 요청부터 도구가 자동으로 생긴다.
+  // 뷰를 못 읽어도 고정 도구 4개는 살아야 하므로 실패는 빈 목록으로 낮춘다.
+  let views: McpView[] = []
+  try {
+    views = await loadViewsForMcp(collection.id, collection.schema_json)
+  } catch (cause) {
+    log.warn({ slug: collection.slug, err: cause }, '저장된 뷰를 읽지 못해 고정 도구만 낸다')
+  }
+
   const server = new McpServer(
     { name: `endpointer/${collection.slug}`, title: collection.name, version: SERVER_VERSION },
-    { instructions: instructionsFor(collection) },
+    { instructions: instructionsFor(collection, views.map((v) => v.name)) },
   )
   registerCollectionTools(server, { db, collection })
+  registerViewTools(server, { db, collection }, views)
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
 
