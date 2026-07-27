@@ -18,7 +18,18 @@ import type {
   SourceRow,
   SubscriptionRow,
 } from '@endpointer/core/db'
-import { db, queryClient, adapters, collections, items, runs, sources } from '@endpointer/core/db'
+import {
+  db,
+  queryClient,
+  adapters,
+  collections,
+  items,
+  runs,
+  sources,
+  viewMatches,
+  notificationLog,
+  type ViewRow,
+} from '@endpointer/core/db'
 import type {
   CollectionSchemaJson,
   FetchMode,
@@ -35,8 +46,9 @@ import { hashString, stableStringify } from '@endpointer/core/spec'
 export { db, queryClient } from '@endpointer/core/db'
 // pipeline/persist.ts 가 INSERT 를 하려면 테이블 객체가 필요하다.
 // worker 에 drizzle-orm 이 없어서 여기를 거쳐 간다 (위 주석 참조).
-export { collections, sources, adapters, items, runs } from '@endpointer/core/db'
+export { collections, sources, adapters, items, runs, views, viewMatches, notificationLog } from '@endpointer/core/db'
 export type { SourceRow, CollectionRow, AdapterRow, ItemRow, RunRow, SubscriptionRow }
+export type { ViewRow } from '@endpointer/core/db'
 
 // ── 읽기 ───────────────────────────────────────────────────────────────
 
@@ -182,6 +194,91 @@ export async function loadItems(ids: readonly string[]): Promise<ItemRow[]> {
   return db.query.items.findMany({
     where: (i, { inArray }) => inArray(i.id, [...ids]),
   })
+}
+
+// ── 뷰 (뷰 계약 · A34) ─────────────────────────────────────────────────
+
+export async function listViews(collectionId: string): Promise<ViewRow[]> {
+  return db.query.views.findMany({
+    where: (v, { eq }) => eq(v.collection_id, collectionId),
+  })
+}
+
+/** 뷰의 현재 매칭 집합 (view_matches) — enter/exit 차집합의 비교 대상 */
+export async function viewMatchedItemIds(viewId: string): Promise<Set<string>> {
+  const rows = await db.query.viewMatches.findMany({
+    where: (m, { eq }) => eq(m.view_id, viewId),
+    columns: { item_id: true },
+  })
+  return new Set(rows.map((r) => r.item_id))
+}
+
+/**
+ * 매칭 집합을 현재 상태와 **동기화**한다 (계약 §7 결정 ① — exit 는 지운다).
+ * 재진입하면 새 행이 들어가므로 matched_at 은 "이번 진입" 시각이 된다.
+ */
+export async function syncViewMatches(
+  viewId: string,
+  entered: readonly string[],
+  exited: readonly string[],
+  now: Date,
+): Promise<void> {
+  // `prepare: false` 인 원시 클라이언트에는 **문자열만** 바인딩한다 — 배열·Date 는
+  // ERR_INVALID_ARG_TYPE 으로 죽는다 (finishRun 의 jsonb 와 같은 부류). 캐스팅은 SQL 이 한다.
+  if (exited.length > 0) {
+    await queryClient`
+      delete from view_matches
+      where view_id = ${viewId}
+        and item_id = any(string_to_array(${exited.join(',')}, ',')::uuid[])
+    `
+  }
+  if (entered.length > 0) {
+    await db
+      .insert(viewMatches)
+      .values(entered.map((item_id) => ({ view_id: viewId, item_id, matched_at: now })))
+      .onConflictDoNothing()
+  }
+}
+
+/**
+ * 이 채널로 최근 24시간 안에 이미 나간 항목들 (A36 안전판).
+ * 경계값이 흔들려 매 평가마다 들락거리는 항목이 스팸이 되는 것을 막는다.
+ */
+export async function recentlyNotified(
+  channelKey: string,
+  itemIds: readonly string[],
+  now: Date,
+): Promise<Set<string>> {
+  if (itemIds.length === 0) return new Set()
+  const since = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  // 문자열만 바인딩한다 — 위 syncViewMatches 의 주석 참조
+  const rows = await queryClient<{ item_id: string }[]>`
+    select distinct item_id from notification_log
+    where channel_key = ${channelKey}
+      and item_id = any(string_to_array(${itemIds.join(',')}, ',')::uuid[])
+      and sent_at > ${since.toISOString()}::timestamptz
+  `
+  return new Set(rows.map((r) => r.item_id))
+}
+
+/** 발송 기록 (A36) — 사건당 한 줄. 뷰 카드의 "최근 enter" 재료이기도 하다 */
+export async function recordNotifications(
+  channelKey: string,
+  entries: readonly { item_id: string; view_ids: string[] }[],
+  now: Date,
+): Promise<void> {
+  if (entries.length === 0) return
+  await db
+    .insert(notificationLog)
+    .values(
+      entries.map((e) => ({
+        channel_key: channelKey,
+        item_id: e.item_id,
+        view_ids_json: e.view_ids,
+        sent_at: now,
+      })),
+    )
+    .onConflictDoNothing()
 }
 
 // ── runs ───────────────────────────────────────────────────────────────

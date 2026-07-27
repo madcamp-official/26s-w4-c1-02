@@ -23,13 +23,16 @@ import { logger } from './logger'
 import {
   QUEUE_COLLECT,
   QUEUE_DELIVER,
+  QUEUE_EVALUATE,
   QUEUE_HEAL,
   QUEUE_PREFIX,
   closeQueues,
   collectLimiter,
+  scheduleDailyViewEvaluation,
   syncSourceSchedules,
   type CollectJobData,
   type DeliverJobData,
+  type EvaluateJobData,
   type HealJobData,
 } from './queues'
 import { closeRedis, getRedis, pingRedis } from './redis'
@@ -115,7 +118,26 @@ async function main(): Promise<void> {
     { ...common, concurrency: cfg.workerConcurrency },
   )
 
-  const workers = [collectWorker, healWorker, deliverWorker]
+  // 뷰 평가 (A34). 일일 잡(collection_id: null)은 전체를, 아니면 그 컬렉션만.
+  const { evaluateCollectionViews } = await import('./jobs/evaluate-views')
+  const { db: dbClient } = await import('./db')
+  const evaluateWorker = new Worker<EvaluateJobData>(
+    QUEUE_EVALUATE,
+    async (job: Job<EvaluateJobData>) => {
+      const ids =
+        job.data.collection_id !== null
+          ? [job.data.collection_id]
+          : (await dbClient.query.collections.findMany({ columns: { id: true } })).map((c) => c.id)
+      for (const id of ids) await evaluateCollectionViews(id)
+      return { collections: ids.length }
+    },
+    { ...common, concurrency: 1 }, // 평가는 겹쳐 돌 이유가 없다 — 차집합이 서로 밟는다
+  )
+
+  const workers = [collectWorker, healWorker, deliverWorker, evaluateWorker]
+
+  // 시간이 만드는 전이(D-8→D-7)는 수집이 없어도 일어난다 — KST 자정 직후 전체 평가 (계약 §3)
+  await scheduleDailyViewEvaluation()
 
   for (const worker of workers) {
     worker.on('failed', (job, err) => {
@@ -133,7 +155,7 @@ async function main(): Promise<void> {
 
   logger.info(
     {
-      queues: [QUEUE_COLLECT, QUEUE_HEAL, QUEUE_DELIVER],
+      queues: [QUEUE_COLLECT, QUEUE_HEAL, QUEUE_DELIVER, QUEUE_EVALUATE],
       concurrency: cfg.workerConcurrency,
       browser_concurrency: cfg.browserConcurrency,
       channels: registeredChannels(),

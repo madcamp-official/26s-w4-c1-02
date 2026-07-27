@@ -145,6 +145,15 @@ export async function runCollectJob(data: CollectJobData): Promise<CollectJobRes
   // ── 구독 큐 (9-4) ────────────────────────────────────────────────────
   await fanOutToSubscriptions(collection.id, upsert.newItemIds)
 
+  // ── 뷰 평가 (A34) — 새 데이터가 들어왔으니 enter 를 잡는다 ───────────
+  // 평가가 죽어도 수집은 성공이다 — 표에는 이미 새 항목이 앉아 있다 (원칙 ④).
+  try {
+    const { evaluateCollectionViews } = await import('./evaluate-views')
+    await evaluateCollectionViews(collection.id)
+  } catch (e) {
+    log.error({ err: e }, '수집 후 뷰 평가에 실패했다 — 다음 평가(자정)가 따라잡는다')
+  }
+
   log.info(
     { items: run.items.length, new: upsert.newItemIds.length, changed: upsert.changedItemIds.length },
     '수집 완료',
