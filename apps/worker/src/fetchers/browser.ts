@@ -16,6 +16,7 @@ import type { BrowserFetchSpec } from '@endpointer/core/spec'
 import { parseCssPathStrict } from '@endpointer/core/spec'
 
 import { getConfig } from '../config'
+import { checkOutboundUrl, isBlockedOutboundUrl } from './guard'
 import { throttleHost } from './http'
 import type { PageFetchOutcome } from './types'
 
@@ -64,12 +65,9 @@ export async function fetchBrowserPayload(
   const cfg = getConfig()
   const timeout = opts.timeoutMs ?? 20_000
 
-  let host: string
-  try {
-    host = new URL(url).host
-  } catch {
-    return { ok: false, message: `주소를 읽을 수 없습니다: ${url}` }
-  }
+  const entry = await checkOutboundUrl(url)
+  if (!entry.ok) return { ok: false, message: entry.message }
+  const host = entry.url.host
 
   const release = await acquireBrowserSlot()
   let browser: Browser | null = null
@@ -85,6 +83,10 @@ export async function fetchBrowserPayload(
         viewport: { width: 1280, height: 900 },
       })
       await context.route('**/*', (route) => {
+        // 브라우저는 리다이렉트도 따라가고 페이지가 시키는 요청도 낸다. 그 전부가 여기를 지난다 —
+        // 첫 주소만 보고 열어 주면 페이지 안의 `<img src="http://127.0.0.1:6379/…">` 한 줄로
+        // 내부망을 두드릴 수 있다.
+        if (isBlockedOutboundUrl(route.request().url())) return route.abort()
         const type = route.request().resourceType()
         if (type === 'image' || type === 'font' || type === 'media') return route.abort()
         return route.continue()

@@ -14,6 +14,7 @@
 import type { Browser, Page, Response } from 'playwright'
 
 import { getConfig } from '../config'
+import { checkOutboundUrl, isBlockedOutboundUrl } from '../fetchers/guard'
 import { isJsonContentType } from '../fetchers/http'
 import { findRecordArrays } from './scan'
 import type { ProbeCandidate } from './types'
@@ -55,6 +56,9 @@ const EMPTY: NetworkProbeResult = {
 export async function probeNetwork(input: NetworkProbeInput): Promise<NetworkProbeResult> {
   const cfg = getConfig()
 
+  const entry = await checkOutboundUrl(input.url)
+  if (!entry.ok) return { ...EMPTY, note: entry.message }
+
   let browser: Browser | null = null
   try {
     const { chromium } = await import('playwright')
@@ -76,6 +80,8 @@ export async function probeNetwork(input: NetworkProbeInput): Promise<NetworkPro
       viewport: { width: 1280, height: 900 },
     })
     await context.route('**/*', (route) => {
+      // 리다이렉트와 페이지가 내는 요청 전부가 여기를 지난다 (fetchers/browser.ts 에 같은 메모)
+      if (isBlockedOutboundUrl(route.request().url())) return route.abort()
       const type = route.request().resourceType()
       if (type === 'image' || type === 'font' || type === 'media') return route.abort()
       return route.continue()

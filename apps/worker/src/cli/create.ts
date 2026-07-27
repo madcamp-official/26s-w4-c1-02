@@ -13,6 +13,7 @@
 // 그래서 `./db` 를 정적으로 import 하지 않는다 (import 하는 순간 DATABASE_URL 을 요구한다).
 
 import { geminiStatus } from '../compile'
+import { resetConfigCache } from '../config'
 import {
   collectionNameFrom,
   createCollectionFromUrl,
@@ -89,6 +90,13 @@ async function main(): Promise<void> {
   if (opts === null) {
     process.stdout.write(USAGE)
     process.exit(1)
+  }
+
+  // 사설망 탈출구는 프로세스 스위치다 (`config.ts` 의 allowPrivateHosts 주석).
+  // 여기서 켜 두면 나가는 요청 관문이 전부 함께 열린다 — 호출부마다 안 넘겨도 된다.
+  if (opts.allowPrivate) {
+    process.env['ALLOW_PRIVATE_HOSTS'] = 'true'
+    resetConfigCache()
   }
 
   // 주소부터 본다. 키 얘기를 먼저 하면 주소를 잘못 넣은 사람이 엉뚱한 곳을 고치게 된다.

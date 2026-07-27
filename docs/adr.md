@@ -69,6 +69,19 @@
 
 ---
 
+## A27~ — G1 작업 중 생긴 결정
+
+날짜는 2026-07-27 이다.
+
+> ⚠️ **A27 은 코드가 먼저 들어갔다.** 절차(ADR 먼저)를 어긴 것이라 여기 적어 둔다.
+> 되돌릴 수 있는 결정이므로 남긴다.
+
+| # | 결정 | 상태 | 근거 | 이걸 다시 보게 만드는 조건 | 영향받는 곳 |
+|---|---|---|---|---|---|
+| **A27** | 나가는 요청은 **fetch 계층의 관문**에서 이름을 풀어 검사하고, 리다이렉트 **홉마다** 다시 검사한다. 확인된 IP 로 접속을 고정하지는 **않는다** | `accepted` | 이 제품은 사용자가 준 주소를 서버가 대신 연다 — 임의 URL 을 받는 것이 기능이므로 SSRF 는 부수 위험이 아니라 **기능의 이면**이다. 검사를 스펙 검증(`validateSpec`)에만 두면 probe 는 스펙이 생기기 **전에** 나가므로 아무것도 못 막는다. 이름만 보는 검사는 `evil.example → 127.0.0.1` 을 못 막아 이름 풀기가 필요하고, 첫 주소만 보면 302 한 번에 뚫려 홉마다 검사가 필요하다. IP 고정은 Node 내장 fetch 로 불가능해(undici 직접 의존) 지금 범위 밖이다 | ① DNS 리바인딩이 실제 위협이 되면 → undici 를 의존에 넣고 `lookup` 고정 (그때는 새 ADR). ② `apps/web`·`apps/mcp` 가 서버에서 임의 주소를 열게 되면 → 관문을 `packages/core` 로 올려야 한다 (지금은 worker 안에만 있다) | `apps/worker/src/fetchers/guard.ts`, `fetchers/http.ts`(수동 리다이렉트), `fetchers/browser.ts`·`probe/network.ts`(라우트 훅), `jobs/channels/webhook.ts`, `packages/core/src/spec/validate.ts`(`isPrivateHost`), `.env.example`(`ALLOW_PRIVATE_HOSTS`) |
+
+---
+
 ## 열린 결정 (기획서 16장) — 정해지면 여기로 승격
 
 | # | 열린 질문 | 정해야 하는 시점 | 기본값 | 현재 |

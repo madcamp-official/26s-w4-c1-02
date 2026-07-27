@@ -11,6 +11,7 @@
 //
 // DB 도 Redis 도 필요 없다. URL 하나만 있으면 돈다 (`./db` 를 import 하지 않는 이유).
 
+import { resetConfigCache } from '../config'
 import { PROBE_PATH_LABELS, probe, sampleRows, type ProbeResult } from '../probe'
 
 const USAGE = `사용법: pnpm --filter @endpointer/worker probe <url> [옵션]
@@ -19,6 +20,7 @@ const USAGE = `사용법: pnpm --filter @endpointer/worker probe <url> [옵션]
   --no-browser      브라우저를 쓰는 단계를 건너뛴다 (G1 강등 규칙 1)
   --no-dom          DOM 반복 구조 탐지를 건너뛴다 (G1 강등 규칙 2)
   --min-overlap=N   이 겹침률(0~1) 미만이면 다음 단계로 내려간다 (기본 0.3)
+  --allow-private   사설망 주소를 허용한다 (로컬 픽스처 테스트용)
   --json            사람용 출력 대신 결과 JSON 을 그대로 찍는다
 `
 
@@ -27,6 +29,7 @@ interface CliOptions {
   skipBrowser: boolean
   skipDom: boolean
   minOverlap: number | undefined
+  allowPrivate: boolean
   asJson: boolean
 }
 
@@ -35,11 +38,13 @@ function parseArgs(argv: readonly string[]): CliOptions | null {
   let skipBrowser = false
   let skipDom = false
   let minOverlap: number | undefined
+  let allowPrivate = false
   let asJson = false
 
   for (const arg of argv) {
     if (arg === '--no-browser') skipBrowser = true
     else if (arg === '--no-dom') skipDom = true
+    else if (arg === '--allow-private') allowPrivate = true
     else if (arg === '--json') asJson = true
     else if (arg.startsWith('--min-overlap=')) {
       const n = Number.parseFloat(arg.slice('--min-overlap='.length))
@@ -54,7 +59,7 @@ function parseArgs(argv: readonly string[]): CliOptions | null {
   if (url === null) return null
   // 스킴을 빼먹는 일이 잦다. 붙여준다.
   const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`
-  return { url: normalized, skipBrowser, skipDom, minOverlap, asJson }
+  return { url: normalized, skipBrowser, skipDom, minOverlap, allowPrivate, asJson }
 }
 
 async function main(): Promise<void> {
@@ -62,6 +67,12 @@ async function main(): Promise<void> {
   if (opts === null) {
     process.stdout.write(USAGE)
     process.exit(1)
+  }
+
+  // 나가는 요청 관문을 통째로 연다 (`config.ts` 의 allowPrivateHosts 주석)
+  if (opts.allowPrivate) {
+    process.env['ALLOW_PRIVATE_HOSTS'] = 'true'
+    resetConfigCache()
   }
 
   const result = await probe(opts.url, {

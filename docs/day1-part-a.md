@@ -26,7 +26,7 @@
 **부품은 대부분 만들어졌는데 조립이 안 됐다.**
 
 ```
-소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 663개 통과
+소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 762개 통과 (core 655 · web 33 · worker 74)
 트랙 A(파이프라인) 5,262줄 — probe·컴파일·수집·치유·발송 전부 코드가 있다
 트랙 B(표면)     2,909줄 — 표·REST·MCP 는 돈다. 피드·구독 화면은 없다
 
@@ -58,8 +58,9 @@ G5 데모       ░░░░░░░░░░   0%
 | 되는 것 | 확인 방법 |
 |---|---|
 | 전 패키지 타입 검사 | `pnpm typecheck` → 4개 패키지 Done |
-| core 단위 테스트 630개 | `pnpm --filter @endpointer/core test` |
+| core 단위 테스트 655개 | `pnpm --filter @endpointer/core test` |
 | 보장선 B2 자동 점검 33개 | `pnpm --filter @endpointer/web test` |
+| worker 테스트 74개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문 |
 | 임의 URL probe (CLI) | `pnpm --filter @endpointer/worker probe <url>` |
 | URL → 표 배선 (CLI) | `pnpm --filter @endpointer/worker create-collection <url>` — **LLM 키가 있어야 끝까지 간다** |
 | 시드 데이터 표 화면 | 정렬·필터·출처 뱃지·원문 대조·"자동 복구 N회" 전부 있음 |
@@ -71,9 +72,8 @@ G5 데모       ░░░░░░░░░░   0%
 구글 클라우드 콘솔에서 OAuth 클라이언트를 발급해 `.env` 에 넣으면 켜진다
 (리디렉션 URI: `http://localhost:3000/api/auth/callback/google`).
 
-**테스트가 없는 곳: `apps/worker` 0개 · `apps/mcp` 0개.**
-두 앱 다 `test` 스크립트가 `--passWithNoTests` 라 `pnpm test` 가 초록으로 지나간다.
-사수 대상 ②④가 사는 곳이 정확히 worker 다 — 여기가 무검증이라는 뜻이다.
+**테스트가 없는 곳: `apps/mcp` 0개.** (`apps/worker` 는 0개였다가 74개가 됐다 — probe·표 파싱·관문.)
+아직 무검증인 곳이 **사수 대상 ②④ 자체다** — `matchFields`·`traceValue`·자가 치유에는 테스트가 없다.
 
 ---
 
@@ -103,6 +103,15 @@ G5 데모       ░░░░░░░░░░   0%
 > **얕게 묶는다** — 시그니처는 행 자신과 직계 자식까지만 본다. 더 깊이 보면 `span.dday.ing`/`.soon`/`.end`
 > 같은 **행마다 바뀌는 상태 클래스** 때문에 같은 목록이 여러 묶음으로 쪼개진다 (wevity 16행 → 7+4+4+1).
 > 얕게 봐서 엉뚱한 게 섞이는 위험은 **선택자를 실제로 돌려 보는 검증**과 글자 길이 필터가 막는다.
+
+### 나가는 요청 — ADR A27
+
+| 파일 | 상태 |
+|---|---|
+| [`fetchers/guard.ts`](../apps/worker/src/fetchers/guard.ts) | ✅ **검증됨** — 글자·이름 풀기·리다이렉트 세 겹 (§5-6 에 재현 명령) |
+| [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) | ✅ 리다이렉트를 손으로 따라가며 홉마다 관문 · bizinfo 가 실제로 1회 넘긴다 |
+| [`fetchers/browser.ts`](../apps/worker/src/fetchers/browser.ts) · [`probe/network.ts`](../apps/worker/src/probe/network.ts) | ⚠️ 첫 주소는 이름까지 확인, 페이지가 내는 요청은 **글자만** 본다 (수백 개라 이름 풀기를 못 건다) |
+| [`jobs/channels/webhook.ts`](../apps/worker/src/jobs/channels/webhook.ts) | ⚠️ 관문 통과 + 리다이렉트를 아예 안 따라간다. 발송 자체는 아직 실기동 미검증 |
 
 ### 어댑터 컴파일 — 기획서 9-1② · 11장
 
@@ -208,6 +217,33 @@ parseDate('2026.08.14 18:00')       →  '2026-08-14T18:00:00+09:00'   ← 이�
 [`jobs/deliver.ts:102`](../apps/worker/src/jobs/deliver.ts) 의 `TODO(G3)` 이 이 사실을 기록해 두고 있다 —
 구독 발송이 표의 필터를 재사용하지 못하는 이유가 이것이다.
 
+### 5-6. 사용자가 준 주소로 서버가 내부망을 열 수 있었다 (SSRF) 🔴 → ✅ **고침 (2026-07-27)**
+
+나가는 요청이 전부 [`fetchers/guard.ts`](../apps/worker/src/fetchers/guard.ts) 를 지난다.
+아래는 무엇이었는지의 기록이다.
+
+core 에 `isPrivateHost` 가 있었지만 **스펙 검증에서만** 불렸다. 스펙은 LLM 이 만든 뒤에나 생기는데
+probe 는 그 전에 사용자가 준 주소로 이미 나간다. 그래서 `probe http://127.0.0.1:6379` 가 그대로 통했다.
+웹훅 발송([`jobs/channels/webhook.ts`](../apps/worker/src/jobs/channels/webhook.ts))은
+더해서 **본문까지 실어** 보냈다.
+
+세 겹으로 막는다. 아래가 각 겹의 재현 명령이다 — 앞의 둘은 `못 뚫음` 이 나와야 한다.
+
+```bash
+# ① 글자 — 주소에 대놓고 적은 내부 주소
+pnpm --filter @endpointer/worker probe "http://127.0.0.1:6379" --no-browser
+# ② 이름 풀기 — 공인 도메인인데 127.0.0.1 로 풀린다 (글자만 봐서는 절대 안 걸린다)
+pnpm --filter @endpointer/worker probe "http://127.0.0.1.nip.io:6379/" --no-browser
+# ③ 리다이렉트 — 홉마다 다시 본다 (모의 응답으로 검증)
+pnpm --filter @endpointer/worker test -- --run http
+```
+
+`--allow-private` 를 붙이면 셋 다 열린다. 로컬 픽스처로 파이프라인을 돌릴 때만 쓴다.
+
+**남은 구멍 (알고 남긴다)** — 검사한 뒤 `fetch` 가 이름을 다시 푼다. 그 사이 답이 바뀌면
+(DNS 리바인딩) 검사한 주소와 실제로 붙는 주소가 달라진다. 막으려면 검사된 IP 로 고정해 붙어야 하는데
+Node 내장 fetch 로는 붙을 주소를 지정할 수 없다 (undici 직접 의존 필요 → ADR 먼저).
+
 ---
 
 ## 6. 미검증 결함 후보 ⚠️
@@ -218,8 +254,8 @@ parseDate('2026.08.14 18:00')       →  '2026-08-14T18:00:00+09:00'   ← 이�
 | 곳 | 주장 | 급 |
 |---|---|---|
 | [`fetchers/http.ts:137`](../apps/worker/src/fetchers/http.ts) | `res.text()` 는 **응답 헤더의 charset 만** 본다. 헤더에 없고 `<meta>` 에만 EUC-KR 을 적은 사이트는 UTF-8 로 읽혀 본문이 깨진다. 2026-07-27 확인: k-startup 은 헤더에 charset 이 없다(내용이 UTF-8 이라 우연히 무사). 아직 실제로 깨지는 주소를 못 잡았다 | 🔴 |
-| [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) | fetch 계층에 사설망 차단이 없다. core 의 `isPrivateHost`([`validate.ts:140`](../packages/core/src/spec/validate.ts))를 **부르지 않는다** → SSRF | 🔴 |
-| [`spec/validate.ts:140`](../packages/core/src/spec/validate.ts) | `isPrivateHost` 가 IPv4 사상 IPv6(`::ffff:…`)를 못 거른다 | 🔴 |
+| [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) | fetch 계층에 사설망 차단이 없다 → SSRF. **✅ 검증됐고 고쳤다 — §5-6** | ✅ |
+| [`spec/validate.ts`](../packages/core/src/spec/validate.ts) | `isPrivateHost` 가 IPv4 사상 IPv6(`::ffff:…`)를 못 거른다. **✅ 검증됐고 고쳤다 — §5-6** (core 수정 · 트랙 B 통보 대상) | ✅ |
 | [`fetchers/browser.ts`](../apps/worker/src/fetchers/browser.ts) | browser 모드만 HTTP 상태를 안 본다 → 404 페이지가 "수집 성공·0건" | 🟡 |
 | [`probe/inline-json.ts`](../apps/worker/src/probe/inline-json.ts) | `__NEXT_DATA__` 만 그릇으로 잡아 Nuxt3·SvelteKit·Remix 페이로드 누락 | 🟡 |
 | [`jobs/heal.ts:107`](../apps/worker/src/jobs/heal.ts) | json 모드 소스의 치유에서 네트워크 관찰을 꺼서 깨진 내부 API 재발견 경로가 막힘 | 🟡 |
@@ -241,8 +277,9 @@ parseDate('2026.08.14 18:00')       →  '2026-08-14T18:00:00+09:00'   ← 이�
 3. ~~낯선 목록 URL 3개로 실제 판정~~ — **3곳 다 뚫렸다.** 다만 이건 **probe 까지의 판정**이다.
    G1 은 "URL 하나로 항목이 나오는가" 이므로, `GEMINI_API_KEY` 를 넣고
    `create-collection` 을 같은 3개 주소로 돌려야 진짜 판정이 난다. **이게 지금 G1 의 유일한 잔여물이다.**
-4. **§6 의 🔴 3건 재현 후 처리** — [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) 의
-   SSRF·사설망 차단과 charset. 임의 URL 을 받는 제품이라 미룰 수 없다.
+4. ~~SSRF·사설망 차단~~ — **됐다** (2026-07-27). §5-6 에 세 겹과 재현 명령이 있다.
+   남은 🔴 는 **charset 한 건**이다 (§6 첫 줄). 헤더에 charset 이 없고 `<meta>` 에만
+   EUC-KR 을 적은 사이트를 아직 못 잡아서 재현이 안 된 상태다 — 그런 주소를 하나 찾는 게 먼저다.
 
 ### 7-2. 그 다음 (G2 — 합류 지점 · 트랙 B와 같이)
 
@@ -298,8 +335,9 @@ apps/web                          apps/worker
 
 ```bash
 pnpm typecheck                              # 커밋 전 필수
-pnpm test                                   # core 630 + web 33
-pnpm --filter @endpointer/worker probe <url>   # 임의 URL probe
+pnpm test                                   # core 655 + web 33 + worker 74
+pnpm --filter @endpointer/worker probe <url>              # 임의 URL probe
+pnpm --filter @endpointer/worker probe <url> --allow-private   # 로컬 픽스처용 (관문을 연다)
 
 pnpm infra:up                               # postgres + redis
 pnpm db:migrate && pnpm db:seed             # 마이그레이션은 이미 커밋돼 있다
@@ -313,7 +351,8 @@ pnpm dev                                    # web 3000 · worker · mcp 3002
   지우면 같은 것을 다시 조사한다.
 - 관문 체크박스는 [gates.md](./gates.md) 에 반영하는 것이 정본이다. 여기 진도 막대는 그 요약일 뿐이다.
 - `packages/core` 를 고쳤으면 **트랙 B에 통보한다** (G0 계약 · CLAUDE.md).
-  §5 의 5-1·5-3·5-4·5-5 가 전부 core 수정이다 — 혼자 고치면 상대 트랙이 조용히 깨진다.
+  §5 의 5-1·5-3·5-4·5-5 가 전부 core 수정이고, **5-6 은 이미 고쳤다** (`isPrivateHost` — 더 많이 막는
+  방향이라 통과하던 게 막힐 수는 있어도 그 반대는 없다). 혼자 고치면 상대 트랙이 조용히 깨진다.
 
 ### 관련 문서
 

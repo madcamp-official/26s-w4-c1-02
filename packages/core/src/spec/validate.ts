@@ -138,7 +138,7 @@ function checkTargetHost(spec: AdapterSpec, opts: SpecValidationOptions): string
 
 /** localhost · 사설 IP · 링크 로컬 · 클라우드 메타데이터. SSRF 방어의 최소선 */
 export function isPrivateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '')
 
   if (host === 'localhost' || host.endsWith('.localhost')) return true
   if (host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.home.arpa')) return true
@@ -146,6 +146,13 @@ export function isPrivateHost(hostname: string): boolean {
   if (host === '::1' || host === '::' || host === '0:0:0:0:0:0:0:1') return true
   // IPv6 유니크 로컬(fc00::/7) · 링크 로컬(fe80::/10)
   if (/^f[cd][0-9a-f]{2}:/.test(host) || /^fe[89ab][0-9a-f]:/.test(host)) return true
+
+  // IPv4 사상 IPv6 는 IPv4 로 되돌려 다시 본다.
+  // 이걸 안 하면 `http://[::ffff:127.0.0.1]/` 이 그대로 통과한다 — 아래 v4 정규식은
+  // 점 네 개짜리만 보기 때문이다. 게다가 URL 파서가 그 주소를 **16진수 형태로 정규화해서**
+  // (`::ffff:7f00:1`) 눈으로 봐도 127.0.0.1 인 줄 모른다.
+  const mapped = mappedIpv4(host)
+  if (mapped !== null) return isPrivateHost(mapped)
 
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
   if (v4) {
@@ -162,6 +169,28 @@ export function isPrivateHost(hostname: string): boolean {
   }
 
   return false
+}
+
+/**
+ * IPv4 사상 IPv6 에서 원래 IPv4 를 꺼낸다. 아니면 null.
+ *
+ * 앞이 전부 0 이고 `ffff` 다음에 오는 것이 주소다. 두 가지 표기를 다 받는다:
+ *   `::ffff:127.0.0.1` (사람이 쓰는 형태) · `::ffff:7f00:1` (URL 파서가 만드는 형태)
+ */
+function mappedIpv4(host: string): string | null {
+  const m = /^[0:]*:ffff:([0-9a-f.:]+)$/.exec(host)
+  const tail = m?.[1]
+  if (tail === undefined) return null
+
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(tail)) return tail
+
+  const hex = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(tail)
+  if (hex === null) return null
+  const hi = Number.parseInt(hex[1] ?? '', 16)
+  const lo = Number.parseInt(hex[2] ?? '', 16)
+  if (!Number.isFinite(hi) || !Number.isFinite(lo)) return null
+
+  return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`
 }
 
 // ── 알 수 없는 op ──────────────────────────────────────────────────────
