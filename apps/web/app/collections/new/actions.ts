@@ -1,13 +1,12 @@
 'use server'
 
-// 컬렉션 생성 서버 액션. 미리보기는 아직 목이다 — lib/create.ts 의 TODO(G2) 참조.
+// 컬렉션 생성 서버 액션 — 워커의 HTTP 진입점을 부른다 (ADR A30 · G2 배선 완료).
 
 import { redirect } from 'next/navigation'
 
 import { currentUser } from '@/auth'
 import type { CreateActionState, PreviewActionState } from '@/components/create-flow'
-import { CollectionSchemaJsonSchema } from '@endpointer/core'
-import { buildMockPreview, createCollection, demoOwnerId } from '@/lib/create'
+import { createViaWorker, demoOwnerId, fetchWorkerPreview } from '@/lib/create'
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim()
@@ -20,8 +19,6 @@ function normalizeUrl(raw: string): string | null {
     return null
   }
 }
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function previewCollectionAction(
   _prev: PreviewActionState,
@@ -36,10 +33,9 @@ export async function previewCollectionAction(
     }
   }
 
-  // TODO(G2): 트랙 A 파이프라인 호출로 교체 (합의된 인터페이스로).
-  // 지금은 화면 흐름을 위해 살펴보는 시간만 흉내낸다.
-  await sleep(2200)
-  return { status: 'ready', message: null, preview: buildMockPreview(entryUrl) }
+  const preview = await fetchWorkerPreview(entryUrl)
+  if (!preview.ok) return { status: 'problem', message: preview.message, preview: null }
+  return { status: 'ready', message: null, preview: preview.data }
 }
 
 export async function createCollectionAction(
@@ -50,19 +46,18 @@ export async function createCollectionAction(
   if (name === '') return { status: 'problem', message: '컬렉션 이름을 지어 주세요.' }
 
   const entryUrl = normalizeUrl(String(formData.get('entry_url') ?? ''))
-  const host = String(formData.get('host') ?? '').trim()
-  if (entryUrl === null || host === '') {
+  if (entryUrl === null) {
     return { status: 'problem', message: '처음부터 다시 시도해 주세요. 주소가 흐려졌어요.' }
   }
 
-  let fields: unknown
+  let keptKeys: string[]
   try {
-    fields = JSON.parse(String(formData.get('fields') ?? '[]'))
+    const parsed: unknown = JSON.parse(String(formData.get('kept_keys') ?? '[]'))
+    keptKeys = Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : []
   } catch {
-    return { status: 'problem', message: '표 구성을 읽지 못했어요. 화면을 새로 고쳐 주세요.' }
+    keptKeys = []
   }
-  const parsed = CollectionSchemaJsonSchema.safeParse(fields)
-  if (!parsed.success || parsed.data.length === 0) {
+  if (keptKeys.length === 0) {
     return { status: 'problem', message: '열이 최소 하나는 있어야 해요.' }
   }
 
@@ -77,13 +72,7 @@ export async function createCollectionAction(
     return { status: 'problem', message: '로그인하고 다시 시도해 주세요.' }
   }
 
-  const created = await createCollection({
-    ownerId,
-    name,
-    entryUrl,
-    host,
-    fields: parsed.data,
-  })
+  const created = await createViaWorker({ url: entryUrl, ownerId, name, keptKeys })
   if (!created.ok) return { status: 'problem', message: created.message }
 
   redirect(`/collections/${created.data.slug}`)

@@ -1,15 +1,15 @@
-// 컬렉션 생성 — 미리보기와 실제 저장 (기획서 9-1 · G2 트랙 B 몫).
+// 컬렉션 생성 — 워커의 HTTP 진입점을 부른다 (기획서 9-1 · ADR A30 · G2 배선).
 //
-// ── 지금은 미리보기가 목(mock)이다 ──────────────────────────────────────
-// URL → 이미 채워진 표'를 만드는 진짜 파이프라인(probe→생성→해석→추론→정규화)은
-// apps/worker(트랙 A)에 있고, 호출 방식(워커 HTTP vs 큐)은 두 트랙이 합의해야 한다
-// (docs/day1-part-a.md §7-2 5번). 합의 전까지 이 파일의 buildMockPreview 가 그 자리를
-// 지킨다 — 화면·저장 경로를 먼저 완성해 두고, 합의되면 TODO(G2) 한 곳만 갈아끼운다.
-// G0 가 시드로 두 트랙을 병렬화한 것과 같은 수법이다.
+// 미리보기(/internal/preview)는 저장하지 않고 "이미 채워진 표"만 돌려주고,
+// 저장(/internal/collections)은 **주소만 다시 보내** 워커가 처음부터 다시 돈다 —
+// 화면이 만든 스펙을 서버가 실행하는 일이 없게 하려는 워커 쪽 설계다 (http/index.ts 머리말).
+// 사용자가 미리보기에서 지운 열은 저장 뒤 schema_json 을 다듬는 것으로 반영한다.
 
-import { randomUUID } from 'node:crypto'
-
-import { CollectionSchemaJsonSchema, type CollectionSchemaJson, type FieldDef } from '@endpointer/core'
+import {
+  CollectionSchemaJsonSchema,
+  type CollectionSchemaJson,
+  type FieldDef,
+} from '@endpointer/core'
 
 import { safeQuery, type Loaded } from './db'
 
@@ -19,60 +19,140 @@ export interface CreatePreview {
   entryUrl: string
   suggestedName: string
   fields: FieldDef[]
-  /** 필드 키 → 표시 값. 지금은 예시 값이다 */
-  rows: Record<string, string>[]
+  /** 필드 키 → 정규화된 값 (워커가 실제로 수집·정규화한 것) */
+  rows: Record<string, unknown>[]
 }
 
-const field = (key: string, label: string, type: FieldDef['type']): FieldDef => ({
-  key,
-  label,
-  type,
-  required: false,
-  mapping: null,
-  value_labels: null,
-})
+/** 워커 진입점 주소·토큰. 없으면 배선이 안 된 것 — 사람 문장으로 알린다 (B4) */
+function workerTarget(): { url: string; token: string } | null {
+  const url = process.env['WORKER_INTERNAL_URL']?.trim() ?? ''
+  const token = process.env['WORKER_INTERNAL_TOKEN']?.trim() ?? ''
+  if (url === '' || token === '') return null
+  return { url, token }
+}
+
+const WORKER_UNAVAILABLE =
+  '지금은 사이트를 살펴보지 못하고 있어요. 잠시 뒤에 다시 시도해 주세요.'
+
+interface WorkerFailure {
+  ok: false
+  message: string
+  stage: string
+}
+
+type WorkerPreviewBody =
+  | WorkerFailure
+  | {
+      ok: true
+      host: string
+      entry_url: string
+      suggested_name: string
+      fields: unknown
+      rows: Record<string, unknown>[]
+      trace: unknown
+    }
+
+type WorkerCreateBody =
+  | WorkerFailure
+  | { ok: true; slug: string; name: string; items_inserted: number }
+
+/** 워커에 POST 하나. 네트워크 실패도 값으로 돌려준다 — 화면까지 예외를 올리지 않는다 */
+async function callWorker<T>(path: string, body: Record<string, unknown>): Promise<T | null> {
+  const target = workerTarget()
+  if (target === null) return null
+  try {
+    const res = await fetch(`${target.url}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${target.token}`,
+      },
+      body: JSON.stringify(body),
+      // probe → 컴파일 → 수집까지 도는 경로다. 브라우저 폴백이면 수십 초까지 간다
+      signal: AbortSignal.timeout(90_000),
+    })
+    if (res.status === 401 || res.status === 404) return null
+    return (await res.json()) as T
+  } catch (cause) {
+    console.warn(`[endpointer/web] 워커 호출 실패 (${path})`, cause)
+    return null
+  }
+}
+
+/** 주소 하나 → 이미 채워진 표. 실패 문구는 워커가 만든 사람 문장을 그대로 쓴다 */
+export async function fetchWorkerPreview(url: string): Promise<Loaded<CreatePreview>> {
+  const body = await callWorker<WorkerPreviewBody>('/internal/preview', { url })
+  if (body === null) return { ok: false, message: WORKER_UNAVAILABLE }
+  if (!body.ok) return { ok: false, message: body.message }
+
+  const fields = CollectionSchemaJsonSchema.safeParse(body.fields)
+  if (!fields.success || fields.data.length === 0) {
+    console.warn('[endpointer/web] 워커 미리보기의 표 구성을 읽지 못했습니다', fields.error)
+    return { ok: false, message: WORKER_UNAVAILABLE }
+  }
+
+  return {
+    ok: true,
+    data: {
+      host: body.host,
+      entryUrl: body.entry_url,
+      suggestedName: body.suggested_name,
+      fields: fields.data,
+      rows: body.rows,
+    },
+  }
+}
 
 /**
- * TODO(G2): 여기를 트랙 A 파이프라인 호출로 교체한다.
- * (probe → 스키마 추론 → 정규화까지 돌린 결과가 이 모양으로 돌아오면 화면은 그대로 산다)
+ * 저장. 워커가 컬렉션·사이트·수집 결과까지 전부 앉힌다.
+ * keptKeys 가 미리보기보다 줄었으면 저장 직후 schema_json 을 그 부분집합으로 다듬는다 —
+ * 아직 아무도 소비하지 않은 표라 schema_version 은 올리지 않는다 (버전 증가는 "쓰던 표"의 변경 신호다).
  */
-export function buildMockPreview(entryUrl: string): CreatePreview {
-  const host = new URL(entryUrl).hostname.replace(/^www\./, '')
-  return {
-    host,
-    entryUrl,
-    suggestedName: `${host} 모음`,
-    fields: [
-      field('title', '공고명', 'text'),
-      field('organization', '주관기관', 'text'),
-      field('deadline', '마감일', 'date'),
-      field('category', '분류', 'text'),
-      field('amount', '지원 금액', 'money'),
-    ],
-    rows: [
-      {
-        title: '2026 예비창업패키지 2차 모집',
-        organization: '창업진흥원',
-        deadline: '2026-08-14',
-        category: '창업지원',
-        amount: '100,000,000',
-      },
-      {
-        title: '중소기업 기술개발 상반기 지원',
-        organization: '중소벤처기업부',
-        deadline: '2026-08-29',
-        category: 'R&D',
-        amount: '500,000,000',
-      },
-      {
-        title: '수출바우처 사업 3차 모집',
-        organization: 'KOTRA',
-        deadline: '2026-07-31',
-        category: '바우처',
-        amount: '30,000,000',
-      },
-    ],
+export async function createViaWorker(input: {
+  url: string
+  ownerId: string
+  name: string
+  keptKeys: string[]
+}): Promise<Loaded<{ slug: string }>> {
+  const body = await callWorker<WorkerCreateBody>('/internal/collections', {
+    url: input.url,
+    owner_id: input.ownerId,
+    name: input.name,
+  })
+  if (body === null) return { ok: false, message: WORKER_UNAVAILABLE }
+  if (!body.ok) return { ok: false, message: body.message }
+
+  const trimmed = await trimSchemaTo(body.slug, input.keptKeys)
+  if (!trimmed.ok) {
+    // 표는 이미 만들어졌다. 열 다듬기만 실패한 것이므로 성공으로 돌리되 로그는 남긴다.
+    console.warn('[endpointer/web] 만든 표의 열 다듬기에 실패했습니다', body.slug)
   }
+  return { ok: true, data: { slug: body.slug } }
+}
+
+/** schema_json 을 keptKeys 부분집합으로 줄인다. 전부 유지면 아무것도 하지 않는다 */
+async function trimSchemaTo(slug: string, keptKeys: string[]): Promise<Loaded<null>> {
+  return safeQuery(async (core) => {
+    const sql = core.queryClient
+    const rows = await sql<{ id: string; schema_json: unknown }[]>`
+      select id, schema_json from collections where slug = ${slug} limit 1
+    `
+    const row = rows[0]
+    if (!row) return null
+
+    const parsed = CollectionSchemaJsonSchema.safeParse(row.schema_json)
+    if (!parsed.success) return null
+
+    const kept: CollectionSchemaJson = parsed.data.filter((f) => keptKeys.includes(f.key))
+    if (kept.length === 0 || kept.length === parsed.data.length) return null
+
+    await sql`
+      update collections
+      set schema_json = ${JSON.stringify(kept)}::jsonb, updated_at = now()
+      where id = ${row.id}
+    `
+    return null
+  })
 }
 
 /** 로그인 설정 전 데모 경로 — 시드가 만든 첫 사용자를 주인으로 쓴다 */
@@ -80,45 +160,5 @@ export async function demoOwnerId(): Promise<Loaded<string | null>> {
   return safeQuery(async (core) => {
     const rows = await core.queryClient<{ id: string }[]>`select id from users order by "email" limit 1`
     return rows[0]?.id ?? null
-  })
-}
-
-export interface CreateCollectionInput {
-  ownerId: string
-  name: string
-  entryUrl: string
-  host: string
-  fields: CollectionSchemaJson
-}
-
-/**
- * 컬렉션 + 사이트 행을 실제로 만든다. 수집이 아직 연결되지 않았으므로
- * 사이트는 '잠시 멈춤' 상태로 시작한다 — 화면 문구도 그렇게 읽힌다 (B4).
- */
-export async function createCollection(
-  input: CreateCollectionInput,
-): Promise<Loaded<{ slug: string }>> {
-  return safeQuery(async (core) => {
-    // 계약 검사 — 시드와 같은 원칙: 이 파일이 계약을 우회하면 계약이 아니다
-    const fields = CollectionSchemaJsonSchema.parse(input.fields)
-
-    // O2 기본값 unlisted — 추측 불가 slug 가 곧 접근 제어다
-    const slug = `c-${randomUUID().replace(/-/g, '').slice(0, 10)}`
-    const schemaJson = JSON.stringify(fields)
-
-    const sql = core.queryClient
-    const inserted = await sql<{ id: string }[]>`
-      insert into collections (owner_id, slug, name, schema_json, schema_version, visibility)
-      values (${input.ownerId}, ${slug}, ${input.name}, ${schemaJson}::jsonb, 1, 'unlisted')
-      returning id
-    `
-    const collectionId = inserted[0]?.id
-    if (collectionId === undefined) throw new Error('컬렉션 행이 만들어지지 않았습니다')
-
-    await sql`
-      insert into sources (collection_id, host, entry_url, status, fetch_mode)
-      values (${collectionId}, ${input.host}, ${input.entryUrl}, 'paused', 'html')
-    `
-    return { slug }
   })
 }

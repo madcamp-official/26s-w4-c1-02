@@ -36,7 +36,25 @@ const PROBE_STEPS = [
   '날짜·금액을 같은 형식으로 맞췄어요',
 ] as const
 
-const STEP_INTERVAL_MS = 620
+// 실제 파이프라인은 수 초~수십 초 걸린다. 마지막 단계에서 멈춰 기다린다
+const STEP_INTERVAL_MS = 2500
+
+const numberFormat = new Intl.NumberFormat('ko-KR')
+
+/** 정규화된 값을 표시용으로. 표 화면(collection-table)과 같은 규칙이다 */
+function formatValue(value: unknown, field: FieldDef): string {
+  if (value === null || value === undefined || value === '') return '—'
+  switch (field.type) {
+    case 'money':
+      return typeof value === 'number' ? `${numberFormat.format(value)}원` : String(value)
+    case 'number':
+      return typeof value === 'number' ? numberFormat.format(value) : String(value)
+    case 'enum':
+      return field.value_labels?.[String(value)] ?? String(value)
+    default:
+      return String(value)
+  }
+}
 
 function ProbeSteps({ activeStep, allDone }: { activeStep: number; allDone: boolean }) {
   return (
@@ -73,9 +91,12 @@ function ProbeSteps({ activeStep, allDone }: { activeStep: number; allDone: bool
 }
 
 /**
- * 컬렉션 생성 플로우 (기획서 9-1 · 보장선 B1·B3).
- * 사용자가 입력하는 것은 주소와 (필요 시) 값 붙여넣기뿐이고,
- * 빈 스키마 에디터 대신 언제나 이미 채워진 표를 준다.
+ * 컬렉션 생성 플로우 (기획서 9-1 · 보장선 B1·B3 · ADR A30).
+ * 사용자가 입력하는 것은 주소뿐이고, 빈 스키마 에디터 대신 워커가 실제로 수집해
+ * 정규화까지 마친 "이미 채워진 표"를 받는다. 사용자는 이름을 바꾸고 열을 지울 뿐이다.
+ *
+ * TODO(G2): 못 찾은 열을 값 붙여넣기로 해결하는 경로(기능 ② · traceValue)는
+ *           "사이트 붙이기" 화면에서 이어진다 — 워커의 attach 경로가 그 담당이다.
  */
 export function CreateFlow({
   initialUrl,
@@ -93,7 +114,7 @@ export function CreateFlow({
   )
   const [createState, createFormAction, createPending] = useActionState(createAction, CREATE_IDLE)
 
-  // 살펴보는 동안의 단계 연출 — 서버가 걸리는 시간에 맞춰 앞으로 간다
+  // 살펴보는 동안의 단계 연출 — 마지막 단계에서 멈춰 서버 응답을 기다린다
   const [activeStep, setActiveStep] = useState(0)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => {
@@ -109,48 +130,19 @@ export function CreateFlow({
     }
   }, [previewPending])
 
-  // 편집 상태 — 미리보기에서 지운 열과 붙여넣기로 더한 열
+  // 편집 상태 — 미리보기에서 지운 열
   const [removedKeys, setRemovedKeys] = useState<string[]>([])
-  const [extraFields, setExtraFields] = useState<{ field: FieldDef; value: string }[]>([])
-  const [pasteValue, setPasteValue] = useState('')
   const [name, setName] = useState('')
 
   const preview = previewState.preview
   useEffect(() => {
     if (preview) {
       setRemovedKeys([])
-      setExtraFields([])
       setName(preview.suggestedName)
     }
   }, [preview])
 
-  const keptFields = preview
-    ? [
-        ...preview.fields.filter((f) => !removedKeys.includes(f.key)),
-        ...extraFields.map((e) => e.field),
-      ]
-    : []
-
-  function addFieldFromPaste() {
-    const value = pasteValue.trim()
-    if (value === '' || preview === null) return
-    const index = extraFields.length + 1
-    setExtraFields((prev) => [
-      ...prev,
-      {
-        field: {
-          key: `extra_${index}`,
-          label: `추가한 열 ${index}`,
-          type: 'text',
-          required: false,
-          mapping: null,
-          value_labels: null,
-        },
-        value,
-      },
-    ])
-    setPasteValue('')
-  }
+  const keptFields = preview ? preview.fields.filter((f) => !removedKeys.includes(f.key)) : []
 
   return (
     <div className="flex flex-col gap-7">
@@ -182,7 +174,9 @@ export function CreateFlow({
         </form>
 
         {previewState.status === 'problem' && previewState.message !== null && (
-          <p className="mt-3 text-sm text-attention">{previewState.message}</p>
+          <p className="mt-3 rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
+            {previewState.message}
+          </p>
         )}
 
         {(previewPending || preview !== null) && (
@@ -190,7 +184,7 @@ export function CreateFlow({
         )}
       </section>
 
-      {/* 2. 이미 채워진 표 (보장선 B3) */}
+      {/* 2. 이미 채워진 표 (보장선 B3) — 워커가 실제로 수집·정규화한 값이다 */}
       {preview !== null && !previewPending && (
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-2.5">
@@ -200,16 +194,11 @@ export function CreateFlow({
             <div>
               <div className="text-base font-bold text-ink">표가 준비됐어요</div>
               <div className="text-[13px] text-faint">
-                이름을 바꾸거나, 필요 없는 열은 ✕로 지워보세요. 그게 전부예요.
+                <span className="font-mono">{preview.host}</span> 에서 {preview.rows.length}개
+                항목을 담아왔어요. 이름을 바꾸거나, 필요 없는 열은 ✕로 지워보세요.
               </div>
             </div>
           </div>
-
-          {/* 실제 수집이 연결되기 전이라는 걸 숨기지 않는다 (B4 의 정직함) */}
-          <p className="rounded-xl border border-healing-line bg-healing-soft px-4 py-2.5 text-[13px] text-healing-deep">
-            지금은 예시 값으로 흐름을 미리 보여드리는 중이에요. 첫 수집이 연결되면 이 자리에 실제
-            값이 담깁니다.
-          </p>
 
           <div className="flex flex-wrap gap-2">
             {keptFields.map((f) => (
@@ -223,11 +212,7 @@ export function CreateFlow({
                   <button
                     type="button"
                     aria-label={`${f.label} 열 지우기`}
-                    onClick={() =>
-                      f.key.startsWith('extra_')
-                        ? setExtraFields((prev) => prev.filter((e) => e.field.key !== f.key))
-                        : setRemovedKeys((prev) => [...prev, f.key])
-                    }
+                    onClick={() => setRemovedKeys((prev) => [...prev, f.key])}
                     className="flex size-[18px] items-center justify-center rounded-full text-[11px] text-faint hover:bg-divider hover:text-ink"
                   >
                     ✕
@@ -235,6 +220,15 @@ export function CreateFlow({
                 )}
               </span>
             ))}
+            {removedKeys.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setRemovedKeys([])}
+                className="text-[13px] text-faint underline underline-offset-2 hover:text-accent"
+              >
+                지운 열 되살리기
+              </button>
+            )}
           </div>
 
           <div className="scroll-x rounded-card border border-border bg-surface">
@@ -252,13 +246,14 @@ export function CreateFlow({
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.map((row, rowIndex) => (
+                {preview.rows.slice(0, 8).map((row, rowIndex) => (
                   <tr key={rowIndex} className="border-b border-divider last:border-b-0">
                     {keptFields.map((f) => (
-                      <td key={f.key} className="px-4 py-3 whitespace-nowrap text-ink">
-                        {f.key.startsWith('extra_')
-                          ? (extraFields.find((e) => e.field.key === f.key)?.value ?? '')
-                          : (row[f.key] ?? '')}
+                      <td
+                        key={f.key}
+                        className="max-w-[320px] overflow-hidden px-4 py-3 text-ellipsis whitespace-nowrap text-ink"
+                      >
+                        {formatValue(row[f.key], f)}
                       </td>
                     ))}
                   </tr>
@@ -266,36 +261,20 @@ export function CreateFlow({
               </tbody>
             </table>
           </div>
+          {preview.rows.length > 8 && (
+            <p className="-mt-2 text-xs text-faint">
+              미리보기는 8개까지만 — 만들고 나면 전부 표에 담깁니다.
+            </p>
+          )}
 
-          {/* 열 추가는 셀렉터가 아니라 값 붙여넣기 (보장선 B1) */}
-          <div className="rounded-xl border border-dashed border-border-strong bg-raised px-5 py-4">
-            <div className="mb-2 text-[13px] font-semibold text-ink">열을 추가하고 싶으세요?</div>
-            <div className="flex flex-col gap-2.5 sm:flex-row">
-              <input
-                value={pasteValue}
-                onChange={(e) => setPasteValue(e.target.value)}
-                placeholder="페이지에서 원하는 값을 하나 복사해 붙여넣어 주세요 — 예: 온라인 접수"
-                className={cn(
-                  'h-10 min-w-0 flex-1 rounded-lg border-[1.5px] border-border-strong bg-surface px-3.5',
-                  'text-[13px] placeholder:text-faint focus:border-accent focus:outline-none',
-                )}
-              />
-              <Button type="button" variant="outline" onClick={addFieldFromPaste}>
-                값으로 열 찾기
-              </Button>
-            </div>
-            {extraFields.length > 0 && (
-              <p className="mt-2.5 text-[13px] font-semibold text-ok">
-                ✓ 열을 추가해뒀어요 — 값의 정확한 위치는 첫 수집 때 맞춰집니다
-              </p>
-            )}
-          </div>
-
-          {/* 3. 확정 */}
+          {/* 3. 확정 — 주소만 다시 보낸다. 지운 열은 저장 뒤 표 구성에서 빠진다 */}
           <form action={createFormAction} className="flex flex-col gap-3">
             <input type="hidden" name="entry_url" value={preview.entryUrl} />
-            <input type="hidden" name="host" value={preview.host} />
-            <input type="hidden" name="fields" value={JSON.stringify(keptFields)} />
+            <input
+              type="hidden"
+              name="kept_keys"
+              value={JSON.stringify(keptFields.map((f) => f.key))}
+            />
             <label htmlFor="create-name" className="text-[13px] font-bold text-muted">
               컬렉션 이름
             </label>
@@ -310,11 +289,13 @@ export function CreateFlow({
               )}
             />
             {createState.status === 'problem' && createState.message !== null && (
-              <p className="text-sm text-attention">{createState.message}</p>
+              <p className="rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
+                {createState.message}
+              </p>
             )}
             <div>
               <Button type="submit" size="lg" disabled={createPending}>
-                이 표로 컬렉션 만들기
+                {createPending ? '만드는 중이에요…' : '이 표로 컬렉션 만들기'}
               </Button>
             </div>
           </form>
