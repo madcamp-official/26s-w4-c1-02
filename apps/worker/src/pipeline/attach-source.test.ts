@@ -74,6 +74,11 @@ vi.mock('../fetchers', () => ({
   }),
 }))
 
+vi.mock('./infer-pagination', () => ({
+  // 페이지 추론은 실제 네트워크를 열므로 여기서는 끈다 — 실측은 attach CLI 판정이 맡는다
+  inferPagination: async () => null,
+}))
+
 vi.mock('./verify-link', () => ({
   verifyLinkField: async () => (STATE.linkOk ? { ok: true, reason: '항목 상세로 보입니다' } : { ok: false, reason: '열어 보니 목록이었습니다' }),
 }))

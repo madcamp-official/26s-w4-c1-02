@@ -31,6 +31,7 @@ import { runAdapter } from '../fetchers'
 import { childLogger } from '../logger'
 import { probe } from '../probe'
 import type { ProbePath, RankedCandidate } from '../probe/types'
+import { inferPagination } from './infer-pagination'
 import { applyTransformDrop, dropColumns, planRepair } from './repair-empty'
 import { verifyLinkField } from './verify-link'
 
@@ -223,13 +224,37 @@ export async function attachSourceToCollection(input: AttachSourceInput): Promis
     }
   }
 
+  // ── ③-a 페이지 넘김 추론 (infer-pagination.ts · LLM 없음) ───────────
+  // 접합은 LLM 에게 매핑만 시키므로 pagination 이 없다 — 그대로 두면 두 번째
+  // 사이트만 1페이지짜리가 된다. 링크에서 후보를 찾아 2페이지를 실제로 받아
+  // 항목이 느는지로 판정한다. 못 찾으면 1페이지 그대로 — 그것도 정상이다.
+  const inferWarnings: string[] = []
+  const paged = await inferPagination({
+    spec,
+    schema: input.schema,
+    baseItemCount: executed.items.length,
+    ...(input.now !== undefined ? { now } : {}),
+  })
+  if (paged !== null) {
+    spec = paged.spec
+    executed = { items: paged.items, report: paged.report, pagesFetched: paged.pagesFetched, warnings: executed.warnings, failure: null }
+    inferWarnings.push(paged.note)
+  }
+
   // ── ③-b 항상 비는 칸은 여기서도 고친다 (repair-empty.ts) ────────────
   // 다만 **칸을 빼지 않는다.** 표의 칸은 첫 사이트가 정한 것이고 두 번째 사이트 사정으로
   // 지울 수 없다. 못 채운 칸은 지우는 게 아니라 `missing` 으로 되돌려 물어본다.
   const plan = planRepair(spec, executed.items)
   if (plan.drop_transform.length > 0) {
     spec = applyTransformDrop(spec, plan.drop_transform)
-    const retried = await runAdapter({ spec, schema: input.schema, now, maxPages: 1 })
+    // ③-a 에서 페이지 넘김이 붙었을 수 있다 — 여기서 maxPages: 1 로 고정하면
+    // 방금 늘린 커버리지를 도로 1페이지로 덮는다 (실측: 46개가 16개로 줄었다)
+    const retried = await runAdapter({
+      spec,
+      schema: input.schema,
+      now,
+      ...(spec.pagination.kind === 'none' ? { maxPages: 1 } : {}),
+    })
     if (retried.items.length > 0) executed = retried
   }
   const warningsOut: string[] = []
@@ -290,7 +315,7 @@ export async function attachSourceToCollection(input: AttachSourceInput): Promis
     missing: asMissing(missing),
     probe_path: probed.probe_path,
     duration_ms: Date.now() - startedAt,
-    warnings: [...warningsOut, ...executed.warnings],
+    warnings: [...inferWarnings, ...warningsOut, ...executed.warnings],
   }
 }
 
