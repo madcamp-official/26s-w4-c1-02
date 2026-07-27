@@ -130,6 +130,19 @@ export async function loadCollectionForAttach(slug: string): Promise<CollectionF
   return { collection, schema: collection.schema_json, sample: rows.map((r) => r.data_json) }
 }
 
+/**
+ * 이 표에 같은 호스트가 이미 붙어 있는가.
+ * 같은 사이트를 두 번 붙이면 소스가 둘이 되고, `(source_id, external_key)` 유니크가
+ * 소스별이라 **모든 항목이 표에 두 벌씩** 생긴다 — 저장 전에 막아야 한다.
+ */
+export async function hasSourceWithHost(collection_id: string, host: string): Promise<boolean> {
+  const row = await db.query.sources.findFirst({
+    where: (s, { and, eq }) => and(eq(s.collection_id, collection_id), eq(s.host, host)),
+    columns: { id: true },
+  })
+  return row !== undefined
+}
+
 /** 이미 있는 표에 사이트를 하나 더 붙인다 (9-2). 컬렉션은 만들지 않는다 */
 export async function insertSource(input: {
   collection_id: string
