@@ -96,12 +96,20 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
 
   const previousSpec = adapter.spec_json as AdapterSpec
 
+  // ── 치유의 목표는 **원래 하던 일**이다 ───────────────────────────────
+  // 이 소스가 애초에 못 찾아 "물어볼 칸"으로 남긴 필드(접합 9-2)를 치유가 갑자기
+  // 발명하게 두면, LLM 이 지어낸 경로가 전부 null 을 내서 검증이 영원히 거절한다 —
+  // wevity 의 posted_at 으로 실측했다 (null_ratio 1 → still_broken 무한 반복).
+  // 그래서 재컴파일·검증 전부 **이전 스펙이 갖고 있던 칸**만으로 돈다.
+  // 없는 칸을 채우는 것은 치유가 아니라 스키마 편집(델타 6)의 몫이다.
+  const healSchema = collection.schema_json.filter((f) => f.key in previousSpec.fields)
+
   // ── ② 무엇이 깨졌는지를 문장으로 만든다 ─────────────────────────────
   //
   // 프롬프트에 "deadline 필드가 92% null 입니다. 이전 경로는 $.reqstEndDe" 를 넣는 그 부분이다.
   // 신호를 저장해 두지 않고 `runs.validation_json` 에서 다시 계산한다 — 판정 코드가 한 곳뿐이어야
   // 치유 프롬프트와 화면 문구가 갈라지지 않는다.
-  const brokenSummary = await describeBreakage(data.run_id, source.id, collection.schema_json, previousSpec)
+  const brokenSummary = await describeBreakage(data.run_id, source.id, healSchema, previousSpec)
 
   // ── ③ 페이지를 다시 본다 — 후보가 있어야 재컴파일할 수 있다 ─────────
   const probed = await probe(source.entry_url, {
@@ -117,7 +125,7 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
     url: source.entry_url,
     host: source.host,
     source_id: source.id,
-    schema: collection.schema_json,
+    schema: healSchema,
     candidate: probed.best,
     pageText: probed.page.text,
     previousSpec,
@@ -132,9 +140,9 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
 
   // ── ⑤ candidate 로 추출 → 재검증 ────────────────────────────────────
   const runId = await startRun({ source_id: source.id, adapter_id: adapter.id })
-  const trial = await runAdapter({ spec: compiled.spec, schema: collection.schema_json })
+  const trial = await runAdapter({ spec: compiled.spec, schema: healSchema })
   const baseline = computeBaseline(await recentValidationReports(source.id))
-  const verdict = evaluateReport(trial.report, baseline, collection.schema_json)
+  const verdict = evaluateReport(trial.report, baseline, healSchema)
 
   if (verdict.verdict !== 'ok') {
     await closeFailedRun(runId, trial.items.length, trial.report, MESSAGES.still_broken)
