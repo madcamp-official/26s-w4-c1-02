@@ -88,10 +88,16 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
   // ── ① 격리 — 재컴파일보다 먼저다 ────────────────────────────────────
   await setSourceStatus(source.id, 'healing')
 
+  // ── 치유 시도는 **결과와 무관하게** 수집 기록에 남는다 ───────────────
+  // "복구를 로그로 쌓아 보여주는 것"까지가 기능 ④다 (CLAUDE.md 상위 제약 ②).
+  // 성공(healed)만 남기고 실패를 조용히 삼키면, 사용자는 "왜 며칠째 그대로지"의
+  // 답을 영원히 못 본다. 그래서 run 을 여기서 만들고 모든 종료 경로가 닫는다.
+  const runId = await startRun({ source_id: source.id, adapter_id: adapter.id })
+
   // ── 하루 상한 (15장) — 초과는 정지가 아니라 상태다 ──────────────────
   const attemptsToday = await healAttemptsToday(source.id)
   if (attemptsToday > cfg.healMaxAttemptsPerDay) {
-    return await giveUp(source.id, 'budget', log)
+    return await giveUp(runId, source.id, 'budget', log)
   }
 
   const previousSpec = adapter.spec_json as AdapterSpec
@@ -117,7 +123,7 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
     skipBrowser: previousSpec.fetch.mode !== 'browser',
   })
   if (probed.best === null) {
-    return await giveUp(source.id, 'no_candidate', log)
+    return await giveUp(runId, source.id, 'no_candidate', log)
   }
 
   // ── ④ 재컴파일 (Gemini) ─────────────────────────────────────────────
@@ -135,26 +141,29 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
     log.warn({ reason: compiled.reason, errors: compiled.errors }, '재컴파일 실패')
     // 예산 소진은 다른 문구를 쓴다 — 사용자에게는 "내일 다시" 가 정확한 정보다.
     const reason: HealFailureReason = compiled.reason === 'budget_exhausted' ? 'budget' : 'compile_failed'
-    return await giveUp(source.id, reason, log, compiled.message)
+    return await giveUp(runId, source.id, reason, log, compiled.message)
   }
 
   // ── ⑤ candidate 로 추출 → 재검증 ────────────────────────────────────
-  const runId = await startRun({ source_id: source.id, adapter_id: adapter.id })
   const trial = await runAdapter({ spec: compiled.spec, schema: healSchema })
   const baseline = computeBaseline(await recentValidationReports(source.id))
   const verdict = evaluateReport(trial.report, baseline, healSchema)
 
   if (verdict.verdict !== 'ok') {
-    await closeFailedRun(runId, trial.items.length, trial.report, MESSAGES.still_broken)
-    return await giveUp(source.id, 'still_broken', log)
+    return await giveUp(runId, source.id, 'still_broken', log, undefined, {
+      items_found: trial.items.length,
+      report: trial.report,
+    })
   }
 
   // ── ⑥ 겹침률 — 엉뚱한 목록을 잡았는지 (승격 관문 두 번째) ───────────
   const prevKeys = await existingItemKeys(source.id)
   const newKeys = trial.items.map((i) => i.external_key)
   if (!passesHealGate(prevKeys, newKeys)) {
-    await closeFailedRun(runId, trial.items.length, trial.report, MESSAGES.wrong_list)
-    return await giveUp(source.id, 'wrong_list', log)
+    return await giveUp(runId, source.id, 'wrong_list', log, undefined, {
+      items_found: trial.items.length,
+      report: trial.report,
+    })
   }
 
   // ── ⑦ 승격 — 이전 버전은 남긴다 (롤백 가능) ────────────────────────
@@ -165,8 +174,10 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
     validation: trial.report,
   })
   if (candidateRow === null) {
-    await closeFailedRun(runId, trial.items.length, trial.report, MESSAGES.compile_failed)
-    return await giveUp(source.id, 'compile_failed', log)
+    return await giveUp(runId, source.id, 'compile_failed', log, undefined, {
+      items_found: trial.items.length,
+      report: trial.report,
+    })
   }
   await promoteAdapter(source.id, candidateRow.id)
 
@@ -199,32 +210,37 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
 
 // ── 도우미 ─────────────────────────────────────────────────────────────
 
-/** 못 고쳤다. 상태로 남기고 조용히 끝낸다 — 던지지 않는다 (보장선 B4) */
+/**
+ * 못 고쳤다. **기록하고** 상태로 남기고 조용히 끝낸다 — 던지지 않는다 (보장선 B4).
+ * 모든 실패 경로가 여기 하나를 지나므로 "치유 시도가 기록에 안 남는" 경로가 없다.
+ *
+ * run 상태는 둘로 가른다:
+ *   · 이른 실패(상한·후보 없음·재컴파일 실패) → 'failed' — 시도조차 못 갔다
+ *   · 늦은 실패(still_broken·wrong_list)       → 'drift'  — 여전히 표류 중이라는 뜻이고,
+ *     하루 상한 카운터(healAttemptsToday)가 'drift' 를 세므로 바꾸면 상한이 무너진다
+ */
 async function giveUp(
+  runId: string | null,
   sourceId: string,
   reason: HealFailureReason,
   log: ReturnType<typeof childLogger>,
   message?: string,
+  trial?: { items_found: number; report: Parameters<typeof finishRun>[1]['validation_json'] },
 ): Promise<HealJobResult> {
+  const summary = message ?? MESSAGES[reason]
+  if (runId !== null) {
+    const lateFailure = reason === 'still_broken' || reason === 'wrong_list'
+    await finishRun(runId, {
+      status: lateFailure ? 'drift' : 'failed',
+      items_found: trial?.items_found ?? 0,
+      items_new: 0,
+      validation_json: trial?.report ?? null,
+      error_summary: summary,
+    })
+  }
   await setSourceStatus(sourceId, 'needs_attention')
   log.warn({ reason }, '자동 복구 실패 — 사람이 봐야 합니다')
-  return { outcome: 'needs_attention', reason, message: message ?? MESSAGES[reason] }
-}
-
-async function closeFailedRun(
-  runId: string | null,
-  itemsFound: number,
-  report: Parameters<typeof finishRun>[1]['validation_json'],
-  summary: string,
-): Promise<void> {
-  if (runId === null) return
-  await finishRun(runId, {
-    status: 'drift',
-    items_found: itemsFound,
-    items_new: 0,
-    validation_json: report,
-    error_summary: summary,
-  })
+  return { outcome: 'needs_attention', reason, message: summary }
 }
 
 /**
