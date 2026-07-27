@@ -135,7 +135,9 @@ function toBrief(candidate: RankedCandidate): CompileCandidateBrief {
     fetch_mode: candidate.fetch_mode,
     fetch_url: candidate.fetch_url,
     keys: candidate.keys,
-    sample: sampleRows(candidate.rows, SAMPLE_SIZE),
+    // dom 후보는 행 HTML 을 보여줘야 `css:` 경로를 쓸 수 있다. 겹침률 판정에 쓰는
+    // `rows`(행 텍스트)를 그대로 보여주면 LLM 이 짚을 자리가 없다.
+    sample: sampleRows(candidate.row_html ?? candidate.rows, SAMPLE_SIZE),
     overlap: candidate.overlap,
   }
 }

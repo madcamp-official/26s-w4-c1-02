@@ -24,7 +24,17 @@ let lastApi: CheerioAPI | null = null
 
 function apiFor(html: string): CheerioAPI {
   if (lastHtml === html && lastApi !== null) return lastApi
-  const $ = load(html)
+  // 세 번째 인자가 `isDocument` 다. **false 여야 한다.**
+  //
+  // 해석기는 목록에서 행을 집은 뒤 행의 outerHTML 을 다시 파싱해 필드를 뽑는다
+  // (core `interpret.ts` — `selectCssNodes(...).map((node) => node.html())`).
+  // 그런데 `<tr>…</tr>` 같은 조각을 문서 모드로 파싱하면 HTML 표준 규칙대로
+  // **표 밖의 tr·td 가 통째로 버려진다.** 태그가 사라지므로 `css:td.title a` 류의
+  // 필드 경로가 전부 0개를 집고, 표로 된 사이트는 모든 값이 빈 채로 수집된다.
+  //
+  // 온전한 문서를 넣어도 fragment 모드의 결과가 같아서(`<html>` 이 있으면 그대로 산다)
+  // 문서와 조각을 나누지 않는다 — 나누면 "지금 들어온 게 조각인가" 를 매번 맞혀야 한다.
+  const $ = load(html, null, false)
   lastHtml = html
   lastApi = $
   return $

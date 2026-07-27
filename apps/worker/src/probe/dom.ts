@@ -8,9 +8,20 @@
 // 입력 HTML 은 두 곳에서 온다 — 정적 GET(1단계) 또는 브라우저 렌더 결과(3단계).
 // 그래서 `origin` 을 인자로 받는다: 브라우저가 렌더한 DOM 에서 찾았으면 'browser_render' 다.
 //
-// TODO(G1): 시그니처 계산과 컨테이너 선정을 실제 사이트 3곳으로 조정한다.
-//           지금은 시그니처 함수만 진짜고, 컨테이너 탐색은 자리만 잡아둔 상태다.
+// ── 이 단계가 다른 셋과 다른 점 ────────────────────────────────────────
+// 앞의 세 경로는 **이미 있는 데이터**(JSON)를 찾는다. 여기는 데이터가 없어서
+// 화면 구조에서 **만들어낸다.** 그래서 두 가지를 더 해야 한다:
+//
+//   1. **선택자를 검증한다.** 반복 묶음을 찾는 것과 "그 묶음을 다시 집는 CSS 선택자"
+//      를 만드는 것은 다른 일이다. 만든 선택자를 실제로 돌려 같은 행이 잡히는지 보고,
+//      안 잡히면 후보에서 뺀다. 검증 안 된 선택자를 스펙에 넣으면 수집이 조용히 0개가 된다.
+//   2. **메뉴·페이지 번호를 걸러낸다.** 반복 구조는 목록 말고도 많다. 겹침률은
+//      이걸 못 거른다 — DOM 후보는 페이지에서 뽑았으니 화면 텍스트와 100% 겹치는 게 당연하다.
+//      그래서 걸러내는 일을 rank.ts 에 떠넘기지 않고 여기서 한다.
 
+import { load, type CheerioAPI } from 'cheerio'
+
+import { clip } from '../html'
 import type { ProbeCandidate, ProbePath } from './types'
 
 export interface DomProbeInput {
@@ -27,22 +38,345 @@ export interface DomProbeResult {
   note: string
 }
 
+/** 후보로 낼 최대 개수. 더 내봐야 프롬프트만 커지고 판단은 rank.ts 몫이다 */
+const MAX_CANDIDATES = 6
+/** 행 하나의 글자가 이보다 짧으면 목록이 아니라 메뉴·페이지 번호로 본다 */
+const MIN_ROW_TEXT = 8
+/** 훑을 요소 수 상한. 아주 큰 페이지에서 시간을 잡아먹지 않게 */
+const MAX_ELEMENTS = 12_000
+/** 프롬프트에 실릴 행 HTML 길이 상한 */
+const MAX_ROW_HTML = 1_200
+/**
+ * 겹침률 판정에 쓰는 행 텍스트 길이 상한.
+ * core 의 `isComparable` 이 200자를 넘는 값을 비교에서 빼므로 그 아래로 담는다.
+ */
+const MAX_ROW_TEXT = 190
+
+type Selection = ReturnType<CheerioAPI>
+
 /**
  * 반복 컨테이너를 찾아 후보로 만든다.
  *
- * 결과 후보의 `list_path` 는 core 가 읽을 수 있는 CSS 경로여야 한다 — `css:.contest-list > li`.
- * `rows` 에는 행의 HTML 조각을 넣는다 (컴파일 프롬프트가 이걸 보고 필드 경로를 만든다).
+ * 결과 후보의 `list_path` 는 core 가 읽을 수 있는 CSS 경로다 — `css:.contest-list > li`.
+ * 이 선택자는 **실제로 돌려 본 것만** 나간다.
  */
 export function probeDom(input: DomProbeInput): DomProbeResult {
-  // TODO(G1): 구현.
-  //   1. cheerio 로 파싱하고 모든 요소를 훑는다
-  //   2. 부모별로 자식들의 structureSignature() 를 세어, 같은 시그니처가 minRows 회 이상이면 후보
-  //   3. 컨테이너 선택자를 만든다 (id > 고유 class > 태그 + nth-of-type 순)
-  //   4. 행 HTML 을 rows 에 담는다 → rank.ts 가 겹침률로 순위를 매긴다
-  //   5. 후보가 여럿이면 전부 낸다. 고르는 건 rank.ts 의 몫이다
-  void input
-  return { candidates: [], note: 'DOM 반복 구조 탐지는 G1에서 채운다' }
+  let $: CheerioAPI
+  try {
+    $ = load(input.html)
+  } catch {
+    return { candidates: [], note: 'HTML 을 읽지 못했습니다' }
+  }
+
+  // 화면에 안 보이는 것은 목록일 수 없다. 지우고 시작하면 시그니처 계산도 같이 싸진다.
+  $('script, style, noscript, svg, template, head').remove()
+
+  const all = $('*').toArray()
+  const scanned = all.length > MAX_ELEMENTS ? all.slice(0, MAX_ELEMENTS) : all
+
+  const groups = findRepeatedGroups($, scanned, input.minRows)
+  if (groups.length === 0) {
+    return {
+      candidates: [],
+      note: `요소 ${scanned.length}개를 봤지만 ${input.minRows}회 이상 반복되는 묶음이 없습니다`,
+    }
+  }
+
+  const kept: { candidate: ProbeCandidate; volume: number }[] = []
+  const seen = new Set<string>()
+  let rejectedShort = 0
+  let rejectedSelector = 0
+
+  for (const group of groups) {
+    const texts = group.rows.map((r) => collapse(r.text()))
+    if (!looksLikeContent(texts)) {
+      rejectedShort += 1
+      continue
+    }
+
+    const listPath = buildVerifiedSelector($, group)
+    if (listPath === null) {
+      rejectedSelector += 1
+      continue
+    }
+    if (seen.has(listPath)) continue
+    seen.add(listPath)
+
+    const matched = $(listPath).toArray().map((el) => $(el))
+    // 자를 때 말줄임표를 붙이지 않는다. 이 값은 **페이지 원문과 글자로 비교되는 값**이라
+    // `…` 한 글자가 붙으면 그 행은 "화면에 없는 값" 으로 세어진다.
+    const rows = matched.map((row) => collapse(row.text()).slice(0, MAX_ROW_TEXT))
+    const rowHtml = matched.map((row) => clip(outerHtml($, row), MAX_ROW_HTML))
+
+    kept.push({
+      candidate: {
+        id: `dom:${listPath}`,
+        origin: input.origin,
+        source: { kind: 'dom', selector: listPath },
+        list_path: `css:${listPath}`,
+        fetch_mode: input.origin === 'browser_render' ? 'browser' : 'html',
+        fetch_url: input.url,
+        rows,
+        row_html: rowHtml,
+        keys: sharedKeys($, matched),
+        where: `화면에서 ${rows.length}번 반복되는 묶음 (${listPath})`,
+      },
+      volume: texts.reduce((sum, t) => sum + t.length, 0),
+    })
+  }
+
+  // 글자를 가장 많이 담은 묶음이 본문 목록일 확률이 높다.
+  // 점수를 매기는 건 rank.ts 의 일이므로, 여기서는 **낼 것을 고르는 순서**로만 쓴다.
+  kept.sort((a, b) => b.volume - a.volume)
+
+  const notes = [`반복 묶음 ${groups.length}개`]
+  if (rejectedShort > 0) notes.push(`글자가 짧아 제외 ${rejectedShort}개`)
+  if (rejectedSelector > 0) notes.push(`선택자를 못 만들어 제외 ${rejectedSelector}개`)
+  notes.push(`후보 ${Math.min(kept.length, MAX_CANDIDATES)}개`)
+
+  return {
+    candidates: kept.slice(0, MAX_CANDIDATES).map((k) => k.candidate),
+    note: notes.join(' · '),
+  }
 }
+
+// ── ① 반복 묶음 찾기 ───────────────────────────────────────────────────
+
+interface RepeatGroup {
+  parent: Selection
+  rows: Selection[]
+}
+
+/**
+ * 부모별로 자식들의 시그니처를 세어, 같은 시그니처가 minRows 회 이상이면 묶음으로 본다.
+ *
+ * 한 부모에서 시그니처가 여럿 나올 수 있다 (공지 행과 일반 행이 섞인 게시판이 그렇다).
+ * 그럴 땐 **가장 많이 반복된 것 하나만** 낸다 — 나머지는 대개 머리글이나 광고 줄이다.
+ */
+function findRepeatedGroups($: CheerioAPI, elements: readonly unknown[], minRows: number): RepeatGroup[] {
+  const groups: RepeatGroup[] = []
+
+  for (const node of elements) {
+    const parent = $(node as never)
+    const children = parent.children().toArray()
+    if (children.length < minRows) continue
+
+    const bySignature = new Map<string, Selection[]>()
+    for (const child of children) {
+      const sel = $(child)
+      const signature = groupSignature($, sel)
+      const bucket = bySignature.get(signature)
+      if (bucket === undefined) bySignature.set(signature, [sel])
+      else bucket.push(sel)
+    }
+
+    let best: Selection[] | null = null
+    for (const rows of bySignature.values()) {
+      if (rows.length < minRows) continue
+      if (best === null || rows.length > best.length) best = rows
+    }
+    if (best !== null) groups.push({ parent, rows: best })
+  }
+
+  return groups
+}
+
+/**
+ * 형제끼리 견주는 시그니처의 깊이 — 자신과 **직계 자식까지만** 본다.
+ *
+ * 더 깊이 보면 안 묶인다. 실제 사이트에서 확인한 것:
+ *   · wevity 의 공모전 16행은 `span.dday.ing` / `.soon` / `.end` 라는 **마감 상태 클래스**가
+ *     손자 자리에 있어서, 손자까지 보면 7 + 4 + 4 + 1 로 쪼개진다. 같은 목록인데도.
+ *   · 직계 자식까지만 보면 `li(div.tit,div.organ,div.day,div.read)` 하나로 묶인다.
+ *
+ * 얕게 봐서 엉뚱한 것이 섞이는 위험은 뒤의 두 관문이 막는다 —
+ * `looksLikeContent` 가 메뉴를 걷어내고, 선택자 검증이 "그 행들만 잡히는가" 를 실제로 돌려 본다.
+ */
+const GROUP_SIGNATURE_DEPTH = 1
+
+/**
+ * 형제끼리 견주는 시그니처. 뿌리(행 자신)의 클래스는 뺀다.
+ *
+ * 목록의 행에는 그 행에만 붙는 클래스가 흔하다 — `on` · `active` · `notice` · `bg` · `even`.
+ * 그걸 시그니처에 넣으면 **같은 목록의 행들이 서로 다른 묶음으로 갈라져** 반복 횟수를
+ * 못 채우고, 목록 전체를 놓친다. 행끼리 구별해야 할 정보는 자기 클래스가 아니라
+ * 속에 무엇이 들었는가이므로, 안쪽 클래스는 그대로 둔다.
+ */
+function groupSignature($: CheerioAPI, sel: Selection): string {
+  const node = signatureNode($, sel, GROUP_SIGNATURE_DEPTH + 1)
+  return structureSignature({ ...node, classes: [] }, GROUP_SIGNATURE_DEPTH)
+}
+
+/** 요소 하나를 시그니처 계산용 노드로 바꾼다. 깊이는 `structureSignature` 가 보는 만큼만 */
+function signatureNode($: CheerioAPI, sel: Selection, depth = 3): SignatureNode {
+  const children =
+    depth <= 0
+      ? []
+      : sel
+          .children()
+          .toArray()
+          .map((c) => signatureNode($, $(c), depth - 1))
+  return { tag: tagOf(sel), classes: classesOf(sel), children }
+}
+
+// ── ② 목록 같은가 ──────────────────────────────────────────────────────
+
+/**
+ * 메뉴·페이지 번호·아이콘 줄을 걸러낸다.
+ *
+ * 겹침률로는 못 거른다 — DOM 후보는 화면에서 뽑았으니 화면 텍스트와 겹치는 게 당연하다.
+ * 그래서 "목록의 행이라면 이렇지 않다" 를 여기서 본다.
+ */
+function looksLikeContent(texts: readonly string[]): boolean {
+  const filled = texts.filter((t) => t.length > 0)
+  if (filled.length < texts.length / 2) return false
+
+  const average = filled.reduce((sum, t) => sum + t.length, 0) / filled.length
+  if (average < MIN_ROW_TEXT) return false
+
+  // 행마다 내용이 같으면 목록이 아니라 반복된 장식이다 (버튼 줄·배너 슬라이드).
+  const distinct = new Set(filled).size
+  return distinct >= Math.max(2, Math.ceil(filled.length * 0.6))
+}
+
+// ── ③ 선택자 만들고 검증하기 ───────────────────────────────────────────
+
+/**
+ * 이 묶음을 다시 집는 CSS 선택자를 만들어 **실제로 돌려 본다.**
+ *
+ * 후보를 여럿 만들어 좁은 것부터 시도하고, 우리가 찾은 행을 빠짐없이 집으면서
+ * 남의 행까지 끌어오지 않는 첫 번째를 쓴다. 하나도 통과 못 하면 null —
+ * 검증 못 한 선택자를 스펙에 넣느니 후보를 버리는 편이 낫다.
+ */
+function buildVerifiedSelector($: CheerioAPI, group: RepeatGroup): string | null {
+  const rowPart = rowSelector(group.rows)
+  const wanted = new Set(group.rows.map((r) => r.get(0)))
+
+  for (const containerPart of containerSelectors($, group.parent)) {
+    const selector = `${containerPart} > ${rowPart}`
+    let matched: unknown[]
+    try {
+      matched = $(selector).toArray()
+    } catch {
+      continue
+    }
+    if (matched.length === 0) continue
+
+    let covered = 0
+    for (const el of matched) if (wanted.has(el as never)) covered += 1
+
+    // 우리 행을 전부 집어야 하고, 다른 목록까지 쓸어오면 안 된다.
+    if (covered !== wanted.size) continue
+    if (matched.length > wanted.size + 2) continue
+    return selector
+  }
+  return null
+}
+
+/** 행 쪽 선택자 — 태그 + **모든 행이 공유하는** 클래스. 한 행에만 있는 클래스(`active`)를 쓰면 그 행만 잡힌다 */
+function rowSelector(rows: readonly Selection[]): string {
+  const first = rows[0]
+  if (first === undefined) return '*'
+
+  let shared = classesOf(first).filter(isSafeIdent)
+  for (const row of rows.slice(1)) {
+    const has = new Set(classesOf(row))
+    shared = shared.filter((c) => has.has(c))
+    if (shared.length === 0) break
+  }
+
+  const tag = tagOf(first)
+  return shared.length > 0 ? `${tag}.${shared.slice(0, 2).join('.')}` : tag
+}
+
+/** 컨테이너 쪽 선택자 후보들 — 좁은 것부터 */
+function containerSelectors($: CheerioAPI, container: Selection): string[] {
+  const out: string[] = []
+
+  const id = container.attr('id')
+  if (id !== undefined && isSafeIdent(id)) out.push(`#${id}`)
+
+  for (const cls of classesOf(container).filter(isSafeIdent)) {
+    if ($(`.${cls}`).length === 1) out.push(`.${cls}`)
+  }
+
+  const local = localSelector(container)
+  out.push(local)
+
+  // 조상을 하나씩 붙여 좁힌다. `tbody > tr` 처럼 컨테이너 자체에 표시가 없는 경우가 이 길로 풀린다.
+  let chain = local
+  let current = container.parent()
+  for (let up = 0; up < 3 && current.length > 0; up += 1) {
+    const tag = tagOf(current)
+    if (tag === 'html' || tag === '') break
+
+    const parentId = current.attr('id')
+    if (parentId !== undefined && isSafeIdent(parentId)) {
+      out.push(`#${parentId} ${chain}`)
+      break
+    }
+    chain = `${localSelector(current)} > ${chain}`
+    out.push(chain)
+    current = current.parent()
+  }
+
+  return out
+}
+
+/** 요소 하나를 가리키는 `태그.클래스` */
+function localSelector(sel: Selection): string {
+  const tag = tagOf(sel)
+  const classes = classesOf(sel).filter(isSafeIdent).slice(0, 2)
+  return classes.length > 0 ? `${tag}.${classes.join('.')}` : tag
+}
+
+/**
+ * 선택자에 그대로 넣어도 되는 이름인가.
+ *
+ * 이스케이프가 필요한 이름(`w-1/2`, `md:flex`, 숫자로 시작)은 아예 안 쓴다.
+ * 이스케이프를 붙이기 시작하면 스펙에 실려 나가는 문자열이 사이트마다 달라지고,
+ * 그걸 사람이 읽고 고칠 수 없게 된다.
+ */
+function isSafeIdent(name: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) && name.length <= 40
+}
+
+// ── ④ 행 안에 무엇이 있는지 ────────────────────────────────────────────
+
+/** 키 하나를 몇 개 행에서 봤는지 셀 때 쓰는 문턱 — 대부분의 행에 있어야 진짜 칸이다 */
+const KEY_PRESENCE = 0.8
+/** 프롬프트와 rank 에 넘길 키 개수 상한 */
+const MAX_KEYS = 8
+
+/**
+ * 행마다 공통으로 나타나는 자리 이름. JSON 후보의 `keys` 에 해당하는 것을 DOM 에서 만든 것이다.
+ *
+ * 두 곳이 이걸 읽는다 — rank.ts 는 `title`·`date` 같은 이름이 보이면 목록다움에 가산점을 주고,
+ * 컴파일 프롬프트는 "항목의 키" 로 보여줘서 LLM 이 경로를 짚기 쉽게 한다.
+ */
+function sharedKeys($: CheerioAPI, rows: readonly Selection[]): string[] {
+  if (rows.length === 0) return []
+
+  const counts = new Map<string, number>()
+  for (const row of rows) {
+    const inRow = new Set<string>()
+    row.find('*').each((_i, el) => {
+      const node = $(el)
+      for (const cls of classesOf(node)) if (isSafeIdent(cls)) inRow.add(`.${cls}`)
+      if (tagOf(node) === 'a' && node.attr('href') !== undefined) inRow.add('a@href')
+    })
+    for (const key of inRow) counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+
+  const threshold = rows.length * KEY_PRESENCE
+  return [...counts.entries()]
+    .filter(([, n]) => n >= threshold)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_KEYS)
+    .map(([key]) => key)
+}
+
+// ── 시그니처 ───────────────────────────────────────────────────────────
 
 /**
  * 요소 하나의 구조 시그니처. 같은 목록의 행들은 이 값이 같다.
@@ -60,4 +394,33 @@ export interface SignatureNode {
   tag: string
   classes: string[]
   children: SignatureNode[]
+}
+
+// ── cheerio 다루기 ─────────────────────────────────────────────────────
+//
+// 노드 타입을 `domhandler` 에서 가져오지 않는다 — cheerio 의 전이 의존이라
+// worker 의 package.json 에 없고, pnpm 의 엄격한 격리 때문에 타입이 안 잡힌다.
+// (`cheerio-adapter.ts` 에 같은 사정이 적혀 있다)
+
+function tagOf(sel: Selection): string {
+  const tag: unknown = sel.prop('tagName')
+  return typeof tag === 'string' ? tag.toLowerCase() : ''
+}
+
+function classesOf(sel: Selection): string[] {
+  const raw = sel.attr('class')
+  if (raw === undefined) return []
+  return raw.split(/\s+/).filter((c) => c !== '')
+}
+
+function outerHtml($: CheerioAPI, sel: Selection): string {
+  try {
+    return $.html(sel)
+  } catch {
+    return ''
+  }
+}
+
+function collapse(raw: string): string {
+  return raw.replace(/\s+/g, ' ').trim()
 }

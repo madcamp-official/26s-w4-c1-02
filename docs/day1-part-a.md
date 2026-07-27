@@ -85,12 +85,24 @@ G5 데모       ░░░░░░░░░░   0%
 |---|---|---|
 | 1. 인라인 JSON 스캔 | [`probe/inline-json.ts`](../apps/worker/src/probe/inline-json.ts) | ⚠️ 구현됨 (`__NEXT_DATA__` 위주, §6 참조) |
 | 2. 네트워크 관찰 | [`probe/network.ts`](../apps/worker/src/probe/network.ts) | ⚠️ 구현됨 |
-| 3. **DOM 반복 구조** | [`probe/dom.ts:43`](../apps/worker/src/probe/dom.ts) | ⬜ **빈 껍데기** — `return { candidates: [] }` |
+| 3. **DOM 반복 구조** | [`probe/dom.ts`](../apps/worker/src/probe/dom.ts) | ✅ **검증됨** — 낯선 사이트 3곳에서 본 목록을 집었다 (아래) |
 | 4. 브라우저 렌더 | [`fetchers/browser.ts`](../apps/worker/src/fetchers/browser.ts) | ⚠️ 구현됨 |
 | 후보 순위 (겹침률) | [`probe/rank.ts`](../apps/worker/src/probe/rank.ts) | ⚠️ 구현됨 |
 
-> 3단계가 비어 있어서 **인라인 JSON 도 없고 관찰 가능한 XHR 도 없는 서버렌더 HTML 목록은 probe 가 구조적으로 못 뚫는다.**
-> 한국 공공 목록 사이트에 이 형태가 많다. G1 판정 전에 이걸 먼저 채워야 한다.
+**3단계 실측** — `--no-browser` 로 정적 GET 만 써서 (2026-07-27):
+
+| 사이트 | 뚫은 경로 | 집은 것 |
+|---|---|---|
+| k-startup.go.kr | `css:ul > li.notice` | 공고 15건 · 겹침 100% |
+| bizinfo.go.kr | `css:tbody > tr` | 지원사업 15건 · 겹침 100% |
+| wevity.com | `css:.list > li` | 공모전 16건 · 겹침 100% |
+
+세 곳 다 인라인 JSON 도 XHR 도 없는 **서버렌더 HTML** 이다. 이 형태가 한국 공공 목록의 지배적 형태이고,
+3단계가 비어 있던 동안은 구조적으로 못 뚫던 것이다. bizinfo 는 `<table>` 이라 §5-2 수정이 같이 있어야 값이 나온다.
+
+> **얕게 묶는다** — 시그니처는 행 자신과 직계 자식까지만 본다. 더 깊이 보면 `span.dday.ing`/`.soon`/`.end`
+> 같은 **행마다 바뀌는 상태 클래스** 때문에 같은 목록이 여러 묶음으로 쪼개진다 (wevity 16행 → 7+4+4+1).
+> 얕게 봐서 엉뚱한 게 섞이는 위험은 **선택자를 실제로 돌려 보는 검증**과 글자 길이 필터가 막는다.
 
 ### 어댑터 컴파일 — 기획서 9-1② · 11장
 
@@ -143,10 +155,14 @@ passesHealGate(
 착각하는 실패"를 막기 위해서다. 그 두 번째 관문이 항상 `true` 를 내는 no-op 이다.
 **기능 ④(사수 대상)의 유일한 오승격 방지 장치가 없는 것과 같다.**
 
-### 5-2. 표 기반 목록 사이트에서 html/browser 경로가 전멸한다 🔴
+### 5-2. 표 기반 목록 사이트에서 html/browser 경로가 전멸한다 🔴 → ✅ **고침 (2026-07-27)**
 
-[`cheerio-adapter.ts:27`](../apps/worker/src/fetchers/cheerio-adapter.ts) 이 행 조각을 문서 모드
-`load(html)` 로 파싱한다. cheerio 는 `<table>` 없이 떠 있는 `<tr>`·`<td>` 를 파싱 단계에서 버린다.
+`load(html, null, false)` 로 조각 모드 파싱한다. 회귀 테스트는
+[`cheerio-adapter.test.ts`](../apps/worker/src/fetchers/cheerio-adapter.test.ts) — 되돌리면 4개가 깨진다.
+아래는 무엇이었는지의 기록이다.
+
+[`cheerio-adapter.ts`](../apps/worker/src/fetchers/cheerio-adapter.ts) 가 행 조각을 문서 모드
+`load(html)` 로 파싱했다. cheerio 는 `<table>` 없이 떠 있는 `<tr>`·`<td>` 를 파싱 단계에서 버린다.
 
 ```
 입력:  <tr><td class="tit">공고제목</td><td class="date">2026-08-14</td></tr>
@@ -201,7 +217,7 @@ parseDate('2026.08.14 18:00')       →  '2026-08-14T18:00:00+09:00'   ← 이�
 
 | 곳 | 주장 | 급 |
 |---|---|---|
-| [`fetchers/http.ts:137`](../apps/worker/src/fetchers/http.ts) | `res.text()` 가 항상 UTF-8 로 디코딩 → **EUC-KR 사이트 본문이 깨진다** | 🔴 |
+| [`fetchers/http.ts:137`](../apps/worker/src/fetchers/http.ts) | `res.text()` 는 **응답 헤더의 charset 만** 본다. 헤더에 없고 `<meta>` 에만 EUC-KR 을 적은 사이트는 UTF-8 로 읽혀 본문이 깨진다. 2026-07-27 확인: k-startup 은 헤더에 charset 이 없다(내용이 UTF-8 이라 우연히 무사). 아직 실제로 깨지는 주소를 못 잡았다 | 🔴 |
 | [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) | fetch 계층에 사설망 차단이 없다. core 의 `isPrivateHost`([`validate.ts:140`](../packages/core/src/spec/validate.ts))를 **부르지 않는다** → SSRF | 🔴 |
 | [`spec/validate.ts:140`](../packages/core/src/spec/validate.ts) | `isPrivateHost` 가 IPv4 사상 IPv6(`::ffff:…`)를 못 거른다 | 🔴 |
 | [`fetchers/browser.ts`](../apps/worker/src/fetchers/browser.ts) | browser 모드만 HTTP 상태를 안 본다 → 404 페이지가 "수집 성공·0건" | 🟡 |
@@ -220,13 +236,13 @@ parseDate('2026.08.14 18:00')       →  '2026-08-14T18:00:00+09:00'   ← 이�
 
 ### 7-1. 지금 당장 (G1 통과용)
 
-1. **[`probe/dom.ts`](../apps/worker/src/probe/dom.ts) 구현.** 파일 안 주석에 5단계 알고리즘이 이미 적혀 있다.
-   이게 없으면 서버렌더 HTML 목록을 못 뚫어 G1 의 "낯선 URL 3개 중 2개" 판정을 못 넘는다.
-2. **§5-2 cheerio 행 조각 파싱 고치기.** `load(html)` 대신 fragment 모드를 쓰거나 `<table>` 로 감싼다.
-   1번을 아무리 잘 해도 이게 안 고쳐지면 표 기반 사이트는 전부 빈 값이다.
-3. **§6 의 🔴 3건 재현 후 처리** — charset · SSRF 2건. 임의 URL 을 받는 제품이라 미룰 수 없다.
-4. **낯선 목록 URL 3개로 실제 판정.** `pnpm --filter @endpointer/worker probe <url>`
-   → gates.md G1 트랙 A 체크박스를 채운다.
+1. ~~`probe/dom.ts` 구현~~ — **됐다** (2026-07-27). §4 의 실측 표 참조.
+2. ~~§5-2 cheerio 행 조각 파싱~~ — **됐다.** 회귀 테스트 있음.
+3. ~~낯선 목록 URL 3개로 실제 판정~~ — **3곳 다 뚫렸다.** 다만 이건 **probe 까지의 판정**이다.
+   G1 은 "URL 하나로 항목이 나오는가" 이므로, `GEMINI_API_KEY` 를 넣고
+   `create-collection` 을 같은 3개 주소로 돌려야 진짜 판정이 난다. **이게 지금 G1 의 유일한 잔여물이다.**
+4. **§6 의 🔴 3건 재현 후 처리** — [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) 의
+   SSRF·사설망 차단과 charset. 임의 URL 을 받는 제품이라 미룰 수 없다.
 
 ### 7-2. 그 다음 (G2 — 합류 지점 · 트랙 B와 같이)
 
