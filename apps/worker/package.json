@@ -14,7 +14,8 @@
     "create-collection": "tsx src/cli/create.ts",
     "attach": "tsx src/cli/attach.ts",
     "collect": "tsx src/cli/collect.ts",
-    "views": "tsx src/cli/views.ts"
+    "views": "tsx src/cli/views.ts",
+    "heal": "tsx src/cli/heal.ts"
   },
   "dependencies": {
     "@endpointer/core": "workspace:*",
