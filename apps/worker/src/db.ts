@@ -18,12 +18,15 @@ import type {
   SourceRow,
   SubscriptionRow,
 } from '@endpointer/core/db'
-import { db, queryClient, adapters, items, runs } from '@endpointer/core/db'
+import { db, queryClient, adapters, collections, items, runs, sources } from '@endpointer/core/db'
 import type { ItemData, ItemProvenance, ItemRaw, RunStatus, SourceStatus, ValidationReport } from '@endpointer/core'
 import type { AdapterSpec, InterpretedItem } from '@endpointer/core/spec'
 import { hashString, stableStringify } from '@endpointer/core/spec'
 
 export { db, queryClient } from '@endpointer/core/db'
+// pipeline/persist.ts 가 INSERT 를 하려면 테이블 객체가 필요하다.
+// worker 에 drizzle-orm 이 없어서 여기를 거쳐 간다 (위 주석 참조).
+export { collections, sources, adapters, items, runs } from '@endpointer/core/db'
 export type { SourceRow, CollectionRow, AdapterRow, ItemRow, RunRow, SubscriptionRow }
 
 // ── 읽기 ───────────────────────────────────────────────────────────────

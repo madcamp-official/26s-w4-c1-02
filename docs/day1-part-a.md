@@ -61,6 +61,7 @@ G5 데모       ░░░░░░░░░░   0%
 | core 단위 테스트 630개 | `pnpm --filter @endpointer/core test` |
 | 보장선 B2 자동 점검 33개 | `pnpm --filter @endpointer/web test` |
 | 임의 URL probe (CLI) | `pnpm --filter @endpointer/worker probe <url>` |
+| URL → 표 배선 (CLI) | `pnpm --filter @endpointer/worker create-collection <url>` — **LLM 키가 있어야 끝까지 간다** |
 | 시드 데이터 표 화면 | 정렬·필터·출처 뱃지·원문 대조·"자동 복구 N회" 전부 있음 |
 | `GET /api/v1/{slug}` | 필터·정렬·커서·`sources` 부분성공 블록 |
 | MCP 도구 4개 | `list_items` · `search_items` · `get_schema` · `get_sources_status` |
@@ -231,9 +232,12 @@ parseDate('2026.08.14 18:00')       →  '2026-08-14T18:00:00+09:00'   ← 이�
 
 **이게 제품이 성립하는 지점이다.** 트랙 A 가 낼 것은 "URL 하나 → 이미 채워진 표" 를 돌려주는 진입점이다.
 
-5. **컬렉션 생성 경로 배선.** `probe → compileSpec → interpretSpec → inferSchema → normalize`
-   를 한 함수로 묶고, 큐 잡(`enqueueCompile` 신설) 또는 워커 HTTP 엔드포인트로 노출한다.
-   → 트랙 B가 `POST /api/collections` 에서 이걸 부른다. **어느 쪽으로 할지 B와 먼저 합의할 것.**
+5. ~~컬렉션 생성 경로 배선~~ — **함수까지는 됐다** (`pipeline/create-collection.ts`).
+   `probe → discoverSpec → runAdapter` 가 한 함수로 묶였고 CLI 로 끝까지 돌려볼 수 있다.
+   **남은 것은 그것을 트랙 B 가 부를 수 있게 노출하는 일이다** — 큐 잡(`enqueueCreate` 신설)이냐
+   워커 HTTP 엔드포인트냐. **어느 쪽으로 할지 B와 먼저 합의할 것.**
+   - `create-collection.ts` 는 DB 를 모른다 → 화면의 "미리보기" 가 저장 없이 같은 코드를 부를 수 있다
+   - 저장은 `pipeline/persist.ts` 가 따로 한다 → 사용자가 표를 **보고 나서** 저장한다 (보장선 B3)
 6. **`matchFields` 배선** — 두 번째 소스의 자동 매핑 (기능 ②).
 7. **`traceValue` 배선** — 못 찾은 필드를 값 붙여넣기로 해결 (보장선 B1).
 8. **§5-4 ISO 시각 소실 수정** — 두 소스의 날짜 형식이 같아야 G2 통과다.

@@ -26,7 +26,9 @@
 
 import { z } from 'zod'
 import type { CollectionSchemaJson } from '../types/collection'
+import { FIELD_TYPES, FieldTypeSchema } from '../types/collection'
 import { TRANSFORM_OPS } from './ops'
+import type { AdapterSpec } from './spec'
 import { AdapterSpecSchema, CURRENT_SPEC_VERSION, MAX_PAGES } from './spec'
 import type { SpecValidationOptions, SpecValidationResult } from './validate'
 import { validateSpec } from './validate'
@@ -478,6 +480,176 @@ export function buildAdapterSpecResponseSchema(opts: ResponseSchemaOptions): Gem
     propertyOrdering: Object.keys(props),
     required: ['spec_version', 'fetch', 'list', 'fields', 'pagination'],
   }
+}
+
+// ── 3-B. 스키마가 아직 없을 때 — 발견 모드 (기획서 9-1②④) ──────────────
+//
+// 첫 소스에는 채워야 할 칸이 없다. 그래서 위의 `buildAdapterSpecResponseSchema` 를
+// 그대로 쓸 수 없다 — `opts.schema` 를 훑어 `fields` 를 펼치는 구조라 빈 스키마를 주면
+// 모델이 채울 칸이 하나도 없는 스키마가 나간다.
+//
+// 발견 모드에서는 `fields` 객체 대신 **`columns` 배열**을 받는다. 모델이 칸의 이름과
+// 타입까지 스스로 정하고, 우리는 그것을 둘로 쪼갠다:
+//
+//   columns[] ──┬─→ CollectionSchemaJson  (key · label · type · required)   ← 표의 구성
+//               └─→ AdapterSpec.fields    (path · type · transform)         ← 뽑는 방법
+//
+// 쪼갠 뒤에는 **기존 `validateSpec` 을 그대로 통과시킨다.** 검사 관문을 두 벌 만들지
+// 않는 것이 핵심이다 — 발견 경로에만 있는 구멍이 생기면 그게 곧 SSRF·경로 문법의 사각지대가 된다.
+
+/** 표 하나에 둘 수 있는 칸 수 상한. 넘으면 사람이 편집할 수 없는 표가 된다 (보장선 B3) */
+export const MAX_DISCOVERED_COLUMNS = 12
+
+/**
+ * 발견 모드 `responseSchema`.
+ * 스키마를 주지 않고 "어떤 칸이 필요한지도 네가 정하라" 고 시킬 때 쓴다.
+ */
+export function buildDiscoveryResponseSchema(): GeminiSchema {
+  const columnProps: Record<string, GeminiSchema> = {
+    key: S('영문 소문자·숫자·밑줄로 된 칸 식별자. 예: title, deadline, amount'),
+    label: S('사람이 읽는 칸 이름 (한국어). 예: 사업명, 마감일, 지원금액'),
+    type: {
+      type: 'STRING',
+      enum: [...FIELD_TYPES],
+      description: '칸의 타입. 날짜는 date, 금액은 money, 원문 링크는 link',
+    },
+    required: { type: 'BOOLEAN', description: '항목마다 반드시 있는 값이면 true' },
+    path: S('이 값이 있는 위치. json 모드면 $. 로 시작하는 JSONPath, 아니면 css: 로 시작하는 CSS 선택자'),
+    transform: {
+      type: 'ARRAY',
+      description: '위에서부터 순서대로 적용할 변환. 필요 없으면 비운다',
+      items: { anyOf: transformOpSchemas() },
+      maxItems: 8,
+    },
+  }
+
+  const columns: GeminiSchema = {
+    type: 'ARRAY',
+    description: `표에 둘 칸들. 왼쪽부터의 순서 그대로. 최대 ${MAX_DISCOVERED_COLUMNS}개`,
+    maxItems: MAX_DISCOVERED_COLUMNS,
+    items: {
+      type: 'OBJECT',
+      properties: columnProps,
+      propertyOrdering: Object.keys(columnProps),
+      required: ['key', 'label', 'type', 'path'],
+    },
+  }
+
+  const props: Record<string, GeminiSchema> = {
+    spec_version: { type: 'INTEGER', description: `항상 ${CURRENT_SPEC_VERSION}`, minimum: 1 },
+    fetch: { description: '무엇을 어떻게 받아올지', anyOf: fetchSchemas() },
+    list: S('항목 하나하나를 집는 위치. 예: $.data.items[*] 또는 css:.contest-list > li'),
+    dedupe_key: S('항목의 고유 식별자 위치. 안정적인 것이 없으면 넣지 않는다'),
+    columns,
+    pagination: { description: '페이지를 어떻게 넘길지', anyOf: paginationSchemas() },
+  }
+
+  return {
+    type: 'OBJECT',
+    description: '목록 페이지에서 표를 만들어내는 방법 — 어떤 칸을 둘지까지 정한다',
+    properties: props,
+    propertyOrdering: Object.keys(props),
+    required: ['spec_version', 'fetch', 'list', 'columns', 'pagination'],
+  }
+}
+
+/** 모델이 낸 칸 하나 (검증 전) */
+const DiscoveredColumnSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  type: FieldTypeSchema,
+  required: z.boolean().optional(),
+  path: z.string(),
+  transform: z.unknown().optional(),
+})
+
+const DiscoveryOutputSchema = z.object({
+  columns: z.array(DiscoveredColumnSchema).min(1),
+})
+
+export type DiscoveryResult =
+  | { ok: true; schema: CollectionSchemaJson; spec: AdapterSpec }
+  | { ok: false; errors: string[] }
+
+export interface DiscoveryValidationOptions {
+  /** 사용자가 준 호스트. 스펙이 다른 데로 나가지 못하게 막는 관문 */
+  host: string
+  allowPrivateHosts?: boolean
+}
+
+/**
+ * 발견 모드 출력을 (표 구성 + 어댑터 스펙) 둘로 확정한다.
+ *
+ * 스펙 쪽 검사는 `validateSpec` 에 그대로 위임한다. 여기서 따로 보는 것은
+ * **칸 목록이 표로서 성립하는가** 뿐이다 — 키가 겹치지 않는가, 개수가 사람이 다룰 만한가.
+ */
+export function parseDiscoveryOutput(raw: unknown, opts: DiscoveryValidationOptions): DiscoveryResult {
+  let input: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      input = JSON.parse(stripCodeFence(raw))
+    } catch {
+      return { ok: false, errors: ['JSON 형식이 아닙니다. 설명 없이 JSON 객체 하나만 내주세요'] }
+    }
+  }
+
+  const outer = DiscoveryOutputSchema.safeParse(input)
+  if (!outer.success) {
+    return { ok: false, errors: outer.error.issues.map((i) => `columns: ${i.message}`) }
+  }
+
+  const errors: string[] = []
+  const seen = new Set<string>()
+  const schema: CollectionSchemaJson = []
+  const fields: Record<string, unknown> = {}
+
+  for (const col of outer.data.columns) {
+    const key = col.key.trim()
+    if (!/^[a-z][a-z0-9_]*$/.test(key)) {
+      errors.push(`칸 이름 '${col.key}' 은 영문 소문자로 시작하는 소문자·숫자·밑줄이어야 합니다`)
+      continue
+    }
+    if (seen.has(key)) {
+      errors.push(`칸 이름 '${key}' 이 중복됐습니다`)
+      continue
+    }
+    seen.add(key)
+
+    schema.push({
+      key,
+      label: col.label.trim() === '' ? key : col.label.trim(),
+      type: col.type,
+      required: col.required ?? false,
+      mapping: null,
+      value_labels: null,
+    })
+    fields[key] = {
+      path: col.path,
+      type: col.type,
+      ...(col.transform !== undefined ? { transform: col.transform } : {}),
+    }
+  }
+
+  if (schema.length === 0) {
+    return { ok: false, errors: errors.length > 0 ? errors : ['쓸 수 있는 칸이 하나도 없습니다'] }
+  }
+  if (schema.length > MAX_DISCOVERED_COLUMNS) {
+    errors.push(`칸이 너무 많습니다 (${schema.length}개). ${MAX_DISCOVERED_COLUMNS}개 이하로 줄여 주세요`)
+  }
+
+  // 쪼갠 스펙을 **기존 관문**에 통과시킨다. 발견 경로 전용 검사를 새로 만들지 않는다.
+  const candidate = { ...(input as Record<string, unknown>), fields }
+  delete (candidate as { columns?: unknown }).columns
+
+  const validated = validateSpec(candidate, {
+    host: opts.host,
+    schema,
+    ...(opts.allowPrivateHosts !== undefined ? { allowPrivateHosts: opts.allowPrivateHosts } : {}),
+  })
+  if (!validated.ok) return { ok: false, errors: [...errors, ...validated.errors] }
+  if (errors.length > 0) return { ok: false, errors }
+
+  return { ok: true, schema, spec: validated.spec }
 }
 
 // ── 4. 되돌아오는 길 — 반드시 zod 로 다시 검증한다 ─────────────────────
