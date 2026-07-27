@@ -17,6 +17,7 @@ import { fetchBrowserPayload } from './browser'
 import { cheerioAdapter } from './cheerio-adapter'
 import { fetchHtmlPayload } from './html'
 import { fetchJsonPayload } from './json'
+import { stabilizeExternalKeys } from './stabilize-keys'
 import type { PageFetchOutcome } from './types'
 
 export { cheerioAdapter, resetHtmlCache } from './cheerio-adapter'
@@ -117,18 +118,24 @@ export async function runAdapter(input: RunAdapterInput): Promise<RunAdapterResu
     url = nextUrl(spec, page, outcome.payload, outcome.finalUrl)
   }
 
+  // 링크에 목록 상태(페이지 번호 등)가 박힌 사이트에서 키가 흔들리지 않게 (stabilize-keys.ts).
+  // 모든 페이지의 행을 모아야 판단할 수 있어서 페이지 루프 **뒤**에 있다.
+  const stabilized = stabilizeExternalKeys(items)
+  if (stabilized.note !== null) warnings.push(stabilized.note)
+  const finalItems = stabilized.items
+
   const report: ValidationReport = {
     checked_at: now.toISOString(),
-    items_found: items.length,
+    items_found: finalItems.length,
     fields: mergeFieldStats(perPageStats),
     // 진짜 판정은 core 의 evaluateReport 가 한다. 여기서는 "일단 뽑히긴 했는가" 만 적는다.
-    passed: items.length > 0,
+    passed: finalItems.length > 0,
     notes: failure !== null ? [failure] : [],
   }
 
   log.debug({ mode: spec.fetch.mode, pages: pagesFetched, items: items.length }, '수집 실행')
 
-  return { items, report, pagesFetched, warnings: dedupe(warnings), failure }
+  return { items: finalItems, report, pagesFetched, warnings: dedupe(warnings), failure }
 }
 
 // ── 페이지 넘기기 ──────────────────────────────────────────────────────
