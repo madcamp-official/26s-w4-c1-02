@@ -90,10 +90,17 @@ export function interpretSpec(spec: AdapterSpec, payload: unknown, ctx: Interpre
   const items: InterpretedItem[] = []
   const seen = new Set<string>()
 
+  // 신원 없는 행 방어선용 — 스펙이 약속한 link 필드 목록
+  const linkKeys = fieldKeys.filter((k) => spec.fields[k]?.type === 'link')
+  let skippedNoIdentity = 0
+
   for (const row of rows) {
     const data: ItemData = {}
     const provenance: ItemProvenance = {}
     const rawFields: Record<string, unknown> = {}
+    // 행을 버릴지 결정하기 전까지 통계를 미룬다 — 버린 행이 null 비율을 오염시키면
+    // 드리프트 검증기가 멀쩡한 스펙을 의심하게 된다
+    const rowStats: Array<{ key: string; isNull: boolean; typeFail: boolean; sample: string | null }> = []
 
     for (const key of fieldKeys) {
       const field = spec.fields[key]
@@ -136,17 +143,44 @@ export function interpretSpec(spec: AdapterSpec, payload: unknown, ctx: Interpre
 
       data[key] = value
       if (acc) {
-        acc.total += 1
-        if (value === null) acc.nullCount += 1
         const hadRaw = rawValue !== undefined && rawValue !== null && rawValue !== ''
-        if (failure !== null && hadRaw) {
-          acc.typeFailCount += 1
-          if (acc.samples.length < 5) acc.samples.push(truncate(stringify(rawValue) ?? failure))
-        }
+        const typeFail = failure !== null && hadRaw
+        rowStats.push({
+          key,
+          isNull: value === null,
+          typeFail,
+          sample: typeFail ? truncate(stringify(rawValue) ?? failure ?? '') : null,
+        })
       }
     }
 
     const key = buildExternalKey(spec, row, data, isJson, ctx)
+
+    // 신원 없는 행은 항목이 아니다 (day2 실측: wevity 머리글 행이 항목으로 앉았다).
+    // row_hash 는 dedupe_key 도 title 도 못 뽑았다는 뜻이고, 스펙에 link 필드가 있는데
+    // 그마저 전부 비면 다시 찾아갈 방법이 없는 행이다 — 머리글·장식 행이 여기로 온다.
+    // link 필드가 없는 스키마는 판별 근거가 없으므로 기존대로 앉힌다.
+    if (
+      key.origin === 'row_hash' &&
+      linkKeys.length > 0 &&
+      linkKeys.every((k) => data[k] === null || data[k] === undefined || data[k] === '')
+    ) {
+      skippedNoIdentity += 1
+      continue
+    }
+
+    // 통계는 버리지 않기로 한 행만 센다
+    for (const s of rowStats) {
+      const acc = accumulators.get(s.key)
+      if (!acc) continue
+      acc.total += 1
+      if (s.isNull) acc.nullCount += 1
+      if (s.typeFail) {
+        acc.typeFailCount += 1
+        if (s.sample !== null && acc.samples.length < 5) acc.samples.push(s.sample)
+      }
+    }
+
     if (seen.has(key.external_key)) continue // 같은 페이지 안의 중복은 여기서 걷어낸다
     seen.add(key.external_key)
 
@@ -157,6 +191,11 @@ export function interpretSpec(spec: AdapterSpec, payload: unknown, ctx: Interpre
       raw: { _row: row, _fields: rawFields },
       provenance,
     })
+  }
+
+  if (skippedNoIdentity > 0) {
+    // B4 — 조용히 버리지 않는다. 무엇을 왜 안 넣었는지 사람이 읽을 수 있게 남긴다
+    warnings.push(`이름이나 원문 주소가 없는 행 ${skippedNoIdentity}개는 항목으로 넣지 않았습니다`)
   }
 
   if (rows.length === 0) {
