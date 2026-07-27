@@ -9,7 +9,8 @@
     "./db": "./src/db/index.ts",
     "./spec": "./src/spec/index.ts",
     "./normalize": "./src/normalize/index.ts",
-    "./validate": "./src/validate/index.ts"
+    "./validate": "./src/validate/index.ts",
+    "./query": "./src/query/index.ts"
   },
   "scripts": {
     "build": "echo 'core는 소스 그대로 소비된다 (빌드 없음)'",

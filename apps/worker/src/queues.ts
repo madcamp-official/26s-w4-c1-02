@@ -25,8 +25,9 @@ export const QUEUE_PREFIX = 'endpointer'
 export const QUEUE_COLLECT = 'collect'
 export const QUEUE_HEAL = 'heal'
 export const QUEUE_DELIVER = 'deliver'
+export const QUEUE_EVALUATE = 'evaluate'
 
-export const QUEUE_NAMES = [QUEUE_COLLECT, QUEUE_HEAL, QUEUE_DELIVER] as const
+export const QUEUE_NAMES = [QUEUE_COLLECT, QUEUE_HEAL, QUEUE_DELIVER, QUEUE_EVALUATE] as const
 export type QueueName = (typeof QUEUE_NAMES)[number]
 
 // ── 잡 페이로드 ────────────────────────────────────────────────────────
@@ -63,10 +64,19 @@ export interface DeliverJobData {
   reason: DeliverReason
 }
 
+/**
+ * 뷰 평가 (A34). collection_id 가 null 이면 **전체** 컬렉션 — 일일 잡이 이것이다.
+ * 수집 직후의 평가는 collect 잡 안에서 직접 부르므로 큐를 타지 않는다.
+ */
+export interface EvaluateJobData {
+  collection_id: string | null
+}
+
 export interface QueueDataMap {
   collect: CollectJobData
   heal: HealJobData
   deliver: DeliverJobData
+  evaluate: EvaluateJobData
 }
 
 // ── 잡 옵션 ────────────────────────────────────────────────────────────
@@ -111,6 +121,9 @@ export function healQueue(): Queue<HealJobData> {
 }
 export function deliverQueue(): Queue<DeliverJobData> {
   return makeQueue(QUEUE_DELIVER)
+}
+export function evaluateQueue(): Queue<EvaluateJobData> {
+  return makeQueue(QUEUE_EVALUATE)
 }
 
 export async function closeQueues(): Promise<void> {
@@ -241,6 +254,20 @@ export async function scheduleSubscription(input: {
 
 export async function unscheduleSubscription(subscriptionId: string): Promise<boolean> {
   return deliverQueue().removeJobScheduler(deliverSchedulerId(subscriptionId))
+}
+
+/**
+ * 뷰 평가 일일 잡 (A34 · 계약 §3 — **KST 자정 직후**).
+ * `마감 D-7 이내` 는 데이터가 안 바뀌어도 자정에 전이가 일어난다. 소스가 조용해도 시간은 간다.
+ */
+export const DAILY_VIEW_EVALUATION_ID = 'views:daily'
+
+export async function scheduleDailyViewEvaluation(): Promise<void> {
+  await evaluateQueue().upsertJobScheduler(
+    DAILY_VIEW_EVALUATION_ID,
+    { pattern: '5 0 * * *', tz: 'Asia/Seoul' },
+    { name: 'evaluate:daily', data: { collection_id: null } },
+  )
 }
 
 /** 워커 limiter 설정 — index.ts 가 그대로 쓴다 */

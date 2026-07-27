@@ -13,7 +13,8 @@
     "probe": "tsx src/cli/probe.ts",
     "create-collection": "tsx src/cli/create.ts",
     "attach": "tsx src/cli/attach.ts",
-    "collect": "tsx src/cli/collect.ts"
+    "collect": "tsx src/cli/collect.ts",
+    "views": "tsx src/cli/views.ts"
   },
   "dependencies": {
     "@endpointer/core": "workspace:*",
