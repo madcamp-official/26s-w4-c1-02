@@ -53,6 +53,25 @@ export interface WorkerConfig {
   crawlerMaxPages: number
   /** 같은 페이지를 반복해 때리지 않기 위한 캐시 TTL */
   crawlerCacheTtlS: number
+  /**
+   * 사설망 주소로 나가는 것을 허용한다. **개발용 탈출구다.**
+   *
+   * 호출부마다 넘기는 옵션으로 두지 않은 이유: 그러면 넘기는 걸 잊은 자리가 그대로 구멍이 된다.
+   * 프로세스 하나에 스위치 하나면, 기본값이 막힘이고 여는 건 의식적인 한 번이다.
+   */
+  allowPrivateHosts: boolean
+
+  /**
+   * 화면이 파이프라인을 부르는 문 (ADR A30).
+   *
+   * 토큰이 비어 있으면 **문을 아예 열지 않는다.** 열어 두고 아무나 받으면 그 순간
+   * 이 서버는 "아무 주소나 대신 열어 주는 공개 서비스" 가 된다 — 관문(guard.ts)이 사설망을
+   * 막아도 공인 주소로는 얼마든지 남을 대신 때릴 수 있다.
+   */
+  workerHttpPort: number
+  /** 기본은 로컬만. 배포에서 web 이 다른 컨테이너면 0.0.0.0 으로 연다 */
+  workerHttpHost: string
+  workerInternalToken: string | undefined
 
   /** 15장 Playwright 메모리 리스크 — 잡 동시성 */
   workerConcurrency: number
@@ -95,6 +114,11 @@ function readConfig(): WorkerConfig {
     crawlerMinIntervalMs: int('CRAWLER_MIN_INTERVAL_MS', 1500),
     crawlerMaxPages: Math.min(3, Math.max(1, int('CRAWLER_MAX_PAGES', 3))),
     crawlerCacheTtlS: int('CRAWLER_CACHE_TTL_S', 3600),
+    allowPrivateHosts: bool('ALLOW_PRIVATE_HOSTS', false),
+
+    workerHttpPort: int('WORKER_HTTP_PORT', 3003),
+    workerHttpHost: strOr('WORKER_HTTP_HOST', '127.0.0.1'),
+    workerInternalToken: str('WORKER_INTERNAL_TOKEN'),
 
     workerConcurrency,
     browserConcurrency,

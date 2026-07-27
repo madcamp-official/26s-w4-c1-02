@@ -9,6 +9,12 @@ export {
 } from './compile-spec'
 
 export {
+  DISCOVER_SYSTEM,
+  buildDiscoverPrompt,
+  type DiscoverPromptInput,
+} from './discover'
+
+export {
   MATCH_SYSTEM,
   buildMatchPrompt,
   buildMatchResponseSchema,

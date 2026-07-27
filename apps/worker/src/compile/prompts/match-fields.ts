@@ -7,8 +7,9 @@
 // 못 찾았다고 답하면 사용자에게 그 칸만 물어보면 된다 (보장선 B1).
 
 import type { CollectionSchemaJson } from '@endpointer/core'
+import { buildTransformPipelineSchema, PROMPTABLE_TRANSFORM_OPS } from '@endpointer/core/spec'
 
-import { jsonBlock, KOREAN_LIST_SITE_NOTES, PATH_SYNTAX } from './shared'
+import { jsonBlock, KOREAN_LIST_SITE_NOTES, PATH_SYNTAX, transformOpsSection } from './shared'
 
 export const MATCH_SYSTEM = `
 당신은 이미 있는 표에 새 사이트의 데이터를 **끼워 맞추는** 사람이다.
@@ -51,6 +52,15 @@ export function buildMatchPrompt(input: MatchPromptInput): string {
     PATH_SYNTAX,
     `이번 데이터는 ${input.fetchMode} 방식이다.`,
     '',
+    transformOpsSection(PROMPTABLE_TRANSFORM_OPS),
+    '',
+    // 경로만으로 안 되는 칸이 실제로 있다. k-startup 의 링크는 href 가
+    // `javascript:go_view(178642);` 라, 경로만 짚으면 주소가 되지 못하고 칸이 통째로 빈다.
+    '값이 그 칸의 모양과 다르면 **변환으로 맞춰라.** 특히:',
+    '- 링크가 `javascript:...` 나 onclick 안의 번호뿐이면, 번호를 뽑아(regex_extract) 실제 주소 틀에 끼워라(template).',
+    '- 날짜가 `접수기간 2026.08.21 ~ 2026.09.02` 처럼 문장 안에 있으면 필요한 쪽만 뽑아라.',
+    '변환으로도 그 칸의 모양을 만들 수 없으면 **찾지 못한 것이다.** missing 에 넣어라.',
+    '',
     KOREAN_LIST_SITE_NOTES,
     '',
     jsonBlock('지금 표에 들어 있는 값의 예 (이런 모양이어야 한다)', input.existingSample, 4_000),
@@ -71,10 +81,13 @@ export function buildMatchResponseSchema(schema: CollectionSchemaJson): Record<s
       description: `${field.label} 을(를) 새 데이터에서 찾은 위치. 못 찾았으면 이 칸을 비운다`,
       properties: {
         path: { type: 'STRING', description: '항목 하나를 기준으로 한 경로' },
+        transform: buildTransformPipelineSchema(
+          `뽑은 값을 "${field.label}" 모양으로 바꾸는 변환. 위에서부터 순서대로 적용된다. 필요 없으면 넣지 않는다`,
+        ),
         confidence: { type: 'NUMBER', description: '0~1. 값의 모양까지 확인했으면 높게' },
         why: { type: 'STRING', description: '왜 이게 그 값이라고 판단했는지 한 문장 (한국어)' },
       },
-      propertyOrdering: ['path', 'confidence', 'why'],
+      propertyOrdering: ['path', 'transform', 'confidence', 'why'],
       required: ['path', 'confidence'],
     }
   }

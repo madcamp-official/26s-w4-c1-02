@@ -2,7 +2,8 @@
 //
 //   gemini.ts       클라이언트 · 디스크 캐시 · 실패를 값으로 돌려주기
 //   budget.ts       호출 카운터와 일일 상한 (15장 → 한도 초과는 상태이지 정지가 아니다)
-//   compile-spec.ts 9-1② 최초 생성 · 9-3③ 재컴파일 (검증 실패 시 재생성 1회)
+//   discover.ts     9-1②④ **첫 소스** — 표 구성과 뽑는 방법을 한 번에 (채울 칸이 아직 없을 때)
+//   compile-spec.ts 9-1② 스키마가 있을 때의 생성 · 9-3③ 재컴파일 (검증 실패 시 재생성 1회)
 //   match-fields.ts 9-2② 두 번째 소스 필드 매핑
 //   trace-value.ts  9-2 붙여넣은 값 역추적 — **LLM 없음. 보장선 B1 의 구현체**
 //   prompts/        문장. 튜닝은 여기서만 일어난다
@@ -16,6 +17,12 @@ export {
   type BudgetScope,
   type BudgetVerdict,
 } from './budget'
+export {
+  discoverSpec,
+  type DiscoverInput,
+  type DiscoverResult,
+  type DiscoverAttempt,
+} from './discover'
 export {
   compileSpec,
   recompileSpec,

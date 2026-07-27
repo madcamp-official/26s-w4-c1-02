@@ -2,8 +2,12 @@
 //
 // fetch POST 로 JSON 을 보낸다. 그게 전부다. 이메일과 달리 발송 도메인·SPF·DKIM 이 없어서
 // 오늘 바로 동작한다. 그래서 이게 먼저다.
+//
+// **여기도 사용자가 준 주소로 서버가 나간다.** 수집과 다른 점은 본문까지 실어 보낸다는 것이라,
+// 막지 않으면 내부망을 두드리는 데 그치지 않고 수집한 내용을 내부 주소로 보내게 된다.
 
 import { childLogger } from '../../logger'
+import { checkOutboundUrl } from '../../fetchers/guard'
 import type { Deliverer, DeliveryOutcome, DeliveryPayload } from './index'
 
 const log = childLogger({ mod: 'deliver:webhook' })
@@ -19,15 +23,12 @@ export const webhookDeliverer: Deliverer = {
   },
 
   async deliver(target: string, payload: DeliveryPayload): Promise<DeliveryOutcome> {
-    let url: URL
-    try {
-      url = new URL(target)
-    } catch {
-      return { ok: false, retryable: false, message: '보낼 주소를 읽을 수 없어요.' }
+    const checked = await checkOutboundUrl(target)
+    if (!checked.ok) {
+      // 주소가 잘못된 것이므로 다시 보내도 같다
+      return { ok: false, retryable: false, message: '이 주소로는 보낼 수 없어요. 주소를 확인해 주세요.' }
     }
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      return { ok: false, retryable: false, message: '보낼 주소가 웹 주소가 아니에요.' }
-    }
+    const url = checked.url
 
     try {
       const res = await fetch(url, {
@@ -39,8 +40,16 @@ export const webhookDeliverer: Deliverer = {
           'X-Endpointer-Collection': payload.collection.slug,
         },
         body: JSON.stringify(payload),
+        // 따라가지 않는다. 확인한 주소가 아닌 곳으로 본문이 가면 안 된다.
+        // 수집(`fetchers/http.ts`)은 홉마다 다시 확인하며 따라가지만, 발송은 그럴 이유가 없다 —
+        // 받는 주소는 사용자가 직접 적은 것이라 넘길 일이 있으면 제대로 적으면 된다.
+        redirect: 'manual',
         signal: AbortSignal.timeout(TIMEOUT_MS),
       })
+
+      if (res.status >= 300 && res.status < 400) {
+        return { ok: false, retryable: false, message: '받는 쪽이 다른 주소로 넘기고 있어요. 주소를 확인해 주세요.' }
+      }
 
       if (res.ok) {
         log.info({ host: url.host, items: payload.items.length }, '웹훅 발송')

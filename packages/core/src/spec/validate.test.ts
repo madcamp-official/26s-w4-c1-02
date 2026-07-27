@@ -174,8 +174,24 @@ describe('isPrivateHost', () => {
     '::1',
     'fd00::1',
     'fe80::1',
+    // IPv4 사상 IPv6. 아래 세 개는 전부 같은 127.0.0.1 이다 —
+    // 두 번째가 URL 파서(`new URL('http://[::ffff:127.0.0.1]/').hostname`)가 만드는 형태다
+    '::ffff:127.0.0.1',
+    '::ffff:7f00:1',
+    '0:0:0:0:0:ffff:7f00:1',
+    '::ffff:a9fe:a9fe', // 169.254.169.254 — 클라우드 메타데이터
+    '::ffff:c0a8:1', // 192.168.0.1
+    'fe80::1%eth0', // 존 인덱스가 붙어 와도
   ]
-  const pub = ['k-startup.go.kr', 'www.bizinfo.go.kr', '8.8.8.8', '172.32.0.1', '11.0.0.1']
+  const pub = [
+    'k-startup.go.kr',
+    'www.bizinfo.go.kr',
+    '8.8.8.8',
+    '172.32.0.1',
+    '11.0.0.1',
+    '::ffff:808:808', // 8.8.8.8 — 사상 주소라고 다 막으면 안 된다
+    '2606:4700::1111',
+  ]
 
   for (const host of priv) {
     it(`${host} 는 내부망`, () => expect(isPrivateHost(host)).toBe(true))

@@ -17,15 +17,9 @@
 // 대가는 요청마다 도구를 다시 등록하는 비용인데, 이건 순수 객체 조립이라 무시할 수준이다.
 // 서버→클라이언트 알림(구독 푸시 등)이 필요해지면 그때 세션을 켠다.
 
-// .env 는 **레포 루트**에 있다. `dotenv/config` 는 cwd(=apps/mcp) 기준이라 못 읽는다.
-// worker/src/config.ts · core/drizzle.config.ts 와 같은 방식으로 루트를 직접 찾아 올라간다.
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-import { config as loadDotenv } from 'dotenv'
-
-/** apps/mcp/src → 레포 루트 */
-loadDotenv({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../..', '.env'), quiet: true })
+// **이 줄이 맨 위에 있어야 한다.** .env 는 레포 루트에 있고, 아래 `@endpointer/core/db` 는
+// 모듈을 읽는 순간 DATABASE_URL 을 요구한다. 자세한 이유는 load-env.ts 머리말에.
+import './load-env'
 
 import { randomUUID } from 'node:crypto'
 
