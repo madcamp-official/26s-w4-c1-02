@@ -26,7 +26,7 @@
 **부품은 대부분 만들어졌는데 조립이 안 됐다.**
 
 ```
-소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 762개 통과 (core 655 · web 33 · worker 74)
+소스 19,089줄 · typecheck 4개 패키지 통과 · 테스트 778개 통과 (core 655 · web 33 · worker 90)
 트랙 A(파이프라인) 5,262줄 — probe·컴파일·수집·치유·발송 전부 코드가 있다
 트랙 B(표면)     2,909줄 — 표·REST·MCP 는 돈다. 피드·구독 화면은 없다
 
@@ -60,7 +60,7 @@ G5 데모       ░░░░░░░░░░   0%
 | 전 패키지 타입 검사 | `pnpm typecheck` → 4개 패키지 Done |
 | core 단위 테스트 655개 | `pnpm --filter @endpointer/core test` |
 | 보장선 B2 자동 점검 33개 | `pnpm --filter @endpointer/web test` |
-| worker 테스트 74개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문 |
+| worker 테스트 90개 | `pnpm --filter @endpointer/worker test` — probe·표 파싱·나가는 요청 관문·인코딩 판정 |
 | 임의 URL probe (CLI) | `pnpm --filter @endpointer/worker probe <url>` |
 | URL → 표 배선 (CLI) | `pnpm --filter @endpointer/worker create-collection <url>` — **LLM 키가 있어야 끝까지 간다** |
 | 시드 데이터 표 화면 | 정렬·필터·출처 뱃지·원문 대조·"자동 복구 N회" 전부 있음 |
@@ -72,7 +72,7 @@ G5 데모       ░░░░░░░░░░   0%
 구글 클라우드 콘솔에서 OAuth 클라이언트를 발급해 `.env` 에 넣으면 켜진다
 (리디렉션 URI: `http://localhost:3000/api/auth/callback/google`).
 
-**테스트가 없는 곳: `apps/mcp` 0개.** (`apps/worker` 는 0개였다가 74개가 됐다 — probe·표 파싱·관문.)
+**테스트가 없는 곳: `apps/mcp` 0개.** (`apps/worker` 는 0개였다가 90개가 됐다 — probe·표 파싱·관문·인코딩.)
 아직 무검증인 곳이 **사수 대상 ②④ 자체다** — `matchFields`·`traceValue`·자가 치유에는 테스트가 없다.
 
 ---
@@ -244,6 +244,44 @@ pnpm --filter @endpointer/worker test -- --run http
 (DNS 리바인딩) 검사한 주소와 실제로 붙는 주소가 달라진다. 막으려면 검사된 IP 로 고정해 붙어야 하는데
 Node 내장 fetch 로는 붙을 주소를 지정할 수 없다 (undici 직접 의존 필요 → ADR 먼저).
 
+### 5-7. EUC-KR 페이지의 글자가 통째로 깨진 채 "성공" 으로 넘어갔다 🔴 → ✅ **고침 (2026-07-27)**
+
+`res.text()` 는 **응답 헤더의 charset 만** 본다. 헤더에 없으면 UTF-8 로 읽는다.
+헤더에 charset 을 안 적고 `<meta charset="euc-kr">` 로만 적어 둔 사이트가 아직 있다.
+
+**재현 대상을 찾았다: 대한상공회의소** — 헤더는 `Content-Type: text/html` (charset 없음),
+본문은 `<meta charset="euc-kr">`.
+
+```bash
+pnpm --filter @endpointer/worker probe \
+  "https://www.korcham.net/nCham/Service/Kcci/appl/KcciNoticeList.asp" --no-browser
+```
+
+고치기 전 — **뚫림 · 겹침 100% · 15개**, 그런데 샘플이 이랬다:
+
+```
+1933 ���Ļ�������ڶ�ȸ(WCE) �������̺� �������... �ѹ��� 2026.07.24
+```
+
+**이 실패가 위험한 이유가 저 100% 다.** 반복 구조도 찾고 항목 수도 맞고 날짜·번호(ASCII)도 정상이다.
+겹침률조차 100% 로 나온다 — 화면 텍스트도 똑같이 깨져서 둘이 일치하기 때문이다.
+우리가 가진 **어떤 품질 신호에도 안 걸린다.** 사람이 글자를 눈으로 보기 전까지 아무도 모른다.
+
+고친 뒤 같은 명령:
+
+```
+● DOM 반복 구조  ... HTML 43,844자 (242ms) · euc-kr 로 읽음 · script 9개 검사
+  1933 기후산업국제박람회(WCE) 라운드테이블 행사대행업... 총무팀 2026.07.24
+```
+
+[`fetchers/charset.ts`](../apps/worker/src/fetchers/charset.ts) 가 브라우저와 같은 순서로 정한다:
+**BOM → 헤더 → `<meta>`(앞 4KB) → UTF-8.** JSON 응답은 명세대로 UTF-8 고정이라 `<meta>` 를 뒤지지 않는다
+(게시글 본문에 HTML 조각이 든 API 가 흔하다). `cp949` 처럼 표준 라벨이 아닌 이름은 별칭표로 받는다.
+
+utf-8 이 아니면 **probe 단계 기록에 적는다** (`euc-kr 로 읽음`). 조용히 고치면 고쳤는지도 모른다.
+
+브라우저(Playwright) 경로는 이 파일을 안 탄다 — 크롬이 이미 제대로 디코딩해 `page.content()` 로 준다.
+
 ---
 
 ## 6. 미검증 결함 후보 ⚠️
@@ -253,7 +291,7 @@ Node 내장 fetch 로는 붙을 주소를 지정할 수 없다 (undici 직접 �
 
 | 곳 | 주장 | 급 |
 |---|---|---|
-| [`fetchers/http.ts:137`](../apps/worker/src/fetchers/http.ts) | `res.text()` 는 **응답 헤더의 charset 만** 본다. 헤더에 없고 `<meta>` 에만 EUC-KR 을 적은 사이트는 UTF-8 로 읽혀 본문이 깨진다. 2026-07-27 확인: k-startup 은 헤더에 charset 이 없다(내용이 UTF-8 이라 우연히 무사). 아직 실제로 깨지는 주소를 못 잡았다 | 🔴 |
+| [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) | `res.text()` 가 헤더 charset 만 봐서 `<meta>` 에만 EUC-KR 을 적은 사이트가 깨진다. **✅ 실제 사이트(korcham.net)로 재현했고 고쳤다 — §5-7** | ✅ |
 | [`fetchers/http.ts`](../apps/worker/src/fetchers/http.ts) | fetch 계층에 사설망 차단이 없다 → SSRF. **✅ 검증됐고 고쳤다 — §5-6** | ✅ |
 | [`spec/validate.ts`](../packages/core/src/spec/validate.ts) | `isPrivateHost` 가 IPv4 사상 IPv6(`::ffff:…`)를 못 거른다. **✅ 검증됐고 고쳤다 — §5-6** (core 수정 · 트랙 B 통보 대상) | ✅ |
 | [`fetchers/browser.ts`](../apps/worker/src/fetchers/browser.ts) | browser 모드만 HTTP 상태를 안 본다 → 404 페이지가 "수집 성공·0건" | 🟡 |
@@ -274,16 +312,46 @@ Node 내장 fetch 로는 붙을 주소를 지정할 수 없다 (undici 직접 �
 
 1. ~~`probe/dom.ts` 구현~~ — **됐다** (2026-07-27). §4 의 실측 표 참조.
 2. ~~§5-2 cheerio 행 조각 파싱~~ — **됐다.** 회귀 테스트 있음.
-3. ~~낯선 목록 URL 3개로 실제 판정~~ — **3곳 다 뚫렸다.** 다만 이건 **probe 까지의 판정**이다.
-   G1 은 "URL 하나로 항목이 나오는가" 이므로, `GEMINI_API_KEY` 를 넣고
-   `create-collection` 을 같은 3개 주소로 돌려야 진짜 판정이 난다. **이게 지금 G1 의 유일한 잔여물이다.**
-4. ~~SSRF·사설망 차단~~ — **됐다** (2026-07-27). §5-6 에 세 겹과 재현 명령이 있다.
-   남은 🔴 는 **charset 한 건**이다 (§6 첫 줄). 헤더에 charset 이 없고 `<meta>` 에만
-   EUC-KR 을 적은 사이트를 아직 못 잡아서 재현이 안 된 상태다 — 그런 주소를 하나 찾는 게 먼저다.
+3. ~~SSRF·사설망 차단~~ — **됐다** (2026-07-27). §5-6 에 세 겹과 재현 명령이 있다.
+4. ~~charset~~ — **됐다** (2026-07-27). korcham.net 으로 재현하고 고쳤다. §5-7.
+   **§6 의 🔴 는 이제 없다.**
+5. **`GEMINI_API_KEY` 를 실제로 채우기 — G1 의 유일한 잔여물.**
+   `.env` 27번 줄에 `GEMINI_API_KEY=` 가 **값 없이** 있다 (2026-07-27 13:0x 확인).
+   그래서 `create-collection` 은 아직 한 번도 못 돌았다. probe 3곳은 다 뚫렸지만
+   **그건 probe 까지의 판정**이고, G1 은 "URL 하나로 항목이 나오는가" 다.
+   키가 채워지면 그 즉시 아래 한 줄이 진짜 판정이다:
+
+   ```bash
+   pnpm --filter @endpointer/worker create-collection \
+     "https://www.k-startup.go.kr/web/contents/bizpbanc-ongoing.do" --no-browser
+   ```
 
 ### 7-2. 그 다음 (G2 — 합류 지점 · 트랙 B와 같이)
 
 **이게 제품이 성립하는 지점이다.** 트랙 A 가 낼 것은 "URL 하나 → 이미 채워진 표" 를 돌려주는 진입점이다.
+
+> #### 두 트랙을 같이 띄워봤다 (2026-07-27) ✅
+>
+> **원격에 트랙 B 의 작업물은 아직 없다.** `origin` 에 있는 브랜치는 `main`(스캐폴딩)과
+> `pipeline`(트랙 A) 둘뿐이고, `apps/web`·`apps/mcp` 를 건드린 커밋은 스캐폴딩과 내 것뿐이다.
+> 그래서 **"합쳐서 테스트" 는 지금 시점에선 스캐폴딩 표면과 붙여 보는 것**이 된다. 그건 해봤고 돌아간다:
+>
+> | 확인한 것 | 결과 |
+> |---|---|
+> | postgres·redis 컨테이너 | 37시간째 healthy · 마이그레이션·시드 적용됨 (컬렉션 1 · 항목 20 · 소스 2 · 런 6) |
+> | `GET /api/v1/contest?limit=2` | 200 · `items`·`sources`·`schema_version`·`page.next_cursor` 다 나온다 |
+> | 인증 | 컬렉션 페이지는 307 → `/` · API 는 `unlisted` 라 열림 (`isAuthorized` 가 실제로 판정한다) |
+> | 첫 화면 | "목록이 있는 페이지 주소를 붙여넣어 주세요" — B2 위반 문구 없음 |
+> | MCP 도구 4개 | `POST /contest` → `list_items`·`search_items`·`get_schema`·`get_sources_status` |
+> | MCP 실호출 | `list_items(limit:2)` → 시드 항목 2건 + 사이트 상태 블록 |
+>
+> **막고 있던 것 하나를 고쳤다** — `pnpm dev:mcp` 가 `DATABASE_URL: undefined` 로 부팅조차 못 했다.
+> ESM 이 `import` 를 본문보다 먼저 평가해서, `index.ts` 맨 위의 `loadDotenv()` 보다
+> `@endpointer/core/db` 가 먼저 돌았기 때문이다. `load-env.ts` 로 빼서 첫 import 로 부른다 (ADR A29).
+> **`apps/mcp` 는 트랙 B 디렉터리지만 깨뜨린 커밋이 `fdebef9`(내 것)이라 내가 고쳤다 — B 에게 알릴 것.**
+>
+> 즉 **파이프(DB→API→화면→MCP)는 뚫려 있고, 그 파이프에 트랙 A 가 만든 데이터를 흘려보낸 적이 없다.**
+> 그러려면 `create-collection --save` 가 돌아야 하고, 그건 `GEMINI_API_KEY` 를 기다린다 (§7-1 5번).
 
 5. ~~컬렉션 생성 경로 배선~~ — **함수까지는 됐다** (`pipeline/create-collection.ts`).
    `probe → discoverSpec → runAdapter` 가 한 함수로 묶였고 CLI 로 끝까지 돌려볼 수 있다.
