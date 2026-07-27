@@ -38,9 +38,11 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # ── browsers: 베이스 이미지와 node_modules 의 playwright 를 맞춘다 ────
 # 베이스에 이미 있으면 사실상 no-op 이고, 어긋나 있으면 여기서 잡힌다.
 # chromium 만 받는다 (P3 — 목적은 네트워크 관찰이다).
+# --with-deps 를 쓰지 않는다: OS 의존성은 베이스 이미지에 이미 있고,
+# --with-deps 의 apt-get 이 아웃바운드 80 이 막힌 망(캠프 VM)에서 빌드를 세운다.
 FROM deps AS browsers
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN pnpm --filter @endpointer/worker exec playwright install --with-deps chromium
+RUN pnpm --filter @endpointer/worker exec playwright install chromium
 
 # ── runtime ───────────────────────────────────────────────────────────
 FROM browsers AS runtime
