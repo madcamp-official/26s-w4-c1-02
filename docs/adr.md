@@ -73,7 +73,8 @@
 
 | # | 결정 | 상태 | 근거 | 이걸 다시 보게 만드는 조건 | 영향받는 곳 |
 |---|---|---|---|---|---|
-| **A27** | HTTPS 는 Let's Encrypt 가 아니라 **Caddy 내부 CA(자체 서명)** | `accepted` | 캠프 VM(172.10.8.235)은 VPN 안 사설 IP 라 HTTP-01 챌린지가 불가능하고, 캠프 DNS API 가 언더스코어 레코드(`_acme-challenge`)를 금지해 DNS-01 도 불가능하다. HTTP 평문으로는 구글 OAuth 리디렉션 URI(https 필수)가 성립하지 않는다. 남는 선택지는 내부 CA 하나 — 첫 접속 시 브라우저 경고 1회를 감수한다 | 공인 IP VM 으로 옮기거나 DNS API 가 TXT `_acme-challenge` 를 허용하게 되면 → Caddyfile 의 `tls internal` 세 줄을 지우면 A9 원안(자동 LE)으로 복귀한다 | `deploy/Caddyfile`, deploy/README 의 G4 체크 "유효한 인증서(경고 없음)" 항목은 이 조건에서 "경고 후 진행"으로 완화 |
+| **A27** | HTTPS 는 Let's Encrypt 가 아니라 **Caddy 내부 CA(자체 서명)** | `superseded` (→ A28) | 캠프 VM(172.10.8.235)은 VPN 안 사설 IP 라 HTTP-01 챌린지가 불가능하고, 캠프 DNS API 가 언더스코어 레코드(`_acme-challenge`)를 금지해 DNS-01 도 불가능하다. HTTP 평문으로는 구글 OAuth 리디렉션 URI(https 필수)가 성립하지 않는다. 남는 선택지는 내부 CA 하나 — 첫 접속 시 브라우저 경고 1회를 감수한다 | 공인 IP VM 으로 옮기거나 DNS API 가 TXT `_acme-challenge` 를 허용하게 되면 → Caddyfile 의 `tls internal` 세 줄을 지우면 A9 원안(자동 LE)으로 복귀한다 | `deploy/Caddyfile`, deploy/README 의 G4 체크 "유효한 인증서(경고 없음)" 항목은 이 조건에서 "경고 후 진행"으로 완화 |
+| **A28** | 외부 공개는 **Cloudflare Tunnel** — Caddy 는 8080 평문으로 터널을 받고, TLS 는 Cloudflare 엣지가 끝낸다 | `accepted` | A27 의 조건(사설 IP)이 그대로인 채로 "VPN 없는 방문자"가 필요해졌다. 캠프 DNS API 의 터널 기능이 `cloudflared` 아웃바운드 연결 + 정식 인증서를 제공한다 — 브라우저 경고가 사라지고 G4 "유효한 인증서" 체크가 원래 의미로 복원된다. Caddy 의 :443(내부 CA)은 VPN 직접 접속용으로 남긴다. 평문 블록은 `X-Forwarded-Proto: https` 를 명시한다 (엣지가 TLS 를 끝냈으므로 — 이게 없으면 Auth.js 콜백이 http 로 구른다) | 터널 API 가 사라지거나 순수 TCP/UDP 가 필요해지면 (터널은 HTTP 계열만 통과한다 — 7-8) | `deploy/Caddyfile` (`:8080` 블록 3개), `docker-compose.prod.yml` (caddy 에 127.0.0.1:8080 바인딩), VM 의 `cloudflared` systemd 서비스 |
 
 ---
 
