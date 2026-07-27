@@ -64,7 +64,11 @@ G5 데모       ░░░░░░░░░░   0%
 | 시드 데이터 표 화면 | 정렬·필터·출처 뱃지·원문 대조·"자동 복구 N회" 전부 있음 |
 | `GET /api/v1/{slug}` | 필터·정렬·커서·`sources` 부분성공 블록 |
 | MCP 도구 4개 | `list_items` · `search_items` · `get_schema` · `get_sources_status` |
-| 구글 로그인 | Auth.js + Drizzle 어댑터 |
+
+**구글 로그인은 아직 안 된다** ❌ — 코드는 다 있으나 `.env` 의 `AUTH_GOOGLE_ID` · `AUTH_GOOGLE_SECRET`
+가 비어 있어 [`auth.ts:34`](../apps/web/auth.ts) 의 `isAuthReady` 가 `false` 다. 버튼을 눌러도 구글로 안 넘어간다.
+구글 클라우드 콘솔에서 OAuth 클라이언트를 발급해 `.env` 에 넣으면 켜진다
+(리디렉션 URI: `http://localhost:3000/api/auth/callback/google`).
 
 **테스트가 없는 곳: `apps/worker` 0개 · `apps/mcp` 0개.**
 두 앱 다 `test` 스크립트가 `--passWithNoTests` 라 `pnpm test` 가 초록으로 지나간다.
@@ -204,6 +208,7 @@ parseDate('2026.08.14 18:00')       →  '2026-08-14T18:00:00+09:00'   ← 이�
 | [`jobs/heal.ts:107`](../apps/worker/src/jobs/heal.ts) | json 모드 소스의 치유에서 네트워크 관찰을 꺼서 깨진 내부 API 재발견 경로가 막힘 | 🟡 |
 | [`jobs/heal.ts:195`](../apps/worker/src/jobs/heal.ts) | 치유 **실패**가 `runs` 에 안 남는다 → 기능 ④의 "로그로 쌓기" 절반이 없음 | 🟡 |
 | [`db.ts:135`](../apps/worker/src/db.ts) | `startRun` 이 진행 중 런을 `status:'ok'` 로 넣고 try/finally 가 없음 → 유령 런 | 🟡 |
+| [`auth.ts:38`](../apps/web/auth.ts) | ✅ **검증됨** — DB 를 못 붙어 JWT 로 강등되면 `session` 콜백에 `user` 가 안 와(`token` 이 온다) `session.user.id` 가 영영 안 채워진다 → `currentUser()` 가 항상 `null`. 폴백 경로가 사실상 작동하지 않는다 | 🟡 |
 | [`spec/interpret.ts:260`](../packages/core/src/spec/interpret.ts) | `external_key` 폴백이 `'title'` 을 하드코딩 → 없으면 row_hash 로 떨어져 매 수집 전량 신규 (구독 스팸) | 🟡 |
 | [`normalize/number.ts:47`](../packages/core/src/normalize/number.ts) | 단위 앞 숫자를 합산 → 연도·회차가 금액에 더해짐 | 🟡 |
 | [`db/seed.ts`](../packages/core/src/db/seed.ts) | seed 의 `raw_json` 형태가 파이프라인과 달라, 실수집 한 번에 원문 대조 툴팁이 사라짐 | 🟡 |
