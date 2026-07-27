@@ -82,6 +82,26 @@ notification_dedupe  channel_key(text) · item_id · sent_at
 | 알림 | `enter` 만. 페이로드에 `view: {slug, name}` 포함. dedupe 는 채널 단위 |
 | 표 | 뷰 선택 = 저장된 필터·정렬·컬럼 적용. 편집은 표 위에서 (델타 2-10) |
 
+## 4-b. `notify.channels` 의 실체 (A 질문에 대한 답)
+
+`channels: string[]` 는 **배달 채널 개체의 id 목록**이다. 그 개체의 전신이 지금 DB 의 `subscriptions` 행이다 —
+다만 뷰 도입으로 subscriptions 의 의미가 쪼개진다:
+
+| 지금 subscriptions 한 행 | 뷰 이후 |
+|---|---|
+| 조건 (`filter_json`) | → 뷰의 `where` 로 이동 (은퇴) |
+| 목적지 (`channel`: webhook/email + `target`: URL/주소) | → **이게 "채널"의 실체** |
+| 스케줄 (`schedule`) | → 채널 종류별 정책 (메일 하루 1회 묶음 · 웹훅 건별 — 델타 2-9) |
+
+**선택지** (내일 결정):
+
+- **① 승계 (B 권장)** — subscriptions 를 채널 저장소로 재해석. `notify.channels = [subscriptions.id]`.
+  마이그레이션 없음, 기존 구독 행·화면 그대로 승계. 테이블명과 실체가 어긋나는 건 주석으로 방어.
+- **② 신설** — `channels` 테이블(kind·target·owner) 신설 + 이관. 이름은 깨끗하나 5일 일정에 이관 비용.
+
+부수 결정: `notification_dedupe.channel_key` 는 채널 id 가 아니라 **`kind + 정규화된 target` 의 해시**를 권장 —
+같은 슬랙 URL 이 두 행으로 등록돼도 항목당 1회가 보장되게 (채널 단위 dedupe 의 취지).
+
 ## 5. 같이 정할 것 (열린 결정)
 
 | # | 질문 | B 의 권장 |
