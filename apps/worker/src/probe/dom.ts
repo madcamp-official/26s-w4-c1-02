@@ -150,7 +150,7 @@ interface RepeatGroup {
 /**
  * 부모별로 자식들의 시그니처를 세어, 같은 시그니처가 minRows 회 이상이면 묶음으로 본다.
  *
- * 한 부모에서 시그니처가 여럿 나올 수 있다 (공지 행과 일반 행이 섞인 게시판이 그렇다).
+ * 한 부모에서 시그니처가 여럿 나올 수 있다 (본문 행 사이에 배너 줄이 끼는 게시판이 그렇다).
  * 그럴 땐 **가장 많이 반복된 것 하나만** 낸다 — 나머지는 대개 머리글이나 광고 줄이다.
  */
 function findRepeatedGroups($: CheerioAPI, elements: readonly unknown[], minRows: number): RepeatGroup[] {
@@ -195,16 +195,25 @@ function findRepeatedGroups($: CheerioAPI, elements: readonly unknown[], minRows
 const GROUP_SIGNATURE_DEPTH = 1
 
 /**
- * 형제끼리 견주는 시그니처. 뿌리(행 자신)의 클래스는 뺀다.
+ * 형제끼리 견주는 시그니처. **클래스는 전부 빼고 태그 구성만 본다.**
  *
- * 목록의 행에는 그 행에만 붙는 클래스가 흔하다 — `on` · `active` · `notice` · `bg` · `even`.
- * 그걸 시그니처에 넣으면 **같은 목록의 행들이 서로 다른 묶음으로 갈라져** 반복 횟수를
- * 못 채우고, 목록 전체를 놓친다. 행끼리 구별해야 할 정보는 자기 클래스가 아니라
- * 속에 무엇이 들었는가이므로, 안쪽 클래스는 그대로 둔다.
+ * 클래스는 같은 목록 안에서도 갈라지는 축이다. 실제 사이트에서 확인한 것:
+ *   · 행 자신의 클래스 — `on` · `active` · `notice` · `bg` · `even` 처럼 한 행에만 붙는다.
+ *   · 자식의 클래스 — 서울도서관 공지는 상시 공지 행이 `td.alwaysNum`, 일반 행이 `td.num` 이라
+ *     10행이 5 + 5 로 쪼개진다. 반쪽으로 선택자를 검증하면 `tbody > tr` 이 "남의 행까지
+ *     집는다" 며 기각되어 **표 전체를 놓친다.** 고정 공지 + 일반 글 게시판의 전형이다.
+ *
+ * 태그 구성만 봐도 머리글·광고 줄은 안 섞인다 — 머리글 행은 `th`, 배너 줄은 colspan 한 칸이라
+ * 태그 구성 자체가 다르다. 그래도 섞이는 것은 `looksLikeContent` 와 선택자 검증이 거른다.
  */
 function groupSignature($: CheerioAPI, sel: Selection): string {
   const node = signatureNode($, sel, GROUP_SIGNATURE_DEPTH + 1)
-  return structureSignature({ ...node, classes: [] }, GROUP_SIGNATURE_DEPTH)
+  return structureSignature(stripClasses(node), GROUP_SIGNATURE_DEPTH)
+}
+
+/** 시그니처 계산에서 클래스를 전부 지운다 — 태그 구성만 남긴다 */
+function stripClasses(node: SignatureNode): SignatureNode {
+  return { tag: node.tag, classes: [], children: node.children.map(stripClasses) }
 }
 
 /** 요소 하나를 시그니처 계산용 노드로 바꾼다. 깊이는 `structureSignature` 가 보는 만큼만 */

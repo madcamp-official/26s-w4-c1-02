@@ -28,6 +28,7 @@ import { runAdapter } from '../fetchers'
 import { childLogger } from '../logger'
 import { probe } from '../probe'
 import type { ProbePath, ProbeStep } from '../probe/types'
+import { inferPagination } from './infer-pagination'
 import { applyTransformDrop, dropColumns, planRepair, repairNotes } from './repair-empty'
 
 const log = childLogger({ mod: 'create' })
@@ -207,6 +208,42 @@ export async function createCollectionFromUrl(
     }
   }
 
+  // ── ③-c 페이지 넘김 검증 — LLM 이 적은 것도 돌려 본다 ────────────────
+  //
+  // 서울도서관 실측(2026-07-27): LLM 이 pagination 을 `page` 로 적었는데 진짜 파라미터는
+  // `pn` 이었다. 서버는 `page` 를 무시하고 1페이지를 다시 내놓았고, 항목 링크에 그 번호가
+  // 되박혀 같은 공지가 페이지마다 "신규"로 쌓였다. 접합(infer-pagination)과 같은 원리로
+  // 저장하기 전에 2페이지를 실제로 받아 본다 — 항목이 늘지 않으면 그 파라미터는 가짜다.
+  if (executed.items.length > 0 && spec.pagination.kind === 'page_param') {
+    const single = await runAdapter({ spec, schema, now, maxPages: 1 }) // 1페이지는 캐시
+    const trial = await runAdapter({ spec, schema, now, maxPages: 2 })
+    // 2페이지를 받아보지도 못했으면(일시 오류) 판정하지 않는다 — 적힌 대로 둔다
+    if (trial.pagesFetched >= 2 && trial.items.length <= single.items.length) {
+      const bogus = spec.pagination.param
+      spec = {
+        ...spec,
+        fetch: { ...spec.fetch, url: stripParam(spec.fetch.url, bogus) },
+        pagination: { kind: 'none' },
+      }
+      executed = await runAdapter({ spec, schema, now, maxPages })
+      log.info({ param: bogus }, '2페이지가 1페이지와 같다 — 적힌 페이지 파라미터를 버렸다')
+
+      // 링크 스캔으로 진짜 페이지 넘김을 찾아본다. 못 찾으면 1페이지 그대로 — 그것도 정상이다.
+      const paged = await inferPagination({ spec, schema, baseItemCount: executed.items.length, now })
+      if (paged !== null) {
+        spec = paged.spec
+        executed = {
+          items: paged.items,
+          report: paged.report,
+          pagesFetched: paged.pagesFetched,
+          warnings: executed.warnings,
+          failure: null,
+        }
+        repairNotesOut.push(paged.note)
+      }
+    }
+  }
+
   const trace: CreatePreviewTrace = {
     ...baseTrace,
     overlap: probed.best.overlap,
@@ -252,6 +289,20 @@ export async function createCollectionFromUrl(
 }
 
 // ── 도우미 ─────────────────────────────────────────────────────────────
+
+/**
+ * 가짜로 판정된 페이지 파라미터를 주소에서 뗀다.
+ * `?page={page}` 자리표시자째로 들어 있으므로 먼저 실제 값으로 바꿔 URL 로 읽는다.
+ */
+function stripParam(rawUrl: string, param: string): string {
+  try {
+    const url = new URL(rawUrl.replace('{page}', '1'))
+    url.searchParams.delete(param)
+    return url.toString()
+  } catch {
+    return rawUrl
+  }
+}
 
 /**
  * 사용자가 붙여넣은 것을 주소로 만든다.

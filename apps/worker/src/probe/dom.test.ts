@@ -112,6 +112,41 @@ describe('표로 된 목록', () => {
   })
 })
 
+// 고정 공지 + 일반 글 게시판 — 서울도서관 공지(lib.seoul.go.kr/bbs/list/3)의 축약이다.
+// 상시 행은 `td.alwaysNum`, 일반 행은 `td.num` 이라 자식 클래스가 갈라진다.
+const PINNED_PAGE = `<!DOCTYPE html><html><head><title>공지사항</title></head><body>
+<div class="listTable"><table class="mobileTable">
+  <thead><tr><th>No.</th><th>제목</th><th>작성일</th></tr></thead>
+  <tbody>
+    <tr><td class="alwaysNum"><span>상시</span></td><td class="title"><a href="/bbs/content/3_1">문학강연 프로그램 안내</a></td><td class="date">2026-07-15</td></tr>
+    <tr><td class="alwaysNum"><span>상시</span></td><td class="title"><a href="/bbs/content/3_2">여름 휴관일 안내</a></td><td class="date">2026-06-24</td></tr>
+    <tr><td class="num">1117</td><td class="title"><a href="/bbs/content/3_3">8월 독서동아리 참가자 모집</a></td><td class="date">2026-06-09</td></tr>
+    <tr><td class="num">1116</td><td class="title"><a href="/bbs/content/3_4">자료실 서가 정리 일정 공지</a></td><td class="date">2026-05-30</td></tr>
+    <tr><td class="num">1115</td><td class="title"><a href="/bbs/content/3_5">디지털자료실 좌석 예약 변경</a></td><td class="date">2026-05-12</td></tr>
+  </tbody>
+</table></div>
+</body></html>`
+
+describe('고정 공지가 섞인 게시판', () => {
+  it('상시 행과 일반 행이 클래스만 다르면 한 목록으로 묶인다', () => {
+    // 클래스까지 시그니처에 넣으면 5행이 2 + 3 으로 쪼개지고, 반쪽으로 선택자를
+    // 검증하면 `tbody > tr` 이 "남의 행까지 집는다" 며 기각되어 표 전체를 놓친다.
+    const best = run(PINNED_PAGE).candidates[0]
+
+    expect(best).toBeDefined()
+    expect(rowsOf(best!)).toHaveLength(5)
+    expect(rowsOf(best!).some((r) => r.includes('문학강연'))).toBe(true)
+    expect(rowsOf(best!).some((r) => r.includes('독서동아리'))).toBe(true)
+  })
+
+  it('낸 선택자가 다섯 행을 전부 집는다 — 머리글(th 행)은 안 집는다', () => {
+    const best = run(PINNED_PAGE).candidates[0]!
+
+    expect(selectWith(best, PINNED_PAGE)).toBe(5)
+    for (const row of rowsOf(best)) expect(row).not.toContain('No. 제목 작성일')
+  })
+})
+
 describe('카드형 목록', () => {
   it('한 행에만 붙은 상태 클래스(`on`) 때문에 행을 놓치지 않는다', () => {
     const best = run(CARD_PAGE).candidates[0]!
