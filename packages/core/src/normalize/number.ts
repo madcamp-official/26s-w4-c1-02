@@ -26,25 +26,34 @@ export const KOREAN_UNIT_PATTERN = /[십백천만억조]/
 const NUMERAL_TOKEN_PATTERN = /(?<num>\d[\d,]*(?:\.\d+)?)|(?<unit>[십백천만억조])/g
 
 /**
+ * 금액이 아닌 붙은 수사 — 연도·회차·수량. 큰수 해석 **전에** 지운다.
+ * 실측 (day2 §8 후보 → 확인): '제2회 1억원' 이 2+1 로 합산돼 **3억**이 됐고,
+ * '5천만원(2026년 기준)' 은 꼬리의 연도가 더해져 50,002,026 이 됐다.
+ */
+const COUNTER_NOISE_PATTERN = /\d[\d,]*\s*(?:년도|년|월|일|회차|회|차|기|명|건|개|호)/g
+
+/**
  * `1억 5천만` → 150000000, `100,000천` → 100000000, `천만` → 10000000.
  * 숫자도 단위도 없으면 null.
  */
 export function parseKoreanNumeral(input: string): number | null {
+  const cleaned = input.replace(COUNTER_NOISE_PATTERN, ' ')
+
   let total = 0
   let section = 0
   let pending: number | null = null
   let sawAnything = false
 
   NUMERAL_TOKEN_PATTERN.lastIndex = 0
-  for (const match of input.matchAll(NUMERAL_TOKEN_PATTERN)) {
+  for (const match of cleaned.matchAll(NUMERAL_TOKEN_PATTERN)) {
     const num = match.groups?.['num']
     const unit = match.groups?.['unit']
 
     if (num !== undefined) {
       const parsed = Number.parseFloat(num.replace(/,/g, ''))
       if (!Number.isFinite(parsed)) return null
-      // 단위 없이 숫자가 연달아 나오면(`10 20`) 앞의 것은 버리지 않고 그룹에 더한다
-      if (pending !== null) section += pending
+      // 단위 없이 숫자가 연달아 나오면 **앞의 것을 버린다** — 더하면 위 실측처럼
+      // 잡숫자가 금액에 섞인다. 수사는 위에서 지워지지만 못 지운 것도 금액은 아니다.
       pending = parsed
       sawAnything = true
       continue

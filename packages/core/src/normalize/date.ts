@@ -147,6 +147,9 @@ const ROLLING_KEYWORDS = [
   '소진시까지',
 ] as const
 
+/** 이 낱말이 같이 보이면 "끝났다"가 아니라 "곧 끝난다"다 — closed 판정을 막는다 (④) */
+const STILL_OPEN_HINTS = ['임박', '예정', '곧'] as const
+
 /** 이미 끝난 것들 */
 const CLOSED_KEYWORDS = [
   '접수마감',
@@ -416,7 +419,13 @@ export function parseDate(raw: unknown, options: DateParseOptions): ParseResult<
   // ④ 마감이 없는 것 / 이미 끝난 것.
   //    날짜도 상대 표기도 없을 때만 본다 — `2026-08-14 마감` 은 ② 에서 exact 로 잡혀야 한다
   if (ROLLING_KEYWORDS.some((k) => packed.includes(k))) return ok({ iso: null, kind: 'rolling' })
-  if (CLOSED_KEYWORDS.some((k) => packed.includes(k))) return ok({ iso: null, kind: 'closed' })
+  // '마감임박'·'마감 예정'·'곧 마감' 은 **아직 접수 중**이라는 뜻이다 — 맨낱말 '마감'의
+  // 부분일치가 정반대(closed)로 뒤집었었다 (day1 §5-3 — 한국 목록에서 가장 흔한 배지 하나).
+  // 날짜를 모르는 것이지 끝난 게 아니므로 closed 로 내지 않고 실패로 떨어뜨린다 (값 null).
+  const stillOpen = STILL_OPEN_HINTS.some((k) => packed.includes(k))
+  if (!stillOpen && CLOSED_KEYWORDS.some((k) => packed.includes(k))) {
+    return ok({ iso: null, kind: 'closed' })
+  }
 
   return fail('날짜로 읽을 수 없습니다')
 }

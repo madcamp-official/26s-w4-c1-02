@@ -75,8 +75,12 @@ async function main(): Promise<void> {
   registerDeliverer(emailDeliverer)
 
   // ── 스케줄 동기화 (ADR A8) ──────────────────────────────────────────
-  const { listSchedulableSources } = await import('./db')
+  const { listSchedulableSources, closeAbandonedRuns } = await import('./db')
   try {
+    // 유령 런 청소 — 지난 프로세스가 수집 중에 죽었으면 그 흔적을 실패로 닫는다 (db.ts 주석)
+    const abandoned = await closeAbandonedRuns()
+    if (abandoned > 0) logger.warn({ abandoned }, '끝나지 못한 수집 기록을 닫았습니다')
+
     const sources = await listSchedulableSources()
     const synced = await syncSourceSchedules(sources)
     logger.info({ sources: sources.length, ...synced }, '수집 스케줄 동기화')

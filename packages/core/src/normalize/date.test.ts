@@ -182,6 +182,16 @@ describe('parseDate — 마감 없음 / 이미 끝남', () => {
       expect(r.ok && r.value).toEqual({ iso: null, kind: 'closed' })
     },
   )
+
+  // day1 §5-3 — 한국 목록에서 가장 흔한 배지 하나가 정반대로 저장되던 결함의 회귀 방어.
+  // '마감임박'은 **아직 접수 중**이다. 끝났다고 말하면 사용자가 살아 있는 공고를 거른다.
+  it.each(['마감임박', '마감 임박', '곧 마감', '마감 예정', '종료 임박'])(
+    '%s → closed 가 아니다 (날짜를 모르는 것이지 끝난 게 아니다)',
+    (raw) => {
+      const r = parseDate(raw, { now: NOW })
+      expect(r.ok && (r.value as { kind: string }).kind === 'closed').toBe(false)
+    },
+  )
 })
 
 describe('parseDate — 시각 표기', () => {

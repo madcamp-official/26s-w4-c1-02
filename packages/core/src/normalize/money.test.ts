@@ -41,6 +41,28 @@ describe('parseMoney — 한국 단위 승수', () => {
   })
 })
 
+describe('parseMoney — 금액이 아닌 수사가 섞였을 때 (day2 §8 → 확인된 결함)', () => {
+  it('회차가 금액에 더해지지 않는다 — 고치기 전 "제2회 1억원"은 3억이었다', () => {
+    const r = parseMoney('제2회 1억원')
+    expect(r.ok && r.value.amount).toBe(100_000_000)
+  })
+
+  it('연도·회차·꼬리표가 섞여도 금액만 남는다', () => {
+    const r = parseMoney('2026년 제3회 지원금 5천만원')
+    expect(r.ok && r.value.amount).toBe(50_000_000)
+  })
+
+  it('꼬리의 연도도 더해지지 않는다 — "5천만원(2026년 기준)"이 50,002,026 이었다', () => {
+    const r = parseMoney('5천만원(2026년 기준)')
+    expect(r.ok && r.value.amount).toBe(50_000_000)
+  })
+
+  it('진짜 끝자리는 살아남는다 — 1만 500원 = 10,500', () => {
+    const r = parseMoney('1만 500원')
+    expect(r.ok && r.value.amount).toBe(10_500)
+  })
+})
+
 describe('parseMoney — 통화', () => {
   it('원 표기는 KRW', () => {
     expect(parseMoney('1,000,000원')).toEqual({ ok: true, value: { amount: 1_000_000, currency: 'KRW' } })
