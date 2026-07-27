@@ -39,6 +39,18 @@ export interface CollectionSummary {
   updated_at: Date
   item_count: number
   site_count: number
+  /** 카드에 그릴 사이트 호스트들 (등록 순) */
+  hosts: string[]
+  /** 다시 맞추는 중인 사이트 수 */
+  healing_count: number
+  /** 확인이 필요한 사이트 수 */
+  attention_count: number
+  /** 최근 3일 새 항목 수 */
+  new_count: number
+  /** 이번 달 자동 복구 횟수 */
+  healed_count: number
+  /** 마지막으로 성공한 수집 시각 */
+  last_ok_at: Date | null
 }
 
 /** 사용자에게는 "사이트" 다 (보장선 B2) */
@@ -69,9 +81,15 @@ interface RawSummaryRow {
   name: string
   schema_version: number
   visibility: string
-  updated_at: Date
+  updated_at: Date | string
   item_count: number
   site_count: number
+  hosts: string[] | null
+  healing_count: number
+  attention_count: number
+  new_count: number
+  healed_count: number
+  last_ok_at: Date | string | null
 }
 
 interface RawSiteRow {
@@ -80,8 +98,8 @@ interface RawSiteRow {
   entry_url: string
   status: string
   fetch_mode: string
-  last_run_at: Date | null
-  last_ok_at: Date | null
+  last_run_at: Date | string | null
+  last_ok_at: Date | string | null
 }
 
 interface RawCountRow {
@@ -102,6 +120,16 @@ function toFields(value: unknown): CollectionSchemaJson {
 const VISIBILITIES = new Set(['private', 'unlisted', 'public'])
 const STATUSES = new Set(['ok', 'healing', 'needs_attention', 'paused'])
 const MODES = new Set(['json', 'html', 'browser'])
+
+/**
+ * postgres.js 는 timestamptz 를 Date 가 아니라 **문자열**로 돌려준다 (기본 파서 없음).
+ * 화면이 Intl 로 포맷하다 죽지 않게 여기서 한 번 Date 로 굳힌다. 이상한 값은 null.
+ */
+export function asDate(value: Date | string | null): Date | null {
+  if (value === null) return null
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
 
 const asVisibility = (v: string): Visibility => (VISIBILITIES.has(v) ? (v as Visibility) : 'private')
 const asStatus = (v: string): SourceStatus => (STATUSES.has(v) ? (v as SourceStatus) : 'needs_attention')
@@ -140,19 +168,33 @@ export async function getCollectionBySlug(slug: string): Promise<Loaded<Collecti
 export async function listCollections(ownerId: string | null): Promise<Loaded<CollectionSummary[]>> {
   return safeQuery(async (core) => {
     const sql = core.queryClient
+    // 카드 하나에 필요한 숫자들을 서브쿼리로 한 번에 (목록 20개 규모라 N+1 걱정 없음)
+    const summaryColumns = sql`
+      c.id, c.slug, c.name, c.schema_version, c.visibility, c.updated_at,
+      (select count(*)::int from items i where i.collection_id = c.id) as item_count,
+      (select count(*)::int from sources s where s.collection_id = c.id) as site_count,
+      (select coalesce(array_agg(s.host order by s.created_at), '{}')
+         from sources s where s.collection_id = c.id) as hosts,
+      (select count(*)::int from sources s
+         where s.collection_id = c.id and s.status = 'healing') as healing_count,
+      (select count(*)::int from sources s
+         where s.collection_id = c.id and s.status = 'needs_attention') as attention_count,
+      (select count(*)::int from items i
+         where i.collection_id = c.id and i.first_seen_at >= now() - interval '3 days') as new_count,
+      (select count(*)::int from runs r join sources s on s.id = r.source_id
+         where s.collection_id = c.id and r.status = 'healed'
+           and r.started_at >= date_trunc('month', now())) as healed_count,
+      (select max(s.last_ok_at) from sources s where s.collection_id = c.id) as last_ok_at
+    `
     const rows = ownerId
       ? await sql<RawSummaryRow[]>`
-          select c.id, c.slug, c.name, c.schema_version, c.visibility, c.updated_at,
-                 (select count(*)::int from items i where i.collection_id = c.id) as item_count,
-                 (select count(*)::int from sources s where s.collection_id = c.id) as site_count
+          select ${summaryColumns}
           from collections c
           where c.owner_id = ${ownerId}
           order by c.updated_at desc
         `
       : await sql<RawSummaryRow[]>`
-          select c.id, c.slug, c.name, c.schema_version, c.visibility, c.updated_at,
-                 (select count(*)::int from items i where i.collection_id = c.id) as item_count,
-                 (select count(*)::int from sources s where s.collection_id = c.id) as site_count
+          select ${summaryColumns}
           from collections c
           order by c.updated_at desc
           limit 20
@@ -163,9 +205,15 @@ export async function listCollections(ownerId: string | null): Promise<Loaded<Co
       name: row.name,
       schema_version: row.schema_version,
       visibility: asVisibility(row.visibility),
-      updated_at: row.updated_at,
+      updated_at: asDate(row.updated_at) ?? new Date(0),
       item_count: Number(row.item_count),
       site_count: Number(row.site_count),
+      hosts: row.hosts ?? [],
+      healing_count: Number(row.healing_count),
+      attention_count: Number(row.attention_count),
+      new_count: Number(row.new_count),
+      healed_count: Number(row.healed_count),
+      last_ok_at: asDate(row.last_ok_at),
     }))
   })
 }
@@ -185,8 +233,8 @@ export async function listSites(collectionId: string): Promise<Loaded<SiteRecord
       entry_url: row.entry_url,
       status: asStatus(row.status),
       fetch_mode: asMode(row.fetch_mode),
-      last_run_at: row.last_run_at,
-      last_ok_at: row.last_ok_at,
+      last_run_at: asDate(row.last_run_at),
+      last_ok_at: asDate(row.last_ok_at),
     }))
   })
 }
@@ -206,6 +254,24 @@ export async function countHealedThisMonth(collectionId: string): Promise<Loaded
         and r.started_at >= date_trunc('month', now())
     `
     return Number(rows[0]?.n ?? 0)
+  })
+}
+
+/** 이름 변경 (컬렉션 관리 — web 단독 쓰기 경로) */
+export async function renameCollection(id: string, name: string): Promise<Loaded<null>> {
+  return safeQuery(async (core) => {
+    await core.queryClient`
+      update collections set name = ${name}, updated_at = now() where id = ${id}
+    `
+    return null
+  })
+}
+
+/** 삭제. 사이트·항목·수집 기록·구독이 전부 같이 지워진다 (FK cascade) */
+export async function deleteCollection(id: string): Promise<Loaded<null>> {
+  return safeQuery(async (core) => {
+    await core.queryClient`delete from collections where id = ${id}`
+    return null
   })
 }
 

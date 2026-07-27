@@ -3,16 +3,8 @@ import { notFound } from 'next/navigation'
 import { CollectionTable } from '@/components/collection-table'
 import { DeveloperDetails } from '@/components/developer-details'
 import { EmptyState, UnavailableState } from '@/components/empty-state'
-import { SourceCoverage } from '@/components/source-coverage'
-import { Badge } from '@/components/ui/badge'
-import {
-  countHealedThisMonth,
-  fetchCollectionPage,
-  getCollectionBySlug,
-  listSites,
-} from '@/lib/collections'
-import { VISIBILITY_COPY } from '@/lib/labels'
-import { apiUrlFor, mcpUrlFor } from '@/lib/urls'
+import { fetchCollectionPage, getCollectionBySlug, listSites } from '@/lib/collections'
+import { apiUrlFor } from '@/lib/urls'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +15,7 @@ interface PageProps {
 /** 화면은 한 번에 넉넉히 받아두고 정렬·필터는 브라우저에서 즉시 한다 (기획서 8장) */
 const SCREEN_QUERY = 'limit=200&include=provenance'
 
+/** 표 탭. 제목·사이트 상태·탭은 layout(셸)이 그린다 */
 export default async function CollectionDetailPage({ params }: PageProps) {
   const { slug } = await params
 
@@ -31,33 +24,16 @@ export default async function CollectionDetailPage({ params }: PageProps) {
   if (found.data === null) notFound()
 
   const collection = found.data
-  const [page, sites, healed] = await Promise.all([
+  const [page, sites] = await Promise.all([
     fetchCollectionPage(collection, SCREEN_QUERY),
     listSites(collection.id),
-    countHealedThisMonth(collection.id),
   ])
 
   const siteList = sites.ok ? sites.data : []
-  const summaries = page.ok ? page.data.sources : {}
   const items = page.ok ? page.data.items : []
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2 pt-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">{collection.name}</h1>
-          <Badge tone="neutral">{VISIBILITY_COPY[collection.visibility]}</Badge>
-        </div>
-        <p className="font-mono text-xs text-faint">/{collection.slug}</p>
-      </header>
-
-      {/* 커버리지가 표보다 위에 있다 — 부분 성공이 정상 상태다 (원칙 ④) */}
-      <SourceCoverage
-        sites={siteList}
-        summaries={summaries}
-        healedThisMonth={healed.ok ? healed.data : 0}
-      />
-
+    <div className="flex flex-col gap-5">
       {!page.ok ? (
         <UnavailableState message={page.message} />
       ) : items.length === 0 ? (
@@ -73,8 +49,8 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         />
       )}
 
-      {/* 보장선 B5·B7 — 기본은 접혀 있고, 펼치면 언제든 보인다 */}
-      <DeveloperDetails apiUrl={apiUrlFor(collection.slug)} mcpUrl={mcpUrlFor(collection.slug)} />
+      {/* 보장선 B5 — 기본은 접혀 있고, 펼치면 언제든 보인다. MCP 는 '연결' 탭에 */}
+      <DeveloperDetails apiUrl={apiUrlFor(collection.slug)} />
     </div>
   )
 }

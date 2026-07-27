@@ -12,23 +12,27 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fbfbf9' },
-    { media: '(prefers-color-scheme: dark)', color: '#0f100e' },
-  ],
+  themeColor: '#f6f0e1',
 }
 
 /**
- * 폰트는 next/font 로 받아오지 않는다 — 빌드 때 외부 네트워크에 의존하게 되고,
- * 한국어 웹폰트는 용량도 크다. 시스템 폰트 스택은 globals.css 의 --font-sans 에 있다.
+ * 폰트: Pretendard Variable 을 CDN <link> 로 받는다. next/font 를 쓰지 않는 이유는
+ * 빌드 때 외부 네트워크에 의존하게 되기 때문 — <link> 는 런타임 로드라 빌드가 안 깨지고,
+ * CDN 이 죽어도 globals.css 의 시스템 폰트 스택으로 떨어진다.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+      </head>
       <body className="min-h-dvh">
         <SiteHeader />
-        <main className="mx-auto w-full max-w-5xl px-4 py-8">{children}</main>
-        <footer className="mx-auto w-full max-w-5xl px-4 pt-4 pb-10 text-xs text-faint">
+        <main className="mx-auto w-full max-w-[1080px] px-6 py-9">{children}</main>
+        <footer className="mx-auto w-full max-w-[1080px] px-6 pt-4 pb-10 text-xs text-faint">
           한 번 만들어 두면 표로도, 주소로도, 쓰시는 AI 에서도 같은 내용을 볼 수 있어요.
         </footer>
       </body>

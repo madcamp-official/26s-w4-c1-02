@@ -8,20 +8,30 @@ export async function SiteHeader() {
   const user = await currentUser()
 
   return (
-    <header className="border-b border-border bg-surface/80 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
-        <Link href="/" className="text-base font-semibold tracking-tight text-ink">
+    <header className="sticky top-0 z-10 border-b border-border bg-surface">
+      <div className="mx-auto flex h-[58px] w-full max-w-[1080px] items-center gap-7 px-6">
+        <Link
+          href="/"
+          className="text-[17px] font-extrabold tracking-tight text-brand hover:no-underline"
+        >
           endpointer
         </Link>
-        <span className="hidden text-xs text-faint sm:inline">아무 목록 페이지나 내 표로</span>
+        <Link href="/collections" className="text-sm font-semibold text-ink hover:text-accent">
+          내 컬렉션
+        </Link>
 
         <nav className="ml-auto flex items-center gap-3">
-          <Link href="/collections" className="text-sm text-muted hover:text-ink">
-            내 컬렉션
-          </Link>
           {user ? (
             <>
-              <span className="hidden text-sm text-muted sm:inline">{user.name ?? '내 계정'}</span>
+              <span className="hidden text-[13px] text-faint sm:inline">
+                {user.name ?? '내 계정'}
+              </span>
+              <span
+                aria-hidden
+                className="flex size-8 items-center justify-center rounded-full bg-accent text-[13px] font-bold text-accent-ink"
+              >
+                {(user.name ?? '나').slice(0, 1)}
+              </span>
               <SignOutForm />
             </>
           ) : (

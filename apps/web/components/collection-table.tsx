@@ -59,6 +59,15 @@ function isRecentlyAdded(item: ApiItem): boolean {
   return Date.now() - seen < NEW_WINDOW_DAYS * 86_400_000
 }
 
+/** 출처 칩 색 — 호스트마다 다른 톤이 돌아가며 붙는다 (디자인 시안의 SRC_STYLE) */
+const HOST_TONES = ['accent', 'ok', 'healing'] as const
+
+function hostTone(host: string): (typeof HOST_TONES)[number] {
+  let hash = 0
+  for (const ch of host) hash = (hash * 31 + ch.charCodeAt(0)) | 0
+  return HOST_TONES[Math.abs(hash) % HOST_TONES.length] ?? 'accent'
+}
+
 /**
  * 원문 대조 (기획서 5장 신뢰 계층 · 10장).
  * provenance 가 가리키는 경로로 raw 에서 원문 조각을 꺼낸다.
@@ -109,8 +118,10 @@ function ValueCell({ item, field }: { item: ApiItem; field: FieldDef }) {
         {text}
       </span>
 
-      {left !== null && left >= 0 && left <= 7 && (
-        <Badge tone="attention">{left === 0 ? '오늘까지' : `${left}일 남음`}</Badge>
+      {left !== null && left >= 0 && (
+        <Badge tone={left <= 7 ? 'attention' : 'accent'} className="font-extrabold">
+          {left === 0 ? '오늘까지' : `D-${left}`}
+        </Badge>
       )}
 
       {fragment !== null && (
@@ -156,8 +167,14 @@ export function CollectionTable({ fields, items, hosts }: CollectionTableProps) 
       accessorFn: (row) => row._source,
       cell: ({ row }) => (
         <span className="flex items-center gap-1.5">
-          <Badge tone="neutral">{row.original._source}</Badge>
-          {isRecentlyAdded(row.original) && <Badge tone="accent">새로 올라옴</Badge>}
+          <Badge tone={hostTone(row.original._source)} className="font-mono font-semibold">
+            {row.original._source}
+          </Badge>
+          {isRecentlyAdded(row.original) && (
+            <Badge tone="accent" className="font-extrabold">
+              NEW
+            </Badge>
+          )}
         </span>
       ),
     }
