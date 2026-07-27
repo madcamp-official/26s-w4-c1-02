@@ -92,6 +92,46 @@ describe('passesHealGate', () => {
   })
 })
 
+// ── §5-1 — 관문이 no-op 이던 결함의 재현이 곧 회귀 방어다 ──────────────
+//
+// 항목 id 가 쿼리스트링에 들어가는 사이트(한국 공공 목록 대부분)에서 쿼리를 통째로
+// 떼면 모든 신원이 `host/path` 하나로 뭉개져, 겹치는 항목이 0건이어도 통과했다.
+// 기획서 9-3 이 승격 관문을 두 겹으로 둔 이유("사이드바 메뉴 12개를 공고 12개로
+// 착각하는 실패")의 두 번째 겹이 항상 true 를 내는 상태였다 — 기능 ④(사수 대상)의
+// 유일한 오승격 방지 장치가 없는 것과 같았다.
+
+describe('쿼리스트링에 신원이 든 사이트 (§5-1)', () => {
+  const url = (sn: number) => `https://k-startup.go.kr/view?pbancSn=${sn}`
+
+  it('겹치는 항목이 0건이면 관문이 막는다 — day1 §5-1 의 재현 코드 그대로', () => {
+    // 고치기 전에는 셋 다 'k-startup.go.kr/view' 로 뭉개져 true 가 나왔다
+    expect(passesHealGate([url(101), url(102), url(103)], [url(901), url(902), url(903)])).toBe(false)
+    expect(overlapRatio([url(101), url(102), url(103)], [url(901), url(902), url(903)])).toBe(0)
+  })
+
+  it('같은 항목들이면 통과한다 — 신원 파라미터가 살아서 비교된다', () => {
+    expect(overlapRatio([url(101), url(102), url(103)], [url(103), url(101), url(102)])).toBe(1)
+  })
+
+  it('세션·목록 상태 파라미터는 여전히 무시된다 — 행마다 값이 같으면 신원이 아니다', () => {
+    // 수집 A 는 세션 AAA, 수집 B 는 세션 ZZZ. 목록 "안"에서는 상수라 신원에서 빠진다
+    const before = [101, 102, 103].map((sn) => `https://k.go.kr/view?pbancSn=${sn}&jsessionid=AAA&cpage=1`)
+    const after = [101, 102, 103].map((sn) => `https://k.go.kr/view?pbancSn=${sn}&jsessionid=ZZZ&cpage=3`)
+    expect(overlapRatio(before, after)).toBe(1)
+  })
+
+  it('상대 주소 external_key 도 같은 규칙을 탄다 — DB 의 키가 이 모양이다', () => {
+    const key = (id: number) => `/web/view.do?pblancId=PBLN_${id}`
+    expect(overlapRatio([key(1), key(2), key(3)], [key(9), key(8), key(7)])).toBe(0)
+    expect(overlapRatio([key(1), key(2), key(3)], [key(3), key(2), key(1)])).toBe(1)
+  })
+
+  it('주소가 3개 미만이면 판단하지 않는다 — 분포 없는 판단은 전부 오판이다', () => {
+    // 이 경우 옛 동작(쿼리 전부 뗌)으로 물러난다 — 위 "세션 파라미터" 테스트의 1건짜리가 그 예다
+    expect(overlapRatio(['https://a.com/v?id=1'], ['https://a.com/v?id=2'])).toBe(1)
+  })
+})
+
 // ── textOverlapRatio — probe 후보 순위 ─────────────────────────────────
 
 describe('textOverlapRatio', () => {
