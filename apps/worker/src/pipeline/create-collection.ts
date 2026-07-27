@@ -28,6 +28,7 @@ import { runAdapter } from '../fetchers'
 import { childLogger } from '../logger'
 import { probe } from '../probe'
 import type { ProbePath, ProbeStep } from '../probe/types'
+import { applyTransformDrop, dropColumns, planRepair, repairNotes } from './repair-empty'
 
 const log = childLogger({ mod: 'create' })
 
@@ -170,12 +171,41 @@ export async function createCollectionFromUrl(
   // 안 되는 방법을 저장해 두면 첫 정기 수집에서야 드러나고, 그때는 사용자가 이미 떠났다.
   // timezone 을 넘기지 않는 것은 jobs/collect.ts 와 같다 — 해석기 기본값을 쓴다.
   // 미리보기와 정기 수집이 다른 시간대로 돌면 "미리보기가 거짓말한다" (기획서 8장).
-  const executed = await runAdapter({
-    spec: discovered.spec,
-    schema: discovered.schema,
-    now,
-    maxPages: input.maxPages ?? 1,
-  })
+  const maxPages = input.maxPages ?? 1
+  let spec = discovered.spec
+  let schema = discovered.schema
+  let executed = await runAdapter({ spec, schema, now, maxPages })
+  const repairNotesOut: string[] = []
+
+  // ── ③-b 항상 비는 칸 고치기 (보장선 B3) ──────────────────────────────
+  //
+  // LLM 이 값을 반드시 지우는 변환(`replace(/.*​/g,'')`)을 내는 일이 있다. 그러면 표는
+  // 멀쩡해 보이는데 그 칸만 영원히 빈다. 여기서 안 잡으면 아무도 안 잡는다 (repair-empty.ts).
+  if (executed.items.length > 0) {
+    const plan = planRepair(spec, executed.items)
+
+    if (plan.drop_transform.length > 0) {
+      // 변환만 버리고 **다시 뽑는다.** 페이지는 캐시에서 나오므로 거의 공짜다.
+      spec = applyTransformDrop(spec, plan.drop_transform)
+      const retried = await runAdapter({ spec, schema, now, maxPages })
+      if (retried.items.length > 0) executed = retried
+      log.info({ fields: plan.drop_transform }, '값을 지우는 변환을 버리고 다시 뽑았다')
+    }
+
+    // 변환을 버려도 비는 칸과, 애초에 원값이 없던 칸은 표에서 뺀다
+    const after = plan.drop_transform.length > 0 ? planRepair(spec, executed.items) : plan
+    const remove = [...new Set([...plan.drop_column, ...after.drop_column, ...after.drop_transform])]
+    if (remove.length > 0) {
+      const trimmed = dropColumns(spec, schema, executed.items, executed.report, remove)
+      if (trimmed.dropped.length > 0) {
+        spec = trimmed.spec
+        schema = trimmed.schema
+        executed = { ...executed, items: trimmed.items, report: trimmed.report }
+        repairNotesOut.push(...repairNotes(discovered.schema, trimmed.dropped))
+        log.info({ fields: trimmed.dropped }, '값이 하나도 없어 칸을 뺐다')
+      }
+    }
+  }
 
   const trace: CreatePreviewTrace = {
     ...baseTrace,
@@ -199,7 +229,7 @@ export async function createCollectionFromUrl(
     {
       host: probed.host,
       path: probed.probe_path,
-      columns: discovered.schema.length,
+      columns: schema.length,
       items: executed.items.length,
       ms: trace.duration_ms,
     },
@@ -211,13 +241,13 @@ export async function createCollectionFromUrl(
     url: input.url,
     final_url: probed.final_url,
     host: probed.host,
-    schema: discovered.schema,
-    spec: discovered.spec,
+    schema,
+    spec,
     items: executed.items,
     report: executed.report,
     page_title: probed.page.title,
     trace,
-    warnings: executed.warnings,
+    warnings: [...repairNotesOut, ...executed.warnings],
   }
 }
 
