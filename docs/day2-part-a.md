@@ -396,7 +396,7 @@ probe 1·2순위가 인라인 JSON·네트워크 관찰이라 **ISO 가 가장 �
 | [`db.ts:135`](../apps/worker/src/db.ts) | `startRun` 이 진행 중 런을 `status:'ok'` 로 넣고 try/finally 없음 → 유령 런. **✅ 확인·수리 (07-27)** — 유령 런을 심고 재시작해 실증. 부팅 때 30분 넘은 미완 런을 실패로 닫는다 (`closeAbandonedRuns` — 'running' 상태 추가는 G0 계약 변경이라 청소로 푼다) | ✅ |
 | [`auth.ts:38`](../apps/web/auth.ts) | DB 를 못 붙어 JWT 로 강등되면 `session.user.id` 가 영영 안 채워진다 → 폴백이 사실상 작동 안 함 | 🟡 |
 | [`normalize/number.ts:47`](../packages/core/src/normalize/number.ts) | 단위 앞 숫자를 합산 → 연도·회차가 금액에 더해짐. **✅ 확인·수리 (07-27)** — 주장보다 심했다: `제2회 1억원` → **3억**, `5천만원(2026년 기준)` → 50,002,026. 수사(연도·회차) 사전 제거 + 연속 숫자는 마지막만 (테스트 4개, core — B 통보) | ✅ |
-| [`db/seed.ts`](../packages/core/src/db/seed.ts) | seed 의 `raw_json` 형태가 파이프라인과 달라, 실수집 한 번에 원문 대조 툴팁이 사라짐 | 🟡 |
+| [`db/seed.ts`](../packages/core/src/db/seed.ts) | seed 의 `raw_json` 형태가 파이프라인과 달라, 실수집 한 번에 원문 대조 툴팁이 사라짐. **✅ 확인·수리 (07-28)** — DB 실측으로 확정: seed 는 경로 키(`$.pbancNm`), 파이프라인은 `{_row,_fields}` 였고 **화면이 경로 키만 읽어서** 실수집 항목(bizinfo 77건)의 툴팁이 전부 죽어 있었다. 화면은 `_fields` 우선 + 경로 키 폴백, seed 는 파이프라인 형태로 수렴 (core seed — B 통보). 재현: 렌더된 표에서 `원문에는 이렇게 적혀 있어요` 개수 — bizinfo 수리 전 0 → 후 370, contest 100 | ✅ |
 | `CLOSED_KEYWORDS` | `'마감임박'` 이 부분일치로 "마감됨" 판정. **✅ 수리 (07-27)** — 임박·예정·곧 이 보이면 closed 로 내지 않는다 (날짜를 모르는 것이지 끝난 게 아니다 · 테스트 5개, core — B 통보) | ✅ |
 | `fetchers/guard.ts` | 검사 후 `fetch` 가 이름을 다시 푼다 (DNS 리바인딩). **알고 남긴 구멍** — 막으려면 undici 의존 필요 → ADR 먼저 | 🟡 |
 | 어디에도 없음 | **`apps/mcp` 테스트 0개** | 🟡 |

@@ -714,7 +714,9 @@ function buildItemRows(
       // bizinfo 는 링크 경로가 소스 안에서 안정적인 키다 (기획서 11장 dedupe_key)
       external_key: isKstartup ? it.externalKey : href,
       data_json: data,
-      raw_json: rawByPath(provenance, rawByFieldKey),
+      // 파이프라인(interpret.ts)과 같은 형태 — `_row` 는 원본 행의 대역, `_fields` 는 변환 전 원값.
+      // 시드만 경로 키 형태를 쓰면 화면 원문 툴팁이 두 갈래가 된다 (day2 §8)
+      raw_json: { _row: rawByPath(provenance, rawByFieldKey), _fields: rawByFieldKey },
       provenance_json: provenance,
       content_hash: contentHash(data),
       first_seen_at: firstSeen,

@@ -73,13 +73,26 @@ function hostTone(host: string): (typeof HOST_TONES)[number] {
  * provenance 가 가리키는 경로로 raw 에서 원문 조각을 꺼낸다.
  */
 function rawFragment(item: ApiItem, key: string): string | null {
-  const provenance = readKey(item, '_provenance')
   const raw = readKey(item, '_raw')
-  if (typeof provenance !== 'object' || provenance === null) return null
   if (typeof raw !== 'object' || raw === null) return null
+  const rawObj = raw as Record<string, unknown>
+
+  // 파이프라인 형태 — `{_row, _fields}`. `_fields` 가 필드별 변환 전 원값이다 (interpret.ts).
+  // 이 형태를 안 읽어서 실수집 항목에서 툴팁이 통째로 사라져 있었다 (day2 §8).
+  const fields = rawObj['_fields']
+  if (typeof fields === 'object' && fields !== null) {
+    const original = (fields as Record<string, unknown>)[key]
+    if (original !== null && original !== undefined) {
+      return typeof original === 'string' ? original : JSON.stringify(original)
+    }
+  }
+
+  // 경로 키 형태 — 예전 시드가 만든 항목. 다시 시드하기 전의 DB 도 계속 보여야 한다
+  const provenance = readKey(item, '_provenance')
+  if (typeof provenance !== 'object' || provenance === null) return null
   const path = (provenance as Record<string, unknown>)[key]
   if (typeof path !== 'string') return null
-  const original = (raw as Record<string, unknown>)[path]
+  const original = rawObj[path]
   if (original === null || original === undefined) return null
   return typeof original === 'string' ? original : JSON.stringify(original)
 }
