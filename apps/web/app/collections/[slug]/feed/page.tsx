@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 
 import { FeedList } from '@/components/feed-list'
 import { UnavailableState } from '@/components/empty-state'
+import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
 import { fetchFeed } from '@/lib/feed'
 import { COPY, closingCopy } from '@/lib/labels'
@@ -22,6 +23,11 @@ export default async function CollectionFeedPage({ params }: PageProps) {
   if (found.data === null) notFound()
 
   const collection = found.data
+
+  // 주인·멤버가 아니면 없는 것과 같다 (ADR A40)
+  const access = await resolveCollectionAccess(collection)
+  if (!access.canView) notFound()
+
   const feed = await fetchFeed(collection)
 
   if (!feed.ok) return <UnavailableState message={feed.message} />

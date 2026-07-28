@@ -7,6 +7,7 @@ import { EmptyState, UnavailableState } from '@/components/empty-state'
 import { FilterBar } from '@/components/filter-bar'
 import { SaveViewForm } from '@/components/save-view-form'
 import { Badge, Dot } from '@/components/ui/badge'
+import { resolveCollectionAccess } from '@/lib/access'
 import { fetchCollectionPage, getCollectionBySlug, listSites } from '@/lib/collections'
 import { apiUrlFor } from '@/lib/urls'
 import { cn } from '@/lib/utils'
@@ -45,6 +46,11 @@ export default async function CollectionDetailPage({ params, searchParams }: Pag
   if (found.data === null) notFound()
 
   const collection = found.data
+
+  // 주인·멤버가 아니면 없는 것과 같다 (ADR A40) — 존재 여부도 정보다
+  const access = await resolveCollectionAccess(collection)
+  if (!access.canView) notFound()
+
   const basePath = `/collections/${collection.slug}`
 
   const viewsResult = await listViews(collection)
@@ -106,8 +112,8 @@ export default async function CollectionDetailPage({ params, searchParams }: Pag
 
       <FilterBar basePath={basePath} fields={collection.schema_json} values={filterValues} />
 
-      {/* 임시 조건이 걸려 있으면 저장을 권한다 (델타 2-10) — 저장된 뷰를 보는 중엔 조건만 보여준다 */}
-      {adhocConditions.length > 0 && (
+      {/* 임시 조건이 걸려 있으면 저장을 권한다 (델타 2-10) — 뷰 저장은 주인 몫이다 (A40) */}
+      {adhocConditions.length > 0 && access.canManage && (
         <SaveViewForm
           conditionsJson={JSON.stringify(adhocConditions)}
           summary={summary}

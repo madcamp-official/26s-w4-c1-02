@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { AttachFlow } from '@/components/attach-flow'
 import { UnavailableState } from '@/components/empty-state'
+import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
 
 import { previewAttachAction, saveAttachAction } from './actions'
@@ -21,6 +22,10 @@ export default async function AttachSourcePage({ params, searchParams }: PagePro
   const found = await getCollectionBySlug(slug)
   if (!found.ok) return <UnavailableState message={found.message} />
   if (found.data === null) notFound()
+
+  // 사이트 붙이기는 관리 행동이다 — 주인만 (ADR A40)
+  const access = await resolveCollectionAccess(found.data)
+  if (!access.canManage) notFound()
 
   return (
     <div className="mx-auto w-full max-w-[880px]">

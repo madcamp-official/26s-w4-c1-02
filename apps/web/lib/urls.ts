@@ -11,6 +11,16 @@ export const PUBLIC_MCP_BASE_URL: string = trimSlash(
   process.env['PUBLIC_MCP_BASE_URL']?.trim() || 'http://localhost:3002',
 )
 
+/** 화면 자신의 공개 주소 — 초대 링크가 이 위에 만들어진다. 배포에서는 AUTH_URL 이 곧 APP_DOMAIN 이다 */
+export const PUBLIC_APP_BASE_URL: string = trimSlash(
+  process.env['AUTH_URL']?.trim() || 'http://localhost:3000',
+)
+
+/** 초대 링크 한 줄 (ADR A40) — 만든 직후 한 번만 보인다 */
+export function inviteUrlFor(token: string): string {
+  return `${PUBLIC_APP_BASE_URL}/invite/${token}`
+}
+
 /** `GET {여기}` 로 그대로 붙여 쓸 수 있는 한 줄 */
 export function apiUrlFor(slug: string): string {
   return `${PUBLIC_API_BASE_URL}/${slug}`

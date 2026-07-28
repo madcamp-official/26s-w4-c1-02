@@ -5,6 +5,7 @@ import { SubscribeForm, type SubscriptionView } from '@/components/subscribe-for
 import { UnavailableState } from '@/components/empty-state'
 import { Badge, Dot } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug, listSites } from '@/lib/collections'
 import { COPY, checkedAgoCopy, lastSentCopy, SOURCE_STATUS_COPY } from '@/lib/labels'
 import { listWebhookSubscriptions, type SubscriptionRecord } from '@/lib/subscriptions'
@@ -50,6 +51,11 @@ export default async function WorkshopPage({ params }: PageProps) {
   if (found.data === null) notFound()
 
   const collection = found.data
+
+  // 작업실은 관리 표면이다 — 읽기 전용 멤버에게는 없는 것과 같다 (ADR A40)
+  const access = await resolveCollectionAccess(collection)
+  if (!access.canManage) notFound()
+
   const basePath = `/collections/${collection.slug}`
 
   const [viewsResult, sites, subscriptions] = await Promise.all([

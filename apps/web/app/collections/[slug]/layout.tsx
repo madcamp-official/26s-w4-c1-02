@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { CollectionManage } from '@/components/collection-manage'
 import { CollectionTabs } from '@/components/collection-tabs'
 import { Badge, Dot } from '@/components/ui/badge'
+import { resolveCollectionAccess } from '@/lib/access'
 import {
   collectionStatusLine,
   countHealedThisMonth,
@@ -41,6 +42,10 @@ export default async function CollectionLayout({
   if (!found.ok || found.data === null) return <>{children}</>
 
   const collection = found.data
+
+  // 주인도 멤버도 아니면 셸을 그리지 않는다 (ADR A40) — 각 페이지가 notFound 를 낸다
+  const access = await resolveCollectionAccess(collection)
+  if (!access.canView) return <>{children}</>
   const [sites, healed, status, quiet] = await Promise.all([
     listSites(collection.id),
     countHealedThisMonth(collection.id),
@@ -76,18 +81,24 @@ export default async function CollectionLayout({
         <Badge tone={healedCount > 0 ? 'accent' : 'neutral'} className="ml-auto">
           {healedCopy(healedCount)}
         </Badge>
-        {/* 기능 ② 의 입구 — 소스가 늘수록 커버리지가 좋아진다 (델타 2-9) */}
-        <Link
-          href={`/collections/${collection.slug}/attach`}
-          className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-bold text-accent-ink hover:bg-accent-hover hover:no-underline"
-        >
-          + 사이트 붙이기
-        </Link>
-        <CollectionManage
-          name={collection.name}
-          rename={renameCollectionAction.bind(null, collection.slug)}
-          remove={deleteCollectionAction.bind(null, collection.slug)}
-        />
+        {/* 기능 ② 의 입구 — 소스가 늘수록 커버리지가 좋아진다 (델타 2-9). 주인만 본다 (A40) */}
+        {access.canManage ? (
+          <>
+            <Link
+              href={`/collections/${collection.slug}/attach`}
+              className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-bold text-accent-ink hover:bg-accent-hover hover:no-underline"
+            >
+              + 사이트 붙이기
+            </Link>
+            <CollectionManage
+              name={collection.name}
+              rename={renameCollectionAction.bind(null, collection.slug)}
+              remove={deleteCollectionAction.bind(null, collection.slug)}
+            />
+          </>
+        ) : (
+          <Badge tone="neutral">함께 보는 중 · 읽기만</Badge>
+        )}
       </div>
 
       {(statusParts.length > 0 || quietList.length > 0) && (
@@ -178,7 +189,7 @@ export default async function CollectionLayout({
       })}
 
       <div className="mt-6 mb-6">
-        <CollectionTabs slug={collection.slug} />
+        <CollectionTabs slug={collection.slug} manage={access.canManage} />
       </div>
 
       {children}

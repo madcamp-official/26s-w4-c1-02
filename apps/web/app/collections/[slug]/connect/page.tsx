@@ -3,9 +3,24 @@ import { notFound } from 'next/navigation'
 import { CopyButton } from '@/components/copy-button'
 import { DeveloperDetails } from '@/components/developer-details'
 import { UnavailableState } from '@/components/empty-state'
+import { ShareManage, type ShareMemberItem } from '@/components/share-manage'
+import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
 import { COPY } from '@/lib/labels'
+import { getInviteStatus, listMembers } from '@/lib/share'
 import { apiUrlFor, mcpUrlFor } from '@/lib/urls'
+
+import {
+  createInviteLinkAction,
+  disableInviteLinkAction,
+  removeMemberAction,
+} from '../share-actions'
+
+const JOINED_FORMAT = new Intl.DateTimeFormat('ko-KR', {
+  month: 'long',
+  day: 'numeric',
+  timeZone: 'Asia/Seoul',
+})
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +42,23 @@ export default async function CollectionConnectPage({ params }: PageProps) {
   if (found.data === null) notFound()
 
   const collection = found.data
+
+  // 주인·멤버가 아니면 없는 것과 같다 (ADR A40). 함께 보기 관리는 주인만 그린다
+  const access = await resolveCollectionAccess(collection)
+  if (!access.canView) notFound()
+
+  const [invite, memberRows] = access.canManage
+    ? await Promise.all([getInviteStatus(collection.id), listMembers(collection.id)])
+    : [null, null]
+  const members: ShareMemberItem[] =
+    memberRows?.ok === true
+      ? memberRows.data.map((m) => ({
+          id: m.user_id,
+          label: m.label,
+          joinedLabel: JOINED_FORMAT.format(m.joined_at),
+        }))
+      : []
+
   const mcpUrl = mcpUrlFor(collection.slug)
 
   return (
@@ -71,6 +103,21 @@ export default async function CollectionConnectPage({ params }: PageProps) {
       </section>
 
       <DeveloperDetails apiUrl={apiUrlFor(collection.slug)} />
+
+      {access.canManage && (
+        <ShareManage
+          inviteActive={invite?.ok === true && invite.data.active}
+          inviteCreatedLabel={
+            invite?.ok === true && invite.data.created_at !== null
+              ? JOINED_FORMAT.format(invite.data.created_at)
+              : null
+          }
+          members={members}
+          create={createInviteLinkAction.bind(null, collection.slug)}
+          disable={disableInviteLinkAction.bind(null, collection.slug)}
+          removeMember={removeMemberAction.bind(null, collection.slug)}
+        />
+      )}
     </div>
   )
 }
