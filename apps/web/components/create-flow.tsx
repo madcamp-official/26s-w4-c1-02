@@ -238,8 +238,9 @@ export function CreateFlow({
           </div>
         )}
 
-        {/* 자연어로 사이트 찾기 (ADR A42) — 무엇을 모을지 말하면 후보를 제시한다. 붙이기는 사용자가 고른다 */}
-        <details className="group mt-4 border-t border-divider pt-4">
+        {/* 자연어로 사이트 찾기 (ADR A42) — 무엇을 모을지 말하면 후보를 제시한다. 붙이기는 사용자가 고른다.
+            주소 없이 들어왔으면(=말로 찾으러 온 사람) 펼친 채로 시작한다 */}
+        <details className="group mt-4 border-t border-divider pt-4" open={initialUrl.trim() === ''}>
           <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-semibold text-muted select-none hover:text-accent">
             <span className="inline-block text-[11px] transition-transform group-open:rotate-90">▸</span>
             주소를 모르겠으면 — 무엇을 모으고 싶은지 말로 적어보세요

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
@@ -63,6 +64,14 @@ export function UrlPasteForm({ className, autoFocus }: { className?: string; aut
       </form>
 
       {hint !== null && <p className="mt-2 text-sm text-attention">{hint}</p>}
+
+      {/* 주소를 모르는 사람의 입구 (ADR A42) — URL 없이 생성 화면으로. 거기서 자연어로 후보를 찾는다 */}
+      <p className="mt-2.5 text-[13px] text-faint">
+        주소를 모르겠으면?{' '}
+        <Link href="/collections/new" className="font-semibold text-accent hover:underline">
+          모으고 싶은 걸 말로 적어보세요 →
+        </Link>
+      </p>
     </div>
   )
 }
