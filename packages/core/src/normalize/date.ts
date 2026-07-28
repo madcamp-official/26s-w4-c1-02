@@ -199,9 +199,13 @@ const DATE_SCAN_PATTERN = new RegExp(
   'g',
 )
 
-/** 날짜 뒤에 붙는 시각. `(목)` 같은 요일 표기와 `까지` 를 건너뛴다 */
+/**
+ * 날짜 뒤에 붙는 시각. `(목)` 같은 요일 표기와 `까지` 를 건너뛴다.
+ * ISO 8601 의 `T` 구분자·초·오프셋(`Z` / `+09:00` / `+0900`)도 여기서 읽는다 —
+ * probe 1·2순위가 인라인 JSON·네트워크 관찰이라 ISO 가 가장 흔한 입력이다.
+ */
 const TIME_TAIL_PATTERN =
-  /^\s*(?:\([^)]{0,6}\))?\s*(?:까지|마감|부터)?\s*(?<h>\d{1,2})\s*(?::\s*(?<mi>\d{2})|시\s*(?:(?<mi2>\d{1,2})\s*분)?)/
+  /^[\sTt]*(?:\([^)]{0,6}\))?\s*(?:까지|마감|부터)?\s*(?<h>\d{1,2})\s*(?::\s*(?<mi>\d{2})(?::(?<sec>\d{2})(?:\.\d{1,9})?)?\s*(?<tz>[Zz]|[+-]\d{2}:?\d{2})?|시\s*(?:(?<mi2>\d{1,2})\s*분)?)/
 
 interface ScanHit {
   ymd: Ymd | null
@@ -253,7 +257,28 @@ function inferYear(monthDay: { m: number; d: number }, today: Ymd): Ymd | null {
   return null
 }
 
-function readTimeTail(text: string, from: number): Hm | null {
+interface TimeTail extends Hm {
+  /** 표기에 오프셋이 있었으면 그 분(minute) 값. 없으면 null = 대상 타임존의 벽시계로 본다 */
+  srcOffsetMinutes: number | null
+}
+
+/**
+ * `Z`·`+09:00`·`+0900` 을 분으로. 유효 범위(±14시간) 밖이면 오프셋이 아니라고 본다 —
+ * `18:00-19:00` 같은 시간 범위의 뒷부분(`-19:00`)을 오프셋으로 오독하면 안 된다.
+ */
+function parseUtcOffset(raw: string | undefined): number | null {
+  if (raw === undefined) return null
+  if (raw === 'Z' || raw === 'z') return 0
+  const m = /^([+-])(\d{2}):?(\d{2})$/.exec(raw)
+  if (!m) return null
+  const hours = Number.parseInt(m[2] ?? '0', 10)
+  const minutes = Number.parseInt(m[3] ?? '0', 10)
+  if (hours > 14 || minutes > 59) return null
+  const total = hours * 60 + minutes
+  return m[1] === '-' ? -total : total
+}
+
+function readTimeTail(text: string, from: number): TimeTail | null {
   const m = TIME_TAIL_PATTERN.exec(text.slice(from))
   const rawHour = m?.groups?.['h']
   if (!m || rawHour === undefined) return null
@@ -261,8 +286,23 @@ function readTimeTail(text: string, from: number): Hm | null {
   const rawMinute = m.groups?.['mi'] ?? m.groups?.['mi2']
   const mi = rawMinute === undefined ? 0 : Number.parseInt(rawMinute, 10)
   if (h > 24 || mi > 59) return null
+  const srcOffsetMinutes = parseUtcOffset(m.groups?.['tz'])
   // `24:00` 은 자정 마감의 관용 표기다. 하루의 끝으로 눌러둔다
-  return { h: h === 24 ? 23 : h, mi: h === 24 ? 59 : mi }
+  return { h: h === 24 ? 23 : h, mi: h === 24 ? 59 : mi, srcOffsetMinutes }
+}
+
+/**
+ * 표기가 자기 오프셋을 갖고 있으면(`18:00Z`) 그 순간을 대상 타임존의 벽시계로 옮긴다.
+ * `18:00Z` 는 KST 로 **다음날 03:00** 이다 — 여기를 건너뛰면 마감일이 하루 어긋난다.
+ */
+function exactIso(ymd: Ymd, time: TimeTail | null, offsetMinutes: number): string {
+  if (!time) return formatIsoDate(ymd, null, offsetMinutes)
+  if (time.srcOffsetMinutes === null || time.srcOffsetMinutes === offsetMinutes) {
+    return formatIsoDate(ymd, time, offsetMinutes)
+  }
+  const instant = Date.UTC(ymd.y, ymd.m - 1, ymd.d, time.h, time.mi) - time.srcOffsetMinutes * 60_000
+  const p = partsInZone(new Date(instant), offsetMinutes)
+  return formatIsoDate({ y: p.y, m: p.m, d: p.d }, { h: p.h, mi: p.mi }, offsetMinutes)
 }
 
 // ── 명시 포맷 (스펙의 date_parse.formats) ──────────────────────────────
@@ -390,7 +430,7 @@ export function parseDate(raw: unknown, options: DateParseOptions): ParseResult<
       if (!hit) continue
       const ymd = hit.ymd ?? (hit.monthDay ? inferYear(hit.monthDay, today) : null)
       if (!ymd || !isValidYmd(ymd)) continue
-      return ok({ iso: formatIsoDate(ymd, readTimeTail(text, hit.end), offsetMinutes), kind: 'exact' })
+      return ok({ iso: exactIso(ymd, readTimeTail(text, hit.end), offsetMinutes), kind: 'exact' })
     }
     return fail('날짜 값이 유효하지 않습니다')
   }
