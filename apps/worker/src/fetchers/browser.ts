@@ -93,7 +93,15 @@ export async function fetchBrowserPayload(
       })
 
       const page = await context.newPage()
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout })
+      const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout })
+
+      // html·json 모드는 4xx·5xx 를 걸러내는데 browser 모드만 안 보고 있었다 —
+      // 404 페이지의 HTML 이 해석기로 들어가면 "수집 성공 · 0건"이 된다 (조용한 실패 · day2 §4-1).
+      // 에러 페이지에서는 wait_for 를 기다릴 이유도 없으므로 여기서 바로 끝낸다.
+      const status = response?.status() ?? null
+      if (status !== null && status >= 400) {
+        return { ok: false, message: `목록을 주지 않았습니다 (응답 ${status})` }
+      }
 
       if (fetchSpec.wait_for === 'networkidle') {
         await page.waitForLoadState('networkidle', { timeout }).catch(() => {})
