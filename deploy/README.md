@@ -146,11 +146,13 @@ docker compose -f docker-compose.prod.yml run --rm migrate \
       (스트리밍이 끊기면 `Caddyfile` 의 `flush_interval -1` 부터 의심해라)
 - [ ] `docker compose -f docker-compose.prod.yml ps` 에서 caddy·web·worker·mcp·postgres·redis 가
       전부 `Up (healthy)` — `migrate` 만 `Exited (0)` 이 정상이다
-- [ ] **재부팅 테스트**: `sudo reboot` 후 2~3분 기다렸다가 다시 접속하면 사이트가 떠 있다
-  - [ ] `systemctl is-enabled docker` → `enabled`
-  - [ ] `docker compose -f docker-compose.prod.yml ps` 가 다시 healthy
-  - [ ] 재부팅 후에도 로그인 세션·수집 데이터가 남아 있다 (볼륨 확인)
-- [ ] 예약 수집(BullMQ repeatable job)이 재부팅 후에도 다시 걸린다
+- [x] **재부팅 테스트** — 07-28 `reboot` 실측 통과
+  - [x] `systemctl is-enabled docker` · cloudflared → 둘 다 `enabled`
+  - [x] 컨테이너 6/6 다시 healthy (자동)
+  - [x] 재부팅 후에도 로그인 세션·수집 데이터가 남아 있다 — 세션 1·컬렉션 2·항목 35 그대로 (볼륨 정상)
+- [x] 예약 수집·뷰 평가 잡이 재부팅 후에도 다시 걸린다 — `endpointer:collect:repeat:source:*` 3개 + `endpointer:evaluate:repeat:views:daily` (워커가 부팅 시 `upsertJobScheduler` 로 멱등 재등록)
+- [ ] **⚠ 재부팅 직후 502**: cloudflared 가 새 연결 ID 로 재등록되며 엣지 라우팅 전파에 2~3분 걸린다.
+      즉시 복구하려면 `systemctl restart cloudflared` 한 번. **발표 당일 VM 재시작 시 반드시 이 단계를 넣어라**
 - [ ] `docker stats` 로 30분 관찰 — worker 가 `MEM_WORKER` 상한 근처에서 OOM 재시작을 반복하지 않는다
 
 ## 운영 메모
