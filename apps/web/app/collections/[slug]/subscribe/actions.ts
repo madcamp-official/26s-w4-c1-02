@@ -9,6 +9,28 @@ import type { SubscribeState } from '@/components/subscribe-form'
 import { getCollectionBySlug } from '@/lib/collections'
 import { createWebhookSubscription, removeSubscription } from '@/lib/subscriptions'
 
+/**
+ * 주인 확인 (ADR A40). 구독은 관리 행동이다 — 읽기 전용 뷰어는 걸 수도 끊을 수도 없다.
+ * 화면(작업실)은 canManage 로 이미 막지만, 서버 액션은 페이지를 안 거치므로 여기서 다시 막는다.
+ * 로그인 설정 전(데모)에는 통과시킨다 — actions.ts 의 ownedCollection 과 같은 관례.
+ */
+async function ownedCollection(
+  slug: string,
+): Promise<{ ok: true; id: string; ownerId: string } | { ok: false; message: string }> {
+  const found = await getCollectionBySlug(slug)
+  if (!found.ok) return { ok: false, message: found.message }
+  if (found.data === null) {
+    return { ok: false, message: '이 컬렉션을 찾지 못했어요. 화면을 새로 고쳐 주세요.' }
+  }
+  if (isAuthReady) {
+    const user = await currentUser()
+    if (user === null || user.id !== found.data.owner_id) {
+      return { ok: false, message: '이 컬렉션의 주인만 받아보기를 걸 수 있어요.' }
+    }
+  }
+  return { ok: true, id: found.data.id, ownerId: found.data.owner_id }
+}
+
 /** 폼에서 받은 주소를 웹훅으로 다듬는다. 이상하면 null */
 function normalizeTarget(raw: string): string | null {
   const trimmed = raw.trim()
@@ -35,21 +57,11 @@ export async function subscribeWebhookAction(
     }
   }
 
-  const found = await getCollectionBySlug(slug)
-  if (!found.ok) return { status: 'problem', message: found.message }
-  if (found.data === null) {
-    return { status: 'problem', message: '이 컬렉션을 찾지 못했어요. 화면을 새로 고쳐 주세요.' }
-  }
+  // 주인만 구독을 건다 (ADR A40) — 뷰어는 읽기 전용이다
+  const owned = await ownedCollection(slug)
+  if (!owned.ok) return { status: 'problem', message: owned.message }
 
-  // 컬렉션 상세는 로그인 없이 볼 수 있으므로(미들웨어) 쓰기는 여기서 막는다
-  const user = await currentUser()
-  if (isAuthReady && user === null) {
-    return { status: 'problem', message: '받아보기는 로그인한 뒤에 걸 수 있어요.' }
-  }
-  // 로그인 설정이 아직 없는 동안은 컬렉션 주인 몫으로 저장한다 (데모 경로)
-  const userId = user?.id ?? found.data.owner_id
-
-  const result = await createWebhookSubscription(found.data.id, userId, target)
+  const result = await createWebhookSubscription(owned.id, owned.ownerId, target)
   if (!result.ok) return { status: 'problem', message: result.message }
 
   revalidatePath(`/collections/${slug}/workshop`)
@@ -63,9 +75,10 @@ export async function stopSubscriptionAction(slug: string, formData: FormData): 
   const subscriptionId = String(formData.get('subscription') ?? '').trim()
   if (subscriptionId === '') return
 
-  const found = await getCollectionBySlug(slug)
-  if (!found.ok || found.data === null) return
+  // 주인만 끊는다 (ADR A40). 예전엔 인증이 아예 없어 slug + 구독 id 만으로 남의 구독을 취소할 수 있었다.
+  const owned = await ownedCollection(slug)
+  if (!owned.ok) return
 
-  await removeSubscription(found.data.id, subscriptionId)
+  await removeSubscription(owned.id, subscriptionId)
   revalidatePath(`/collections/${slug}/workshop`)
 }
