@@ -5,7 +5,7 @@ import { UnavailableState } from '@/components/empty-state'
 import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
 
-import { previewAttachAction, saveAttachAction } from './actions'
+import { previewAttachAction, saveAttachAction, suggestAttachSourcesAction } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +37,7 @@ export default async function AttachSourcePage({ params, searchParams }: PagePro
         initialUrl={url ?? ''}
         preview={previewAttachAction.bind(null, found.data.slug)}
         save={saveAttachAction.bind(null, found.data.slug)}
+        suggest={suggestAttachSourcesAction.bind(null, found.data.slug)}
       />
     </div>
   )

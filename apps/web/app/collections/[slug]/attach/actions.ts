@@ -6,8 +6,10 @@ import { redirect } from 'next/navigation'
 
 import { currentUser, isAuthReady } from '@/auth'
 import type { AttachActionState } from '@/components/attach-flow'
+import type { SuggestActionState } from '@/components/create-flow'
 import { attachPreviewViaWorker, attachSaveViaWorker } from '@/lib/attach'
-import { getCollectionBySlug } from '@/lib/collections'
+import { getCollectionBySlug, listSites } from '@/lib/collections'
+import { suggestSourcesViaWorker } from '@/lib/create'
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim()
@@ -94,4 +96,48 @@ export async function saveAttachAction(
   }
 
   redirect(`/collections/${slug}`)
+}
+
+/**
+ * 자연어 → 붙일 사이트 후보 (ADR A42). 생성 화면과 같은 기능을 붙이기에도.
+ * 붙이기는 표 맥락이 있으므로 그 주제에 맞춰 추천하고, 이미 붙은 사이트는 후보에서 뺀다.
+ */
+export async function suggestAttachSourcesAction(
+  slug: string,
+  _prev: SuggestActionState,
+  formData: FormData,
+): Promise<SuggestActionState> {
+  const rawQuery = String(formData.get('query') ?? '').trim()
+  if (rawQuery === '') {
+    return { status: 'idle', message: null, candidates: [] }
+  }
+
+  const found = await getCollectionBySlug(slug)
+  if (!found.ok || found.data === null) {
+    return { status: 'problem', message: '이 컬렉션을 찾지 못했어요.', candidates: [] }
+  }
+  if (isAuthReady) {
+    const user = await currentUser()
+    if (user === null || user.id !== found.data.owner_id) {
+      return { status: 'problem', message: '이 표의 주인만 사이트를 찾을 수 있어요.', candidates: [] }
+    }
+  }
+
+  // 이미 붙은 사이트는 다시 추천하지 않는다
+  const sites = await listSites(found.data.id)
+  const already = sites.ok ? sites.data.map((s) => s.entry_url) : []
+
+  // 표 주제를 맥락으로 얹어 관련 사이트로 좁힌다 (붙이기는 "이 표에 더" 이므로)
+  const query = `${rawQuery} — 이미 "${found.data.name}" 표에 비슷한 목록을 모으는 중`
+
+  const result = await suggestSourcesViaWorker({ query, ownerId: found.data.owner_id, already })
+  if (!result.ok) return { status: 'problem', message: result.message, candidates: [] }
+  if (result.data.length === 0) {
+    return {
+      status: 'empty',
+      message: '딱 맞는 곳을 확실히 찾지 못했어요. 주소를 직접 붙여넣어 주세요.',
+      candidates: [],
+    }
+  }
+  return { status: 'ready', message: null, candidates: result.data }
 }

@@ -7,6 +7,7 @@ import type { AttachPreview } from '@/lib/attach'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import type { SuggestActionState } from '@/components/create-flow'
 import { cn } from '@/lib/utils'
 
 // 상태 타입이 여기 있는 이유: lib/attach.ts 는 서버 전용 모듈을 물고 있어서
@@ -45,14 +46,18 @@ function confidenceLabel(confidence: number): string {
  * 사이트 붙이기 (기능 ② — 제품의 정체성 · 보장선 B1).
  * 기존 열은 자동으로 찾아보고, 못 찾은 것만 값 붙여넣기로 묻는다. 셀렉터는 없다.
  */
+const SUGGEST_IDLE: SuggestActionState = { status: 'idle', message: null, candidates: [] }
+
 export function AttachFlow({
   initialUrl,
   preview: previewAction,
   save: saveAction,
+  suggest: suggestAction,
 }: {
   initialUrl: string
   preview: (prev: AttachActionState, formData: FormData) => Promise<AttachActionState>
   save: (prev: AttachActionState, formData: FormData) => Promise<AttachActionState>
+  suggest: (prev: SuggestActionState, formData: FormData) => Promise<SuggestActionState>
 }) {
   const [url, setUrl] = useState(initialUrl)
   const [previewState, previewFormAction, previewPending] = useActionState(
@@ -60,6 +65,10 @@ export function AttachFlow({
     ATTACH_IDLE,
   )
   const [saveState, saveFormAction, savePending] = useActionState(saveAction, ATTACH_IDLE)
+  const [suggestState, suggestFormAction, suggestPending] = useActionState(
+    suggestAction,
+    SUGGEST_IDLE,
+  )
   const [pasteInputs, setPasteInputs] = useState<Record<string, string>>({})
 
   const preview = previewState.preview
@@ -105,6 +114,65 @@ export function AttachFlow({
             {previewState.message}
           </p>
         )}
+
+        {/* 자연어로 붙일 사이트 찾기 (ADR A42) — 후보를 누르면 위 주소칸이 채워진다 */}
+        <details className="group mt-4 border-t border-divider pt-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-semibold text-muted select-none hover:text-accent">
+            <span className="inline-block text-[11px] transition-transform group-open:rotate-90">▸</span>
+            주소를 모르겠으면 — 이 표에 더할 걸 말로 적어보세요
+          </summary>
+          <form action={suggestFormAction} className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <input
+              name="query"
+              type="text"
+              placeholder="예: 디자인 공모전도 더 모으고 싶어"
+              className={cn(
+                'h-11 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-4',
+                'text-sm text-ink placeholder:text-faint',
+                'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+              )}
+            />
+            <Button type="submit" variant="outline" disabled={suggestPending}>
+              {suggestPending ? '찾는 중…' : '후보 찾기'}
+            </Button>
+          </form>
+
+          {suggestState.message !== null && (
+            <p className="mt-2 text-[13px] text-faint">{suggestState.message}</p>
+          )}
+
+          {suggestState.candidates.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              <p className="text-xs text-faint">
+                아래는 추천일 뿐이에요 — 누르면 위 주소칸에 채워져요. 붙이기 전에 실제로 확인해요.
+              </p>
+              {suggestState.candidates.map((c) => {
+                const isCurrent = c.url === url.trim()
+                return (
+                  <div
+                    key={c.url}
+                    className="flex items-start gap-3 rounded-[10px] border border-border bg-surface px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-semibold text-ink">{c.title}</div>
+                      <div className="truncate font-mono text-xs text-faint">{c.url}</div>
+                      {c.why !== null && <div className="mt-0.5 text-xs text-muted">{c.why}</div>}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={isCurrent ? 'ghost' : 'outline'}
+                      disabled={isCurrent}
+                      onClick={() => setUrl(c.url)}
+                    >
+                      {isCurrent ? '골랐음' : '이 주소로'}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </details>
       </section>
 
       {/* 2. 맞춰본 결과 */}
