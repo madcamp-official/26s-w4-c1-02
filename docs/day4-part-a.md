@@ -112,6 +112,19 @@ day2 §8 · day3 §4-5 로 이월돼 온 표를 오늘 전부 재현했다. **�
 
 **아직 A 단독으로 더 할 수 있는 것:** 뷰 평가·알림(`views --demo`) · browser 404 통합(소스를 없는 URL 로 바꿔 collect) · 초대 링크의 REST·MCP 출구(private + api_key 로 뷰어 읽기).
 
+### 4-2. 위험 점검에서 나온 구멍 하나 — 수리 (`7c6b5bf`)
+
+초대 링크의 "읽기 전용 뷰어"가 **서버 액션 레벨에서 새고 있었다.** 작업실 화면은 canManage 로
+막았지만 서버 액션은 페이지를 안 거친다 — `subscribe/actions.ts` 두 액션에 owner 대조가 없어
+뷰어가 남의 컬렉션에 웹훅을 걸거나(subscribeWebhookAction) 인증 없이 남의 구독을 끊을 수
+있었다(stopSubscriptionAction, 인증 전무). attach·view actions 와 같은 `ownedCollection`
+패턴으로 막았다. **§2-3 실측이 화면 게이트만 봤던 걸 이걸로 보완했다.**
+
+**아직 남은 위험 하나 (🔴 2 · 판단 필요):** `resolveCollectionAccess` 는 `isAuthReady === false`
+면 전원 주인 취급(canView·canManage 전부 true)이다. 프로덕션에서 DB 장애로 auth 어댑터가 죽으면
+모든 private 컬렉션이 열린다 — day2 §8 "auth JWT 폴백"과 같은 뿌리. "auth 안 되면 다 잠금"은
+데모/개발을 막으므로 프로덕션에서만 엄격하게(예: `NODE_ENV` 분기) 하는 게 맞고, auth 설계 영역이라 **B 와 정한다.**
+
 ## 5. DNS 리바인딩 (ADR A41) — A27 을 대체
 
 A27 이 "다시 보게 만드는 조건 ①"로 예약해 둔 작업이다. checkOutboundUrl 이 이름을 검사해도 fetch 가
