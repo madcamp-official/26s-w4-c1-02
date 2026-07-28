@@ -391,7 +391,7 @@ probe 1·2순위가 인라인 JSON·네트워크 관찰이라 **ISO 가 가장 �
 | 곳 | 주장 | 급 |
 |---|---|---|
 | [`fetchers/browser.ts`](../apps/worker/src/fetchers/browser.ts) | browser 모드만 HTTP 상태를 안 본다 → 404 페이지가 "수집 성공·0건". **✅ 확인·수리 (07-28)** — bizinfo 의 없는 주소를 browser 모드로 열어 재현: 3KB 404 HTML 이 `ok:true` 로 나왔다. `page.goto` 응답의 4xx·5xx 를 html·json 과 같은 문구(`목록을 주지 않았습니다 (응답 N)`)로 거른다. 재현: `fetchBrowserPayload(spec, 'https://www.bizinfo.go.kr/web/nope…xyz123.do')` → 수리 전 ok:true / 수리 후 ok:false | ✅ |
-| [`probe/inline-json.ts`](../apps/worker/src/probe/inline-json.ts) | `__NEXT_DATA__` 만 그릇으로 잡아 Nuxt3·SvelteKit·Remix 누락 | 🟡 |
+| [`probe/inline-json.ts`](../apps/worker/src/probe/inline-json.ts) | `__NEXT_DATA__` 만 그릇으로 잡아 Nuxt3·SvelteKit·Remix 누락. **✅ 확인·수리 (07-28) — 주장 절반이 오탐**: Remix(`__remixContext` 대입형)·`__NUXT__`(Nuxt2형)는 원래 잡혔다 (픽스처로 실증). 진짜 누락은 둘 — Nuxt3 `__NUXT_DATA__`(devalue 배열)와 SvelteKit `data-sveltekit-fetched`(body 가 JSON 문자열로 이중 포장). devalue 해석기 + 일반 `application/json` 그릇 + body 벗기기로 수리. 재현: `probe/inline-json.test.ts` 픽스처 4종 (수리 전 2 failed) | ✅ |
 | [`jobs/heal.ts:107`](../apps/worker/src/jobs/heal.ts) | json 소스 치유에서 네트워크 관찰을 꺼 깨진 내부 API 재발견 경로가 막힘 | 🟡 |
 | [`db.ts:135`](../apps/worker/src/db.ts) | `startRun` 이 진행 중 런을 `status:'ok'` 로 넣고 try/finally 없음 → 유령 런. **✅ 확인·수리 (07-27)** — 유령 런을 심고 재시작해 실증. 부팅 때 30분 넘은 미완 런을 실패로 닫는다 (`closeAbandonedRuns` — 'running' 상태 추가는 G0 계약 변경이라 청소로 푼다) | ✅ |
 | [`auth.ts:38`](../apps/web/auth.ts) | DB 를 못 붙어 JWT 로 강등되면 `session.user.id` 가 영영 안 채워진다 → 폴백이 사실상 작동 안 함 | 🟡 |

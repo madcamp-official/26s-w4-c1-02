@@ -57,6 +57,7 @@ export function scanInlineJson(input: InlineJsonInput): ProbeCandidate[] {
 
 function collectHolders(page: StaticPage): Holder[] {
   const holders: Holder[] = []
+  let jsonIndex = 0
 
   for (const script of page.page.scripts) {
     const type = (script.type ?? '').toLowerCase()
@@ -68,10 +69,31 @@ function collectHolders(page: StaticPage): Holder[] {
       continue
     }
 
+    // ①-b <script id="__NUXT_DATA__" type="application/json"> — Nuxt 3 의 표준 형태.
+    //     내용이 일반 JSON 이 아니라 devalue 배열(값들이 눕고 자리는 인덱스)이라 풀어야 한다
+    if (script.id === '__NUXT_DATA__') {
+      const data = resolveDevaluePayload(script.content)
+      if (data !== undefined) holders.push({ label: '__NUXT_DATA__', data })
+      continue
+    }
+
     // ② <script type="application/ld+json"> — 배열일 수도, @graph 일 수도 있다
     if (type.includes('ld+json')) {
       const data = tryParse(script.content)
       if (data !== undefined) holders.push({ label: 'ld+json', data })
+      continue
+    }
+
+    // ②-b 그 밖의 <script type="application/json"> — SvelteKit 의 data-sveltekit-fetched 가
+    //     대표다: {"status":200,"body":"<JSON 문자열>"} 로 **한 번 더 싸여** 있어 벗겨서 쓴다.
+    //     프레임워크를 몰라도 JSON 그릇이면 일단 들여다본다 — 목록이 아니면 스캔이 거른다.
+    if (type.includes('application/json') || type === 'json') {
+      const data = tryParse(script.content)
+      if (data !== undefined) {
+        jsonIndex += 1
+        const label = script.id !== null ? `#${script.id}` : `inline-json[${jsonIndex}]`
+        holders.push({ label, data: unwrapFetchedBody(data) ?? data })
+      }
       continue
     }
 
@@ -83,6 +105,64 @@ function collectHolders(page: StaticPage): Holder[] {
   }
 
   return holders
+}
+
+/**
+ * SvelteKit 이 심는 fetch 응답 캐시 — `{status, statusText, headers, body}` 에서
+ * body(JSON 문자열)를 꺼내 파싱한다. 그 모양이 아니면 null (그대로 쓰라는 뜻).
+ */
+function unwrapFetchedBody(data: unknown): unknown | null {
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
+  const obj = data as Record<string, unknown>
+  if (typeof obj['status'] !== 'number' || typeof obj['body'] !== 'string') return null
+  const inner = tryParse(obj['body'])
+  return inner === undefined ? null : inner
+}
+
+/**
+ * devalue 배열(Nuxt 3 `__NUXT_DATA__`)을 일반 객체로 되돌린다.
+ *
+ * 형식: 모든 값이 한 배열에 눕고, 객체의 값·배열의 원소 자리에는 그 배열의 **인덱스**가 온다.
+ * 루트는 인덱스 0. 배열 원소는 전부 숫자(인덱스)이므로, 첫 원소가 문자열인 배열은
+ * `["Date", …]` 같은 타입 래퍼다 — Date 는 문자열 그대로 살린다 (날짜 파서가 먹는다).
+ * 음수 인덱스는 undefined·NaN 류의 특수값 표기다. 순환·깊이는 방어한다.
+ */
+export function resolveDevaluePayload(content: string): unknown | undefined {
+  const arr = tryParse(content)
+  if (!Array.isArray(arr) || arr.length === 0) return undefined
+
+  const resolving = new Set<number>()
+
+  const resolve = (index: unknown, depth: number): unknown => {
+    if (typeof index !== 'number' || !Number.isInteger(index)) return undefined
+    if (index < 0 || index >= arr.length) return undefined
+    if (depth > 16 || resolving.has(index)) return undefined
+
+    const entry: unknown = arr[index]
+    if (entry === null || typeof entry !== 'object') return entry
+
+    resolving.add(index)
+    try {
+      if (Array.isArray(entry)) {
+        if (entry.length > 0 && typeof entry[0] === 'string') {
+          // 타입 래퍼. 목록 스캔에 의미 있는 것만 살리고 나머지는 버린다
+          if (entry[0] === 'Date' && typeof entry[1] === 'string') return entry[1]
+          if (entry[0] === 'Set') return entry.slice(1).map((i) => resolve(i, depth + 1))
+          return undefined
+        }
+        return entry.map((i) => resolve(i, depth + 1))
+      }
+      const out: Record<string, unknown> = {}
+      for (const [key, value] of Object.entries(entry)) {
+        out[key] = resolve(value, depth + 1)
+      }
+      return out
+    } finally {
+      resolving.delete(index)
+    }
+  }
+
+  return resolve(0, 0)
 }
 
 const ASSIGNED_GLOBALS = [
