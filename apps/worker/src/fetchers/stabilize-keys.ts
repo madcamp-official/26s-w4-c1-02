@@ -69,8 +69,11 @@ export function stabilizeExternalKeys(items: readonly InterpretedItem[]): Stabil
     else droppedAny = true
   }
   if (!droppedAny) return { items: [...items], note: null }
-  // 전부 목록 상태라 남는 게 없으면 경로만 남아 모든 키가 겹친다 — 손대지 않는다
-  if (keep.size === 0 && valuesByParam.size > 0) return { items: [...items], note: null }
+  // 남길 파라미터가 0개여도 미리 포기하지 않는다 — 신원이 **경로**에 있는 사이트가 있다.
+  // 서울도서관 실측(2026-07-27): `/bbs/content/3_67487?page=1&` 처럼 항목 경로가 다 다르고
+  // 쿼리는 목록 위치뿐이라, 전부 빼는 것이 정답이었다. 여기서 포기하면 페이지마다 같은
+  // 공지가 "신규"로 3벌씩 쌓인다. 정말 키가 겹치는 경우는 아래 재조립의 안전판이
+  // (제목이 다른데 키가 같으면 전부 원래대로) 실측으로 잡는다.
 
   // ── 다시 조립 + 안전판 ───────────────────────────────────────────────
   const out: InterpretedItem[] = []

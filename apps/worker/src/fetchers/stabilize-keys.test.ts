@@ -81,7 +81,22 @@ describe('안전판 — 확신이 없으면 그대로 둔다', () => {
     expect(r.note).toBeNull()
   })
 
-  it('남길 파라미터가 하나도 없으면(전부 목록 상태) 손대지 않는다 — 경로만 남아 다 겹친다', () => {
+  it('신원이 경로에 있으면 파라미터를 전부 빼도 된다 — 서울도서관 실측의 재현이자 수리', () => {
+    // 2026-07-27 실측: 항목 링크에 현재 페이지 번호가 되박혀(`?page=1&` ↔ `?page=2&`)
+    // 같은 공지가 페이지마다 "신규"로 3벌씩 쌓였다. 신원은 경로(3_67487)에 있다.
+    const seoulKey = (page: number, id: number) => `/bbs/content/3_${id}?page=${page}&`
+    const page1 = [67487, 66999, 66441, 67396].map((id) => item(seoulKey(1, id), `공지 ${id}`))
+    const page2 = [67487, 66999, 66441, 67396].map((id) => item(seoulKey(2, id), `공지 ${id}`))
+
+    const r = stabilizeExternalKeys([...page1, ...page2])
+
+    // 페이지 번호가 빠지고 경로만 남아, 두 페이지에 걸쳐 잡힌 같은 공지가 하나로 합쳐진다
+    expect(r.items).toHaveLength(4)
+    expect(r.items[0]?.external_key).toBe('/bbs/content/3_67487')
+    expect(r.note).not.toBeNull()
+  })
+
+  it('경로까지 같으면(전부 목록 상태) 겹침 안전판이 원래대로 되돌린다', () => {
     const items = [
       item('/list.do?cpage=1&sort=new', '항목 ㄱ'),
       item('/list.do?cpage=1&sort=new', '항목 ㄴ'),

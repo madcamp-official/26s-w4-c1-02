@@ -420,6 +420,76 @@ describe('external_key 폴백', () => {
   })
 })
 
+// ── 신원 없는 행 방어선 — 머리글 행은 항목이 아니다 (day2 실측: wevity) ──
+
+describe('신원 없는 행 방어선', () => {
+  // wevity 사건의 최소 재현: link 필드가 있는 스펙에서 머리글 행은
+  // 레이블 텍스트 하나만 남고 title·link 가 전부 비어 row_hash 로 떨어졌다
+  const withLink = {
+    spec_version: 1,
+    fetch: { mode: 'json', url: 'https://example.com/api' },
+    list: '$.items[*]',
+    fields: {
+      title: { path: '$.name', type: 'text' },
+      link: { path: '$.url', type: 'link' },
+      organization: { path: '$.org', type: 'text' },
+    },
+  }
+
+  it('title 도 link 도 없는 행은 항목으로 앉히지 않는다', () => {
+    const out = interpretSpec(
+      spec(withLink),
+      { items: [{ org: '주최사' }, { name: '공모전 가', url: 'https://example.com/1' }] },
+      { now: NOW },
+    )
+    expect(out.items).toHaveLength(1)
+    expect(out.items[0]?.data['title']).toBe('공모전 가')
+  })
+
+  it('버린 이유를 사람이 읽을 수 있게 경고로 남긴다 (B4)', () => {
+    const out = interpretSpec(spec(withLink), { items: [{ org: '주최사' }] }, { now: NOW })
+    expect(out.items).toHaveLength(0)
+    expect(out.warnings.some((w) => w.includes('이름이나 원문 주소가 없는 행 1개'))).toBe(true)
+  })
+
+  it('link 만 있는 무명 행은 살아남는다 — 다시 찾아갈 방법이 있다', () => {
+    const out = interpretSpec(
+      spec(withLink),
+      { items: [{ org: '어딘가', url: 'https://example.com/x' }] },
+      { now: NOW },
+    )
+    expect(out.items).toHaveLength(1)
+    expect(out.items[0]?.external_key_origin).toBe('row_hash')
+  })
+
+  it('title 만 있는 행도 살아남는다 — title_hash 신원이 선다', () => {
+    const out = interpretSpec(spec(withLink), { items: [{ name: '공모전 나' }] }, { now: NOW })
+    expect(out.items).toHaveLength(1)
+    expect(out.items[0]?.external_key_origin).toBe('title_hash')
+  })
+
+  it('link 필드가 없는 스키마는 판별 근거가 없으므로 기존대로 앉힌다', () => {
+    const noLink = spec({
+      ...withLink,
+      fields: { organization: { path: '$.org', type: 'text' } },
+    })
+    const out = interpretSpec(noLink, { items: [{ org: '중소벤처기업부' }] }, { now: NOW })
+    expect(out.items).toHaveLength(1)
+    expect(out.items[0]?.external_key_origin).toBe('row_hash')
+  })
+
+  it('버린 행은 fieldStats 를 오염시키지 않는다 — 드리프트 검증기가 먹는 수치다', () => {
+    const out = interpretSpec(
+      spec(withLink),
+      { items: [{ org: '주최사' }, { name: '공모전 가', url: 'https://example.com/1', org: '기관' }] },
+      { now: NOW },
+    )
+    // 머리글 행이 통계에 섞이면 2행 중 1행 null 로 null 비율이 0.5 로 부풀어 오른다
+    expect(out.fieldStats['title']?.null_ratio).toBe(0)
+    expect(out.fieldStats['link']?.null_ratio).toBe(0)
+  })
+})
+
 // ── fieldStats — 드리프트 검증기의 입력 (원칙 ⑤) ───────────────────────
 
 describe('fieldStats', () => {

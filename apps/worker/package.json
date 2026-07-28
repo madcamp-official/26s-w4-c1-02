@@ -15,7 +15,8 @@
     "attach": "tsx src/cli/attach.ts",
     "collect": "tsx src/cli/collect.ts",
     "views": "tsx src/cli/views.ts",
-    "heal": "tsx src/cli/heal.ts"
+    "heal": "tsx src/cli/heal.ts",
+    "map-enums": "tsx src/cli/map-enums.ts"
   },
   "dependencies": {
     "@endpointer/core": "workspace:*",
