@@ -30,6 +30,8 @@ export type BudgetScope =
   | { kind: 'compile'; source_id: string }
   /** 두 번째 소스 필드 매핑 */
   | { kind: 'match'; collection_id: string }
+  /** 자연어로 소스 후보 제안 (ADR A42) — 컬렉션 전이라 사용자 단위로 센다 */
+  | { kind: 'suggest'; owner_id: string }
 
 export interface BudgetVerdict {
   allowed: boolean
@@ -93,6 +95,8 @@ function keyOf(scope: BudgetScope): string {
       return `compile:${scope.source_id}`
     case 'match':
       return `match:${scope.collection_id}`
+    case 'suggest':
+      return `suggest:${scope.owner_id}`
   }
 }
 
@@ -107,6 +111,9 @@ function limitOf(scope: BudgetScope): number {
       return 8
     case 'match':
       return 12
+    // 제안은 값싼 편이지만 남용 방지로 사용자당 하루 20회
+    case 'suggest':
+      return 20
   }
 }
 
@@ -225,5 +232,7 @@ function exhaustedMessage(scope: BudgetScope): string {
       return '이 사이트를 읽어보는 시도를 오늘 너무 많이 했어요. 잠시 뒤에 다시 시도해 주세요.'
     case 'match':
       return '항목 맞추기를 오늘 너무 많이 시도했어요. 잠시 뒤에 다시 시도해 주세요.'
+    case 'suggest':
+      return '오늘은 추천을 너무 많이 요청했어요. 잠시 뒤에 다시 시도해 주세요.'
   }
 }

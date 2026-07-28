@@ -34,6 +34,7 @@ import {
   resolveByPastedValue,
   slugFrom,
 } from '../pipeline'
+import { suggestSources, type SourceSuggestion } from '../compile/suggest-sources'
 
 const log = childLogger({ mod: 'http' })
 
@@ -55,6 +56,12 @@ export interface PreviewResponse {
   rows: Record<string, unknown>[]
   /** 화면의 "이 사이트를 살펴봤어요" 근거. 개발자 상세로 접어 둔다 */
   trace: unknown
+}
+
+/** `POST /internal/suggest-sources` 의 성공 응답 (ADR A42). 후보는 제안일 뿐 붙지 않는다 */
+export interface SuggestResponse {
+  ok: true
+  candidates: SourceSuggestion[]
 }
 
 /** 실패는 HTTP 코드가 아니라 문구로 온다 (보장선 B4). 상태 코드는 200 이다 */
@@ -155,6 +162,12 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return
   }
 
+  // 자연어 추천은 주소가 아니라 요청 문장을 받는다 (ADR A42) — url 검사 앞에 둔다
+  if (path === '/internal/suggest-sources') {
+    await suggest(res, body)
+    return
+  }
+
   const url = typeof body['url'] === 'string' ? body['url'] : ''
   if (url === '') {
     send(res, 200, { ok: false, message: '주소를 넣어 주세요.', stage: 'url' })
@@ -182,6 +195,25 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 }
 
 // ── 두 경로 ────────────────────────────────────────────────────────────
+
+async function suggest(res: ServerResponse, body: Record<string, unknown>): Promise<void> {
+  const query = typeof body['query'] === 'string' ? body['query'] : ''
+  const ownerId = typeof body['owner_id'] === 'string' ? body['owner_id'] : ''
+  if (ownerId === '') {
+    send(res, 200, { ok: false, message: '누구의 요청인지 알 수 없어요.', stage: 'owner' })
+    return
+  }
+  const already = Array.isArray(body['already'])
+    ? body['already'].filter((u): u is string => typeof u === 'string')
+    : []
+
+  const outcome = await suggestSources({ query, ownerId, already })
+  if (!outcome.ok) {
+    send(res, 200, { ok: false, message: outcome.message, stage: 'suggest' })
+    return
+  }
+  send(res, 200, { ok: true, candidates: outcome.candidates } satisfies SuggestResponse)
+}
 
 async function preview(res: ServerResponse, url: string, body: Record<string, unknown>): Promise<void> {
   const outcome = await createCollectionFromUrl({ url, ...options(body) })
