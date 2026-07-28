@@ -209,9 +209,14 @@ G2 와 G4 가 합류 지점이다. 이 두 곳에서만 서로의 결과물이 �
 
 배포가 **07-27 에 선행 완료**됐다 (Day 4 를 기다리지 않았다 — 남은 Day 4 몫은 "낯선 사람"과 전수 점검).
 
-- [x] 도메인에 HTTPS 로 떠 있다 — `https://endpoint.madcamp-kaist.org` · 정식 인증서(Cloudflare Tunnel · ADR A32)
-      · API `endpoint-api.…` · MCP `endpoint-mcp.…` (2단계 서브도메인은 인증서가 못 덮어 형제로 평탄화)
-- [ ] 재부팅해도 컨테이너가 다시 뜬다 — docker enable + `restart: unless-stopped` + cloudflared systemd 는 설정됨 · **실제 재부팅 테스트 미실시**
+- [x] 도메인에 HTTPS 로 떠 있다 — `https://endpointer.madcamp-kaist.org` · 정식 인증서(Cloudflare Tunnel · ADR A32)
+      · API `endpointer-api.…` · MCP `endpointer-mcp.…` (2단계 서브도메인은 인증서가 못 덮어 형제로 평탄화)
+      · 07-28 에 `endpoint*` → `endpointer*` 로 교체(제품명 일치). 옛 `endpoint`·`graceheeseo` 서브도메인만 잔존
+- [x] 재부팅해도 컨테이너가 다시 뜬다 — **07-28 실제 `reboot` 테스트 통과**:
+      docker·cloudflared `enabled` · 컨테이너 6/6 자동 healthy · 볼륨 보존(세션 1·컬렉션 2·항목 35 그대로)
+      · 예약 잡 재등록(`collect:repeat` 3 + `evaluate:repeat:views:daily`) · 세 도메인 200
+      · **주의**: 재부팅 직후 cloudflared 가 새 연결 ID 로 재등록되며 엣지 전파에 2~3분 걸려 그동안 502 —
+      `systemctl restart cloudflared` 한 번이면 즉시 복구된다 (발표 당일 VM 재시작 시 체크리스트에 넣을 것)
 - [ ] **이 프로젝트를 모르는 사람**이 도메인에 접속해서 구글 로그인 → URL 2개 붙여넣기 → 컬렉션 생성 → 표 확인까지 **설명 없이** 도달한다 (한 명이면 충분하다 — P10)
 - [ ] MCP 주소를 커넥터에 붙여넣으면 "이번 주 마감 뭐 있어?"에 실제 아이템으로 답한다
       — JSON-RPC 수준(도구 4개·SSE 통과)은 07-27 실측 ✅ · **실제 커넥터(claude.ai 등) 연결이 남았다**
