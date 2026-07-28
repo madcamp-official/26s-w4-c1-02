@@ -2,14 +2,12 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { CollectionTable } from '@/components/collection-table'
-import { DeveloperDetails } from '@/components/developer-details'
 import { EmptyState, UnavailableState } from '@/components/empty-state'
 import { FilterBar } from '@/components/filter-bar'
 import { SaveViewForm } from '@/components/save-view-form'
 import { Badge, Dot } from '@/components/ui/badge'
 import { resolveCollectionAccess } from '@/lib/access'
 import { fetchCollectionPage, getCollectionBySlug, listSites } from '@/lib/collections'
-import { apiUrlFor } from '@/lib/urls'
 import { cn } from '@/lib/utils'
 import {
   conditionsFromParams,
@@ -154,11 +152,9 @@ export default async function CollectionDetailPage({ params, searchParams }: Pag
           fields={collection.schema_json}
           items={items}
           hosts={siteList.map((site) => site.host)}
+          storageKey={collection.slug}
         />
       )}
-
-      {/* 보장선 B5 — 기본은 접혀 있고, 펼치면 언제든 보인다. MCP 는 '연결' 탭에 */}
-      <DeveloperDetails apiUrl={apiUrlFor(collection.slug)} />
     </div>
   )
 }

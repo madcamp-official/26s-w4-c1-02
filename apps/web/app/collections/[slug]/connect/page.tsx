@@ -102,7 +102,7 @@ export default async function CollectionConnectPage({ params }: PageProps) {
         </div>
       </section>
 
-      <DeveloperDetails apiUrl={apiUrlFor(collection.slug)} />
+      <DeveloperDetails apiUrl={apiUrlFor(collection.slug)} fields={collection.schema_json} />
 
       {access.canManage && (
         <ShareManage

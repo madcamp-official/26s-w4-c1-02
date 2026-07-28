@@ -41,18 +41,12 @@ export function SubscribeForm({
   const [state, formAction, pending] = useActionState(subscribe, SUBSCRIBE_IDLE)
 
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-border bg-surface px-7 py-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-base font-bold text-ink">{COPY.subscribeTitle}</h2>
-        <p className="text-[13px] text-faint">{COPY.subscribeBody}</p>
+    <section className="flex flex-col gap-2.5 rounded-card border border-border bg-surface px-5 py-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 className="text-[14px] font-bold text-ink">{COPY.subscribeTitle}</h2>
+        <span className="text-xs text-faint">{COPY.subscribeSchedule}</span>
       </div>
 
-      <label
-        htmlFor="subscribe-target"
-        className="-mb-2 text-[13px] font-bold text-muted"
-      >
-        {COPY.subscribeTargetLabel}
-      </label>
       <form action={formAction} className="flex w-full flex-col gap-2 sm:flex-row">
         <input
           id="subscribe-target"
@@ -60,18 +54,18 @@ export function SubscribeForm({
           type="text"
           inputMode="url"
           autoComplete="url"
+          aria-label={COPY.subscribeTargetLabel}
           placeholder={COPY.subscribePlaceholder}
           className={cn(
-            'h-11 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-3.5',
-            'font-mono text-[13.5px] text-ink placeholder:text-faint',
+            'h-9 min-w-0 flex-1 rounded-lg border-[1.5px] border-border-strong bg-raised px-3',
+            'font-mono text-[13px] text-ink placeholder:text-faint',
             'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
           )}
         />
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" size="sm" disabled={pending}>
           {COPY.subscribeSubmit}
         </Button>
       </form>
-      <p className="-mt-1 text-xs text-faint">{COPY.subscribeSchedule}</p>
 
       {state.message !== null && (
         <p

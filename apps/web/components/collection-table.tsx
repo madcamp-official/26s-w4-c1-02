@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -8,6 +8,7 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type ColumnOrderState,
   type SortingState,
 } from '@tanstack/react-table'
 
@@ -161,12 +162,82 @@ export interface CollectionTableProps {
   items: ApiItem[]
   /** 출처 고르기 드롭다운에 쓸 호스트 목록 */
   hosts: readonly string[]
+  /** 열 순서를 이 컬렉션 앞으로 기억한다 (localStorage 키) */
+  storageKey: string
 }
 
-export function CollectionTable({ fields, items, hosts }: CollectionTableProps) {
+/**
+ * 기본 열 순서 — 출처가 맨 앞, **원문 링크(link 타입)는 맨 뒤**로 민다.
+ * 링크는 값이 아니라 "원문 보기" 버튼이라 가운데 끼면 표가 읽기 나빠진다.
+ * 사용자가 드래그로 바꾸면 그 순서가 이긴다.
+ */
+function defaultColumnOrder(fields: readonly FieldDef[]): ColumnOrderState {
+  const links: string[] = []
+  const rest: string[] = []
+  for (const f of fields) (f.type === 'link' ? links : rest).push(f.key)
+  return ['_source', ...rest, ...links]
+}
+
+export function CollectionTable({ fields, items, hosts, storageKey }: CollectionTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [keyword, setKeyword] = useState('')
   const [host, setHost] = useState<string>('')
+
+  // 열 순서 — 기본값으로 먼저 그리고(서버·첫 렌더 일치), 저장된 순서가 있으면 그 뒤에 얹는다.
+  const baseOrder = useMemo(() => defaultColumnOrder(fields), [fields])
+  const orderStoreKey = `endpointer:colorder:${storageKey}`
+  const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(baseOrder)
+  const [reordered, setReordered] = useState(false)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(orderStoreKey)
+      if (saved === null) return
+      const parsed = JSON.parse(saved) as unknown
+      // 스키마가 바뀌었으면(열 추가·삭제) 저장분을 버리고 기본값으로 — 유령 열이 안 생기게
+      if (
+        Array.isArray(parsed) &&
+        parsed.length === baseOrder.length &&
+        parsed.every((id) => typeof id === 'string' && baseOrder.includes(id))
+      ) {
+        setColumnOrder(parsed as ColumnOrderState)
+        setReordered(true)
+      }
+    } catch {
+      // 저장분이 깨졌으면 기본값 그대로
+    }
+  }, [orderStoreKey, baseOrder])
+
+  const dragId = useRef<string | null>(null)
+
+  function moveColumn(fromId: string, toId: string): void {
+    if (fromId === toId) return
+    setColumnOrder((prev) => {
+      const next = [...prev]
+      const fromIdx = next.indexOf(fromId)
+      const toIdx = next.indexOf(toId)
+      if (fromIdx < 0 || toIdx < 0) return prev
+      next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, fromId)
+      try {
+        localStorage.setItem(orderStoreKey, JSON.stringify(next))
+      } catch {
+        // 저장 실패해도 이번 세션 순서는 유지된다
+      }
+      return next
+    })
+    setReordered(true)
+  }
+
+  function resetOrder(): void {
+    setColumnOrder(baseOrder)
+    setReordered(false)
+    try {
+      localStorage.removeItem(orderStoreKey)
+    } catch {
+      // 무시
+    }
+  }
 
   const data = useMemo(
     () => (host === '' ? items : items.filter((item) => item._source === host)),
@@ -206,8 +277,9 @@ export function CollectionTable({ fields, items, hosts }: CollectionTableProps) 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, globalFilter: keyword },
+    state: { sorting, globalFilter: keyword, columnOrder },
     onSortingChange: setSorting,
+    onColumnOrderChange: setColumnOrder,
     onGlobalFilterChange: setKeyword,
     globalFilterFn: (row, _columnId, filterValue) => {
       const term = String(filterValue).trim().toLowerCase()
@@ -251,6 +323,15 @@ export function CollectionTable({ fields, items, hosts }: CollectionTableProps) 
           ))}
         </select>
         <span className="text-xs text-muted">{rows.length}개 보이는 중</span>
+        {reordered && (
+          <button
+            type="button"
+            onClick={resetOrder}
+            className="text-xs text-faint underline underline-offset-2 hover:text-accent"
+          >
+            열 순서 초기화
+          </button>
+        )}
       </div>
 
       <TableShell>
@@ -261,13 +342,30 @@ export function CollectionTable({ fields, items, hosts }: CollectionTableProps) 
                 {group.headers.map((header) => {
                   const sorted = header.column.getIsSorted()
                   const hint = fieldTypeByKey.get(header.column.id)
+                  const colId = header.column.id
                   return (
-                    <TH key={header.id}>
+                    <TH
+                      key={header.id}
+                      draggable
+                      onDragStart={() => {
+                        dragId.current = colId
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        if (dragId.current !== null) moveColumn(dragId.current, colId)
+                        dragId.current = null
+                      }}
+                      className="cursor-grab active:cursor-grabbing"
+                    >
                       <button
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
                         className="flex items-center gap-1 hover:text-ink"
                       >
+                        <span aria-hidden className="text-faint/50 select-none">
+                          ⠿
+                        </span>
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {hint && <span className="font-normal text-faint">· {FIELD_TYPE_HINT[hint]}</span>}
                         <span aria-hidden className="text-faint">

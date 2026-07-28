@@ -1,12 +1,32 @@
+import type { FieldDef } from '@endpointer/core'
+import { RANGE_FIELD_TYPES } from '@endpointer/core/query'
+
 import { CopyButton } from '@/components/copy-button'
+import { FIELD_TYPE_HINT } from '@/lib/labels'
 import { COPY } from '@/lib/labels'
+
+/** 이 칸에 걸 수 있는 API 파라미터 — 실제 파서(query/params.ts)와 같은 규칙이라야 한다 */
+function paramsFor(field: FieldDef): string[] {
+  const out = [`${field.key}=`]
+  if (RANGE_FIELD_TYPES.includes(field.type)) out.push(`${field.key}_gte=`, `${field.key}_lte=`)
+  return out
+}
 
 /**
  * 보장선 B5·B7 — **개발자를 위한 것은 빼는 게 아니라 접는다.**
  * 기본은 접혀 있고, 펼치면 주소가 언제든 보인다. 숨겨서 못 찾게 해도 위반이다.
  * mcpUrl 을 주지 않으면 API 부분만 그린다 (MCP 는 '연결' 탭이 담당).
+ * fields 를 주면 응답 스키마(칸·타입·파라미터)를 같이 보여준다 — 주소만으론 뭘 쓸 수 있는지 모른다.
  */
-export function DeveloperDetails({ apiUrl, mcpUrl }: { apiUrl: string; mcpUrl?: string }) {
+export function DeveloperDetails({
+  apiUrl,
+  mcpUrl,
+  fields,
+}: {
+  apiUrl: string
+  mcpUrl?: string
+  fields?: readonly FieldDef[]
+}) {
   return (
     <details className="group rounded-card border border-border bg-surface">
       <summary className="flex cursor-pointer list-none items-center gap-2.5 px-5 py-3.5 text-[13.5px] font-semibold text-muted select-none hover:text-accent">
@@ -30,11 +50,69 @@ export function DeveloperDetails({ apiUrl, mcpUrl }: { apiUrl: string; mcpUrl?: 
             응답에는 <code className="font-mono">items · sources · schema_version</code> 이 항상 함께
             와요 — 사이트 하나가 아파도 나머지는 정상 응답이에요.
             <br />
-            범위 <code className="font-mono">?deadline_gte=2026-08-01</code> · 정렬{' '}
-            <code className="font-mono">?sort=-amount</code> · 신규만{' '}
-            <code className="font-mono">?since=2026-07-20</code>
+            공통: 정렬 <code className="font-mono">?sort=-amount</code> · 신규만{' '}
+            <code className="font-mono">?since=2026-07-20</code> · 출처{' '}
+            <code className="font-mono">?source=…</code> · 검색 <code className="font-mono">?q=…</code>
           </p>
         </div>
+
+        {/* 응답 스키마 — 어떤 칸이 오고, 칸마다 어떤 조건을 걸 수 있나 (get_schema 와 같은 내용) */}
+        {fields !== undefined && fields.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-semibold text-muted">응답 칸 · 걸 수 있는 조건</span>
+            <div className="scroll-x rounded-lg border border-border">
+              <table className="w-full border-collapse text-xs">
+                <thead className="bg-canvas text-faint">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold">칸</th>
+                    <th className="px-3 py-2 text-left font-semibold">종류</th>
+                    <th className="px-3 py-2 text-left font-semibold">파라미터</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fields.map((field) => {
+                    const enumKeys =
+                      field.type === 'enum' && field.value_labels
+                        ? Object.keys(field.value_labels)
+                        : []
+                    return (
+                      <tr key={field.key} className="border-t border-divider">
+                        <td className="px-3 py-2 align-top">
+                          <code className="font-mono text-ink">{field.key}</code>
+                          <span className="ml-1.5 text-faint">{field.label}</span>
+                        </td>
+                        <td className="px-3 py-2 align-top whitespace-nowrap text-muted">
+                          {FIELD_TYPE_HINT[field.type]}
+                        </td>
+                        <td className="px-3 py-2 align-top">
+                          <span className="flex flex-wrap gap-1">
+                            {paramsFor(field).map((p) => (
+                              <code
+                                key={p}
+                                className="rounded bg-raised px-1.5 py-0.5 font-mono text-[11px] text-muted"
+                              >
+                                ?{p}
+                              </code>
+                            ))}
+                          </span>
+                          {enumKeys.length > 0 && (
+                            <span className="mt-1 block text-[11px] text-faint">
+                              값: {enumKeys.map((k) => `${k}`).join(' · ')}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-faint">
+              필터·정렬은 응답의 <code className="font-mono">items</code> 를 그대로 좁혀요 — 표에서 건
+              조건이 곧 이 파라미터예요.
+            </p>
+          </div>
+        )}
 
         {mcpUrl !== undefined && (
           <div className="flex flex-col gap-2">
