@@ -25,8 +25,22 @@ export interface CreateActionState {
   message: string | null
 }
 
+/** 자연어 추천 결과 (ADR A42). 후보는 제안일 뿐 — 사용자가 골라 담는다 */
+export interface SourceSuggestionView {
+  url: string
+  title: string
+  why: string | null
+}
+
+export interface SuggestActionState {
+  status: 'idle' | 'ready' | 'empty' | 'problem'
+  message: string | null
+  candidates: SourceSuggestionView[]
+}
+
 const PREVIEW_IDLE: PreviewActionState = { status: 'idle', message: null, preview: null }
 const CREATE_IDLE: CreateActionState = { status: 'idle', message: null }
+const SUGGEST_IDLE: SuggestActionState = { status: 'idle', message: null, candidates: [] }
 
 /** 살펴보는 동안 보여줄 단계 (기획서 9-1 의 사람 말 버전 — 내부 명사 없음 · B2) */
 const PROBE_STEPS = [
@@ -102,17 +116,31 @@ export function CreateFlow({
   initialUrl,
   preview: previewAction,
   create: createAction,
+  suggest: suggestAction,
 }: {
   initialUrl: string
   preview: (prev: PreviewActionState, formData: FormData) => Promise<PreviewActionState>
   create: (prev: CreateActionState, formData: FormData) => Promise<CreateActionState>
+  suggest: (prev: SuggestActionState, formData: FormData) => Promise<SuggestActionState>
 }) {
   const [url, setUrl] = useState(initialUrl)
+  // 첫 표에 함께 접합할 추가 주소들 (기능 ②를 생성 단계로). 결과는 하나의 표다.
+  const [extraUrls, setExtraUrls] = useState<string[]>([])
   const [previewState, previewFormAction, previewPending] = useActionState(
     previewAction,
     PREVIEW_IDLE,
   )
   const [createState, createFormAction, createPending] = useActionState(createAction, CREATE_IDLE)
+  const [suggestState, suggestFormAction, suggestPending] = useActionState(
+    suggestAction,
+    SUGGEST_IDLE,
+  )
+
+  function addExtraUrl(candidate: string): void {
+    const trimmed = candidate.trim()
+    if (trimmed === '' || trimmed === url.trim() || extraUrls.includes(trimmed)) return
+    setExtraUrls((prev) => [...prev, trimmed])
+  }
 
   // 살펴보는 동안의 단계 연출 — 마지막 단계에서 멈춰 서버 응답을 기다린다
   const [activeStep, setActiveStep] = useState(0)
@@ -182,6 +210,95 @@ export function CreateFlow({
         {(previewPending || preview !== null) && (
           <ProbeSteps activeStep={activeStep} allDone={preview !== null && !previewPending} />
         )}
+
+        {/* 함께 담을 사이트 — 만들 때 같은 표에 접합된다 (기능 ②) */}
+        {extraUrls.length > 0 && (
+          <div className="mt-4 flex flex-col gap-2 border-t border-divider pt-4">
+            <span className="text-[13px] font-bold text-muted">
+              함께 담을 사이트 {extraUrls.length}곳 · 만들 때 같은 표로 합쳐져요
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {extraUrls.map((u) => (
+                <span
+                  key={u}
+                  className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-surface py-1.5 pr-2 pl-3.5 text-[12.5px]"
+                >
+                  <span className="truncate font-mono text-ink">{u}</span>
+                  <button
+                    type="button"
+                    aria-label="이 사이트 빼기"
+                    onClick={() => setExtraUrls((prev) => prev.filter((x) => x !== u))}
+                    className="flex size-[18px] shrink-0 items-center justify-center rounded-full text-[11px] text-faint hover:bg-divider hover:text-ink"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 자연어로 사이트 찾기 (ADR A42) — 무엇을 모을지 말하면 후보를 제시한다. 붙이기는 사용자가 고른다 */}
+        <details className="group mt-4 border-t border-divider pt-4">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-semibold text-muted select-none hover:text-accent">
+            <span className="inline-block text-[11px] transition-transform group-open:rotate-90">▸</span>
+            주소를 모르겠으면 — 무엇을 모으고 싶은지 말로 적어보세요
+          </summary>
+          <form action={suggestFormAction} className="mt-3 flex flex-col gap-2">
+            <input type="hidden" name="already" value={JSON.stringify([url, ...extraUrls])} />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                name="query"
+                type="text"
+                placeholder="예: 경기도 창업 지원사업 공고"
+                className={cn(
+                  'h-11 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-4',
+                  'text-sm text-ink placeholder:text-faint',
+                  'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+                )}
+              />
+              <Button type="submit" variant="outline" disabled={suggestPending}>
+                {suggestPending ? '찾는 중…' : '후보 찾기'}
+              </Button>
+            </div>
+          </form>
+
+          {suggestState.message !== null && (
+            <p className="mt-2 text-[13px] text-faint">{suggestState.message}</p>
+          )}
+
+          {suggestState.candidates.length > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              <p className="text-xs text-faint">
+                아래는 추천일 뿐이에요 — 눌러서 담으면 만들 때 실제로 확인해요.
+              </p>
+              {suggestState.candidates.map((c) => {
+                const added = extraUrls.includes(c.url) || c.url === url.trim()
+                return (
+                  <div
+                    key={c.url}
+                    className="flex items-start gap-3 rounded-[10px] border border-border bg-surface px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-semibold text-ink">{c.title}</div>
+                      <div className="truncate font-mono text-xs text-faint">{c.url}</div>
+                      {c.why !== null && <div className="mt-0.5 text-xs text-muted">{c.why}</div>}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={added ? 'ghost' : 'outline'}
+                      disabled={added}
+                      onClick={() => addExtraUrl(c.url)}
+                    >
+                      {added ? '담음' : '담기'}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </details>
       </section>
 
       {/* 2. 이미 채워진 표 (보장선 B3) — 워커가 실제로 수집·정규화한 값이다 */}
@@ -270,11 +387,18 @@ export function CreateFlow({
           {/* 3. 확정 — 주소만 다시 보낸다. 지운 열은 저장 뒤 표 구성에서 빠진다 */}
           <form action={createFormAction} className="flex flex-col gap-3">
             <input type="hidden" name="entry_url" value={preview.entryUrl} />
+            <input type="hidden" name="extra_urls" value={JSON.stringify(extraUrls)} />
             <input
               type="hidden"
               name="kept_keys"
               value={JSON.stringify(keptFields.map((f) => f.key))}
             />
+            {extraUrls.length > 0 && (
+              <p className="text-[13px] text-muted">
+                이 표를 만들면서 <b>{extraUrls.length}곳</b>을 같은 표에 함께 담아요. 각 사이트를
+                살펴보느라 조금 더 걸려요.
+              </p>
+            )}
             <label htmlFor="create-name" className="text-[13px] font-bold text-muted">
               컬렉션 이름
             </label>

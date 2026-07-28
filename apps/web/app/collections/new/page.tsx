@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 import { CreateFlow } from '@/components/create-flow'
 
-import { createCollectionAction, previewCollectionAction } from './actions'
+import { createCollectionAction, previewCollectionAction, suggestSourcesAction } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +27,7 @@ export default async function NewCollectionPage({ searchParams }: PageProps) {
         initialUrl={url ?? ''}
         preview={previewCollectionAction}
         create={createCollectionAction}
+        suggest={suggestSourcesAction}
       />
     </div>
   )

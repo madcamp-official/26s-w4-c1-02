@@ -155,6 +155,72 @@ async function trimSchemaTo(slug: string, keptKeys: string[]): Promise<Loaded<nu
   })
 }
 
+// ── 자연어 → 소스 후보 제안 (ADR A42) ──────────────────────────────────
+
+/** 화면에 그릴 후보 하나. 제안일 뿐 — 사용자가 골라 목록에 담는다 */
+export interface SourceSuggestionView {
+  url: string
+  title: string
+  why: string | null
+}
+
+type WorkerSuggestBody =
+  | WorkerFailure
+  | { ok: true; candidates: SourceSuggestionView[] }
+
+/** 자연어 요청 → 후보 URL. 실패도 값으로 (B4). 빈 목록은 "확실한 게 없어요" 다 */
+export async function suggestSourcesViaWorker(input: {
+  query: string
+  ownerId: string
+  already: string[]
+}): Promise<Loaded<SourceSuggestionView[]>> {
+  const body = await callWorker<WorkerSuggestBody>('/internal/suggest-sources', {
+    query: input.query,
+    owner_id: input.ownerId,
+    already: input.already,
+  })
+  if (body === null) return { ok: false, message: WORKER_UNAVAILABLE }
+  if (!body.ok) return { ok: false, message: body.message }
+  return { ok: true, data: body.candidates }
+}
+
+/**
+ * 여러 소스로 컬렉션을 만든다 (기능 ②를 생성 단계로 — 델타 2-9).
+ * 첫 주소로 표를 만들고, 나머지는 같은 표에 접합한다. 결과는 하나의 표다.
+ * 접합 실패는 치명적이지 않다 — 만든 표는 남고, 실패한 소스만 빠진다 (부분 성공이 1급).
+ */
+export async function createWithSourcesViaWorker(input: {
+  primaryUrl: string
+  extraUrls: string[]
+  ownerId: string
+  name: string
+  keptKeys: string[]
+}): Promise<Loaded<{ slug: string; attachedExtra: number; failedExtra: number }>> {
+  const created = await createViaWorker({
+    url: input.primaryUrl,
+    ownerId: input.ownerId,
+    name: input.name,
+    keptKeys: input.keptKeys,
+  })
+  if (!created.ok) return created
+
+  const slug = created.data.slug
+  let attachedExtra = 0
+  let failedExtra = 0
+  // 순차로 붙인다 — 각 접합이 probe+매핑을 돌아 무겁고, 동시에 때리면 대상 사이트에 무례하다.
+  // `/internal/sources` 를 직접 부른다 (attach.ts 를 import 하면 순환 참조가 된다).
+  for (const url of input.extraUrls) {
+    const body = await callWorker<WorkerFailure | { ok: true }>('/internal/sources', {
+      url,
+      slug,
+      pasted: {},
+    })
+    if (body !== null && body.ok) attachedExtra += 1
+    else failedExtra += 1
+  }
+  return { ok: true, data: { slug, attachedExtra, failedExtra } }
+}
+
 /** 로그인 설정 전 데모 경로 — 시드가 만든 첫 사용자를 주인으로 쓴다 */
 export async function demoOwnerId(): Promise<Loaded<string | null>> {
   return safeQuery(async (core) => {

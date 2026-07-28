@@ -5,8 +5,17 @@
 import { redirect } from 'next/navigation'
 
 import { currentUser } from '@/auth'
-import type { CreateActionState, PreviewActionState } from '@/components/create-flow'
-import { createViaWorker, demoOwnerId, fetchWorkerPreview } from '@/lib/create'
+import type {
+  CreateActionState,
+  PreviewActionState,
+  SuggestActionState,
+} from '@/components/create-flow'
+import {
+  createWithSourcesViaWorker,
+  demoOwnerId,
+  fetchWorkerPreview,
+  suggestSourcesViaWorker,
+} from '@/lib/create'
 
 function normalizeUrl(raw: string): string | null {
   const trimmed = raw.trim()
@@ -18,6 +27,14 @@ function normalizeUrl(raw: string): string | null {
   } catch {
     return null
   }
+}
+
+/** 로그인 사용자 또는 데모 주인 */
+async function resolveOwnerId(): Promise<string | null> {
+  const user = await currentUser()
+  if (user?.id) return user.id
+  const demo = await demoOwnerId()
+  return demo.ok ? demo.data : null
 }
 
 export async function previewCollectionAction(
@@ -61,19 +78,67 @@ export async function createCollectionAction(
     return { status: 'problem', message: '열이 최소 하나는 있어야 해요.' }
   }
 
-  const user = await currentUser()
-  let ownerId = user?.id ?? null
-  if (ownerId === null) {
-    // 로그인 설정 전 데모 경로 (listCollections 와 같은 이유)
-    const demo = await demoOwnerId()
-    ownerId = demo.ok ? demo.data : null
+  // 추가 주소들 — 첫 표에 접합될 나머지 사이트 (기능 ②를 생성 단계로)
+  let extraUrls: string[]
+  try {
+    const parsed: unknown = JSON.parse(String(formData.get('extra_urls') ?? '[]'))
+    extraUrls = Array.isArray(parsed)
+      ? parsed.map((u) => normalizeUrl(String(u))).filter((u): u is string => u !== null)
+      : []
+  } catch {
+    extraUrls = []
   }
+  // 첫 주소와 겹치면 뺀다
+  extraUrls = [...new Set(extraUrls)].filter((u) => u !== entryUrl)
+
+  const ownerId = await resolveOwnerId()
   if (ownerId === null) {
     return { status: 'problem', message: '로그인하고 다시 시도해 주세요.' }
   }
 
-  const created = await createViaWorker({ url: entryUrl, ownerId, name, keptKeys })
+  const created = await createWithSourcesViaWorker({
+    primaryUrl: entryUrl,
+    extraUrls,
+    ownerId,
+    name,
+    keptKeys,
+  })
   if (!created.ok) return { status: 'problem', message: created.message }
 
   redirect(`/collections/${created.data.slug}`)
+}
+
+/** 자연어 → 소스 후보 제안 (ADR A42). 사용자가 요청할 때만 부른다 */
+export async function suggestSourcesAction(
+  _prev: SuggestActionState,
+  formData: FormData,
+): Promise<SuggestActionState> {
+  const query = String(formData.get('query') ?? '').trim()
+  if (query === '') {
+    return { status: 'idle', message: null, candidates: [] }
+  }
+
+  let already: string[]
+  try {
+    const parsed: unknown = JSON.parse(String(formData.get('already') ?? '[]'))
+    already = Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string') : []
+  } catch {
+    already = []
+  }
+
+  const ownerId = await resolveOwnerId()
+  if (ownerId === null) {
+    return { status: 'problem', message: '로그인하고 다시 시도해 주세요.', candidates: [] }
+  }
+
+  const result = await suggestSourcesViaWorker({ query, ownerId, already })
+  if (!result.ok) return { status: 'problem', message: result.message, candidates: [] }
+  if (result.data.length === 0) {
+    return {
+      status: 'empty',
+      message: '딱 맞는 곳을 확실히 찾지 못했어요. 주소를 직접 붙여넣어 주세요.',
+      candidates: [],
+    }
+  }
+  return { status: 'ready', message: null, candidates: result.data }
 }
