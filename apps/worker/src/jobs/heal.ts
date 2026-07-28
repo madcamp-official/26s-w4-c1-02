@@ -61,6 +61,18 @@ export type HealFailureReason =
   /** 뽑히긴 하는데 직전 목록과 겹치지 않는다 = 엉뚱한 목록 */
   | 'wrong_list'
 
+/**
+ * 치유 probe 에서 브라우저 단계를 끌 것인가 (day2 §8 후보의 답).
+ *
+ * 예전엔 `mode !== 'browser'` 로 json 소스까지 껐는데, 네트워크 관찰(3단계)이
+ * 브라우저에 붙어 있으므로 **내부 API 로 태어난 json 소스의 재발견 경로가 막혔다** —
+ * API 경로가 바뀌어 깨진 소스를 정적 DOM 만으로 다시 찾을 수는 없다 (JS 렌더 목록이면 더더욱).
+ * 정적 DOM 에서 태어난 html 소스만 싸게 간다. 치유는 하루 상한이 있어 브라우저 비용은 유한하다.
+ */
+export function healSkipsBrowser(mode: AdapterSpec['fetch']['mode']): boolean {
+  return mode === 'html'
+}
+
 /** 사용자가 읽는 문구. 내부 명사 금지 (보장선 B2 · B4) */
 const MESSAGES: Record<HealFailureReason, string> = {
   budget:
@@ -119,8 +131,7 @@ export async function runHealJob(data: HealJobData): Promise<HealJobResult> {
 
   // ── ③ 페이지를 다시 본다 — 후보가 있어야 재컴파일할 수 있다 ─────────
   const probed = await probe(source.entry_url, {
-    // 원래 브라우저가 필요했던 사이트면 브라우저 단계를 살려둔다. 아니면 싸게 간다.
-    skipBrowser: previousSpec.fetch.mode !== 'browser',
+    skipBrowser: healSkipsBrowser(previousSpec.fetch.mode),
   })
   if (probed.best === null) {
     return await giveUp(runId, source.id, 'no_candidate', log)
