@@ -172,6 +172,14 @@ export function CreateFlow({
 
   const keptFields = preview ? preview.fields.filter((f) => !removedKeys.includes(f.key)) : []
 
+  // 표 만들기의 대상은 직접 입력칸 하나가 아니라 **담긴 URL 전부**다 (직접 입력 + 자연어로 담은 것).
+  // 대표 하나로 표의 뼈대를 잡고(미리보기), 나머지는 같은 표에 합쳐진다.
+  // 직접 입력칸이 비어 있어도 담은 URL 이 있으면 그 첫 번째가 대표가 된다.
+  const typedUrl = url.trim()
+  const leadUrl = typedUrl !== '' ? typedUrl : (extraUrls[0] ?? '')
+  const mergeUrls = typedUrl !== '' ? extraUrls : extraUrls.slice(1)
+  const canBuild = leadUrl !== ''
+
   return (
     <div className="flex flex-col gap-7">
       {/* 1. 주소 입력 (보장선 B1 — 다른 건 묻지 않는다) */}
@@ -180,23 +188,25 @@ export function CreateFlow({
           <label htmlFor="create-url" className="sr-only">
             지켜보고 싶은 목록 페이지 주소
           </label>
+          {/* 미리보기의 대상은 대표 URL — 직접 입력이 있으면 그것, 없으면 담은 것의 첫 번째.
+              그래서 보이는 칸에는 name 을 두지 않고 대표 URL 을 히든으로 보낸다 */}
+          <input type="hidden" name="entry_url" value={leadUrl} />
           <input
             id="create-url"
-            name="entry_url"
             type="text"
             inputMode="url"
             autoComplete="url"
             autoFocus
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://…"
+            placeholder={extraUrls.length > 0 ? '직접 입력하거나, 담은 사이트로 만들어요' : 'https://…'}
             className={cn(
               'h-12 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-4',
               'font-mono text-sm text-ink placeholder:text-faint',
               'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
             )}
           />
-          <Button type="submit" size="lg" disabled={previewPending}>
+          <Button type="submit" size="lg" disabled={previewPending || !canBuild}>
             표 만들기
           </Button>
         </form>
@@ -211,29 +221,37 @@ export function CreateFlow({
           <ProbeSteps activeStep={activeStep} allDone={preview !== null && !previewPending} />
         )}
 
-        {/* 함께 담을 사이트 — 만들 때 같은 표에 접합된다 (기능 ②) */}
+        {/* 담은 사이트 — 대표 하나로 표를 만들고 나머지는 같은 표에 합쳐진다 (기능 ②) */}
         {extraUrls.length > 0 && (
           <div className="mt-4 flex flex-col gap-2 border-t border-divider pt-4">
             <span className="text-[13px] font-bold text-muted">
-              함께 담을 사이트 {extraUrls.length}곳 · 만들 때 같은 표로 합쳐져요
+              담은 사이트 {extraUrls.length}곳
+              {typedUrl === '' ? ' · 첫 사이트로 표를 만들고 나머지를 합쳐요' : ' · 만들 때 같은 표로 합쳐져요'}
             </span>
             <div className="flex flex-wrap gap-2">
-              {extraUrls.map((u) => (
-                <span
-                  key={u}
-                  className="inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-surface py-1.5 pr-2 pl-3.5 text-[12.5px]"
-                >
-                  <span className="truncate font-mono text-ink">{u}</span>
-                  <button
-                    type="button"
-                    aria-label="이 사이트 빼기"
-                    onClick={() => setExtraUrls((prev) => prev.filter((x) => x !== u))}
-                    className="flex size-[18px] shrink-0 items-center justify-center rounded-full text-[11px] text-faint hover:bg-divider hover:text-ink"
+              {extraUrls.map((u, index) => {
+                const isLead = typedUrl === '' && index === 0
+                return (
+                  <span
+                    key={u}
+                    className={cn(
+                      'inline-flex max-w-full items-center gap-2 rounded-full border py-1.5 pr-2 pl-3.5 text-[12.5px]',
+                      isLead ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
+                    )}
                   >
-                    ✕
-                  </button>
-                </span>
-              ))}
+                    {isLead && <span className="shrink-0 text-[11px] font-bold text-accent">대표</span>}
+                    <span className="truncate font-mono text-ink">{u}</span>
+                    <button
+                      type="button"
+                      aria-label="이 사이트 빼기"
+                      onClick={() => setExtraUrls((prev) => prev.filter((x) => x !== u))}
+                      className="flex size-[18px] shrink-0 items-center justify-center rounded-full text-[11px] text-faint hover:bg-divider hover:text-ink"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )
+              })}
             </div>
           </div>
         )}
@@ -388,15 +406,16 @@ export function CreateFlow({
           {/* 3. 확정 — 주소만 다시 보낸다. 지운 열은 저장 뒤 표 구성에서 빠진다 */}
           <form action={createFormAction} className="flex flex-col gap-3">
             <input type="hidden" name="entry_url" value={preview.entryUrl} />
-            <input type="hidden" name="extra_urls" value={JSON.stringify(extraUrls)} />
+            {/* 대표를 뺀 나머지만 접합 대상이다 (대표는 이미 이 표의 뼈대가 됐다) */}
+            <input type="hidden" name="extra_urls" value={JSON.stringify(mergeUrls)} />
             <input
               type="hidden"
               name="kept_keys"
               value={JSON.stringify(keptFields.map((f) => f.key))}
             />
-            {extraUrls.length > 0 && (
+            {mergeUrls.length > 0 && (
               <p className="text-[13px] text-muted">
-                이 표를 만들면서 <b>{extraUrls.length}곳</b>을 같은 표에 함께 담아요. 각 사이트를
+                이 표를 만들면서 <b>{mergeUrls.length}곳</b>을 같은 표에 함께 담아요. 각 사이트를
                 살펴보느라 조금 더 걸려요.
               </p>
             )}
