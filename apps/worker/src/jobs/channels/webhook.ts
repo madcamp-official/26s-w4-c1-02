@@ -8,6 +8,7 @@
 
 import { childLogger } from '../../logger'
 import { checkOutboundUrl } from '../../fetchers/guard'
+import { guardedDispatcher } from '../../fetchers/guarded-dispatcher'
 import type { Deliverer, DeliveryOutcome, DeliveryPayload } from './index'
 
 const log = childLogger({ mod: 'deliver:webhook' })
@@ -31,7 +32,7 @@ export const webhookDeliverer: Deliverer = {
     const url = checked.url
 
     try {
-      const res = await fetch(url, {
+      const init: RequestInit = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -45,7 +46,11 @@ export const webhookDeliverer: Deliverer = {
         // 받는 주소는 사용자가 직접 적은 것이라 넘길 일이 있으면 제대로 적으면 된다.
         redirect: 'manual',
         signal: AbortSignal.timeout(TIMEOUT_MS),
-      })
+      }
+      // 접속 직전 이름 풀기까지 관문을 건다 (ADR A41). 발송은 본문을 실어 보내므로
+      // 리바인딩이 뚫리면 수집한 내용이 내부 주소로 새어 나간다 — 여기가 더 위험하다.
+      ;(init as { dispatcher?: unknown }).dispatcher = guardedDispatcher()
+      const res = await fetch(url, init)
 
       if (res.status >= 300 && res.status < 400) {
         return { ok: false, retryable: false, message: '받는 쪽이 다른 주소로 넘기고 있어요. 주소를 확인해 주세요.' }

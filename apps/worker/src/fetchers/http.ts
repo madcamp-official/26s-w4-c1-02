@@ -12,6 +12,7 @@
 import { getConfig } from '../config'
 import { decodeBody } from './charset'
 import { checkOutboundUrl } from './guard'
+import { guardedDispatcher } from './guarded-dispatcher'
 
 export interface HttpResponse {
   ok: boolean
@@ -160,6 +161,10 @@ async function followRedirects(start: URL, headers: Record<string, string>, opts
       res = await throttleHost(at.host, () => {
         const init: RequestInit = { method, headers, redirect: 'manual', signal: deadline }
         if (body !== undefined) init.body = body
+        // dispatcher 가 접속 직전 이름 풀기에 관문을 끼운다 (ADR A41) — checkOutboundUrl 이
+        // 검사한 뒤 이름이 사설로 바뀌어도(리바인딩) 여기서 다시 막힌다. 두 겹은 의도된 것이다.
+        // undici 7 과 Node 의 undici-types 가 명목상 달라 unknown 필드로 얹는다 (런타임 동일).
+        ;(init as { dispatcher?: unknown }).dispatcher = guardedDispatcher()
         return fetch(at, init)
       })
     } catch (e) {
