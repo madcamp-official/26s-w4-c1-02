@@ -15,6 +15,13 @@
       "when": 1785138713631,
       "tag": "0001_wide_mephistopheles",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785205634550,
+      "tag": "0002_overconfident_goliath",
+      "breakpoints": true
     }
   ]
 }

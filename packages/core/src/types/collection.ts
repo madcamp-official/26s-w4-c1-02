@@ -9,6 +9,14 @@ export type Visibility = (typeof VISIBILITIES)[number]
 export const VisibilitySchema = z.enum(VISIBILITIES)
 
 /**
+ * 멤버 역할 (ADR A40). v1 은 읽기 전용 초대만 있으므로 `viewer` 하나다.
+ * 편집자·관리자는 델타 §9 의 G4 이후 몫 — 필요해지면 여기 유니온에 추가한다 (닫힌 집합 규율).
+ */
+export const MEMBER_ROLES = ['viewer'] as const
+export type MemberRole = (typeof MEMBER_ROLES)[number]
+export const MemberRoleSchema = z.enum(MEMBER_ROLES)
+
+/**
  * 필드 타입. 정규화 파서와 검증기가 이 값으로 분기한다 (기획서 5장③ · 7장⑤).
  * G0 계약 (1)
  */

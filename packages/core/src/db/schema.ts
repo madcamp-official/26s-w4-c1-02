@@ -23,7 +23,7 @@ import {
 import type { AdapterSpec } from '../spec/spec'
 import type { AdapterOrigin, AdapterStatus } from '../types/adapter'
 import type { CollectionFilter } from '../types/api'
-import type { CollectionSchemaJson, Visibility } from '../types/collection'
+import type { CollectionSchemaJson, MemberRole, Visibility } from '../types/collection'
 import type { ItemData, ItemProvenance, ItemRaw } from '../types/item'
 import type { RunStatus, ValidationReport } from '../types/run'
 import type { FetchMode, SourceStatus } from '../types/source'
@@ -370,6 +370,56 @@ export const notificationLog = pgTable(
 )
 
 // ════════════════════════════════════════════════════════════════════════
+// 초대 링크 · 멤버십 (ADR A40 — 읽기 전용 공유)
+// 소유권 구조(O11)를 바꾸지 않는다. owner_id 는 그대로 두고 옆에 덧붙인다.
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * 초대 링크. 원문 토큰은 저장하지 않는다 — sha256 해시만 (api_key_hash 와 같은 규율).
+ * "링크 다시 만들기"는 행 삭제가 아니라 revoked_at 기록 + 새 행이다 (A38 과 같은 규율) —
+ * 누가 어느 링크로 들어왔는지의 역사가 남는다.
+ */
+export const collectionInvites = pgTable(
+  'collection_invites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    collection_id: uuid('collection_id')
+      .notNull()
+      .references(() => collections.id, { onDelete: 'cascade' }),
+    token_hash: text('token_hash').notNull().unique(),
+    created_by: text('created_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    created_at: ts('created_at').notNull().defaultNow(),
+    /** 값이 있으면 이 링크로는 더 이상 합류할 수 없다 */
+    revoked_at: ts('revoked_at'),
+  },
+  (t) => [index('collection_invites_collection_idx').on(t.collection_id)],
+)
+
+/** 초대를 수락한 계정. v1 은 전원 viewer — 표·뷰·연결 문자열 열람만 한다 */
+export const collectionMembers = pgTable(
+  'collection_members',
+  {
+    collection_id: uuid('collection_id')
+      .notNull()
+      .references(() => collections.id, { onDelete: 'cascade' }),
+    user_id: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').$type<MemberRole>().notNull().default('viewer'),
+    /** 어느 링크로 들어왔나 — 링크가 폐기돼도 멤버십은 남으므로 기록용이다 */
+    invite_id: uuid('invite_id').references(() => collectionInvites.id, { onDelete: 'set null' }),
+    created_at: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.collection_id, t.user_id] }),
+    // "내가 초대받은 컬렉션" 목록이 이 인덱스를 탄다
+    index('collection_members_user_idx').on(t.user_id),
+  ],
+)
+
+// ════════════════════════════════════════════════════════════════════════
 // 관계
 // ════════════════════════════════════════════════════════════════════════
 
@@ -394,6 +444,29 @@ export const collectionsRelations = relations(collections, ({ one, many }) => ({
   items: many(items),
   subscriptions: many(subscriptions),
   views: many(views),
+  invites: many(collectionInvites),
+  members: many(collectionMembers),
+}))
+
+export const collectionInvitesRelations = relations(collectionInvites, ({ one, many }) => ({
+  collection: one(collections, {
+    fields: [collectionInvites.collection_id],
+    references: [collections.id],
+  }),
+  creator: one(users, { fields: [collectionInvites.created_by], references: [users.id] }),
+  members: many(collectionMembers),
+}))
+
+export const collectionMembersRelations = relations(collectionMembers, ({ one }) => ({
+  collection: one(collections, {
+    fields: [collectionMembers.collection_id],
+    references: [collections.id],
+  }),
+  user: one(users, { fields: [collectionMembers.user_id], references: [users.id] }),
+  invite: one(collectionInvites, {
+    fields: [collectionMembers.invite_id],
+    references: [collectionInvites.id],
+  }),
 }))
 
 export const viewsRelations = relations(views, ({ one, many }) => ({
