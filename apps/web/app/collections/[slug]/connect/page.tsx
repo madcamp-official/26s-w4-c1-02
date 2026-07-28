@@ -5,7 +5,7 @@ import { DeveloperDetails } from '@/components/developer-details'
 import { UnavailableState } from '@/components/empty-state'
 import { ShareManage, type ShareMemberItem } from '@/components/share-manage'
 import { resolveCollectionAccess } from '@/lib/access'
-import { getCollectionBySlug } from '@/lib/collections'
+import { fetchCollectionPage, getCollectionBySlug } from '@/lib/collections'
 import { COPY } from '@/lib/labels'
 import { getInviteStatus, listMembers } from '@/lib/share'
 import { apiUrlFor, mcpUrlFor } from '@/lib/urls'
@@ -61,6 +61,13 @@ export default async function CollectionConnectPage({ params }: PageProps) {
 
   const mcpUrl = mcpUrlFor(collection.slug)
 
+  // 응답 JSON 샘플 — 지어내지 않고 실제로 2건 조회해 그 형태를 보여준다 (없으면 그 탭을 숨긴다)
+  const samplePage = await fetchCollectionPage(collection, 'limit=2')
+  const sampleJson =
+    samplePage.ok && samplePage.data.items.length > 0
+      ? JSON.stringify(samplePage.data, null, 2)
+      : null
+
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <section className="rounded-card border border-border bg-surface p-7">
@@ -102,7 +109,11 @@ export default async function CollectionConnectPage({ params }: PageProps) {
         </div>
       </section>
 
-      <DeveloperDetails apiUrl={apiUrlFor(collection.slug)} fields={collection.schema_json} />
+      <DeveloperDetails
+        apiUrl={apiUrlFor(collection.slug)}
+        fields={collection.schema_json}
+        sampleJson={sampleJson}
+      />
 
       {access.canManage && (
         <ShareManage

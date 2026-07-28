@@ -1,6 +1,7 @@
 import type { FieldDef } from '@endpointer/core'
 import { RANGE_FIELD_TYPES } from '@endpointer/core/query'
 
+import { ApiSnippets } from '@/components/api-snippets'
 import { CopyButton } from '@/components/copy-button'
 import { FIELD_TYPE_HINT } from '@/lib/labels'
 import { COPY } from '@/lib/labels'
@@ -22,10 +23,13 @@ export function DeveloperDetails({
   apiUrl,
   mcpUrl,
   fields,
+  sampleJson,
 }: {
   apiUrl: string
   mcpUrl?: string
   fields?: readonly FieldDef[]
+  /** 실제 응답 샘플(JSON 문자열). 지어내지 않고 서버가 실제로 조회해 넘긴다 */
+  sampleJson?: string | null
 }) {
   return (
     <details className="group rounded-card border border-border bg-surface">
@@ -55,6 +59,9 @@ export function DeveloperDetails({
             <code className="font-mono">?source=…</code> · 검색 <code className="font-mono">?q=…</code>
           </p>
         </div>
+
+        {/* 코드로 붙이기 — cURL·JS·Python·응답 JSON 을 골라 복사 */}
+        <ApiSnippets apiUrl={apiUrl} sampleJson={sampleJson ?? null} />
 
         {/* 응답 스키마 — 어떤 칸이 오고, 칸마다 어떤 조건을 걸 수 있나 (get_schema 와 같은 내용) */}
         {fields !== undefined && fields.length > 0 && (
