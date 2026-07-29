@@ -16,18 +16,7 @@ import {
   fetchWorkerPreview,
   suggestSourcesViaWorker,
 } from '@/lib/create'
-
-function normalizeUrl(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (trimmed === '') return null
-  try {
-    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.toString()
-  } catch {
-    return null
-  }
-}
+import { normalizeEntryUrl } from '@/lib/urls'
 
 /**
  * 로그인 사용자, 또는 (로그인이 아예 설정되지 않은 개발 환경에서만) 데모 주인.
@@ -46,7 +35,7 @@ export async function previewCollectionAction(
   _prev: PreviewActionState,
   formData: FormData,
 ): Promise<PreviewActionState> {
-  const entryUrl = normalizeUrl(String(formData.get('entry_url') ?? ''))
+  const entryUrl = normalizeEntryUrl(String(formData.get('entry_url') ?? ''))
   if (entryUrl === null) {
     return {
       status: 'problem',
@@ -67,7 +56,7 @@ export async function createCollectionAction(
   const name = String(formData.get('name') ?? '').trim()
   if (name === '') return { status: 'problem', message: '컬렉션 이름을 지어 주세요.' }
 
-  const entryUrl = normalizeUrl(String(formData.get('entry_url') ?? ''))
+  const entryUrl = normalizeEntryUrl(String(formData.get('entry_url') ?? ''))
   if (entryUrl === null) {
     return { status: 'problem', message: '처음부터 다시 시도해 주세요. 주소가 흐려졌어요.' }
   }
@@ -88,7 +77,7 @@ export async function createCollectionAction(
   try {
     const parsed: unknown = JSON.parse(String(formData.get('extra_urls') ?? '[]'))
     extraUrls = Array.isArray(parsed)
-      ? parsed.map((u) => normalizeUrl(String(u))).filter((u): u is string => u !== null)
+      ? parsed.map((u) => normalizeEntryUrl(String(u))).filter((u): u is string => u !== null)
       : []
   } catch {
     extraUrls = []

@@ -10,18 +10,7 @@ import type { SuggestActionState } from '@/components/create-flow'
 import { attachPreviewViaWorker, attachSaveViaWorker } from '@/lib/attach'
 import { getCollectionBySlug, listSites } from '@/lib/collections'
 import { suggestSourcesViaWorker } from '@/lib/create'
-
-function normalizeUrl(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (trimmed === '') return null
-  try {
-    const url = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
-    return url.toString()
-  } catch {
-    return null
-  }
-}
+import { normalizeEntryUrl } from '@/lib/urls'
 
 /** 붙이기는 표의 데이터를 바꾸므로 주인만 (컬렉션 상세는 누구나 보지만) */
 async function ownedOrProblem(slug: string): Promise<string | null> {
@@ -53,7 +42,7 @@ export async function previewAttachAction(
   _prev: AttachActionState,
   formData: FormData,
 ): Promise<AttachActionState> {
-  const url = normalizeUrl(String(formData.get('entry_url') ?? ''))
+  const url = normalizeEntryUrl(String(formData.get('entry_url') ?? ''))
   if (url === null) {
     return {
       status: 'problem',
@@ -80,7 +69,7 @@ export async function saveAttachAction(
   _prev: AttachActionState,
   formData: FormData,
 ): Promise<AttachActionState> {
-  const url = normalizeUrl(String(formData.get('entry_url') ?? ''))
+  const url = normalizeEntryUrl(String(formData.get('entry_url') ?? ''))
   if (url === null) {
     return { status: 'problem', message: '처음부터 다시 시도해 주세요. 주소가 흐려졌어요.', url: '', pasted: {}, preview: null }
   }
