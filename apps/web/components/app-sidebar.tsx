@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
+import { useCollectionName } from '@/components/collection-context'
 import { cn } from '@/lib/utils'
 
 // ── Lucide 계열 인라인 아이콘 (의존성 없이 · 1.75 stroke) ──────────────
@@ -52,6 +53,7 @@ interface NavItem {
 
 export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
   const pathname = usePathname()
+  const collectionName = useCollectionName()
   const seg = pathname.split('/').filter(Boolean)
   const inCollections = seg[0] === 'collections'
   const slug = inCollections && seg[1] && seg[1] !== 'new' ? seg[1] : null
@@ -89,12 +91,20 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
       </div>
 
       {slug && (
-        <Link
-          href="/collections"
-          className="mx-3 mb-1 flex items-center gap-1.5 px-3 py-1 text-[12.5px] text-faint hover:text-accent hover:no-underline"
-        >
-          <Ic path={ICON.chevronLeft} size={13} />내 컬렉션
-        </Link>
+        <>
+          <Link
+            href="/collections"
+            className="mx-3 flex items-center gap-1.5 px-3 py-1 text-[12.5px] text-faint hover:text-accent hover:no-underline"
+          >
+            <Ic path={ICON.chevronLeft} size={13} />내 컬렉션
+          </Link>
+          {/* 지금 보고 있는 컬렉션 이름 (원본 Sidebar.jsx 의 col.name 블록) */}
+          {collectionName !== null && (
+            <div className="px-6 pt-2 pb-2.5 text-[13px] leading-[1.4] font-semibold text-ink">
+              {collectionName}
+            </div>
+          )}
+        </>
       )}
 
       <nav className="flex flex-col gap-0.5 px-3">
