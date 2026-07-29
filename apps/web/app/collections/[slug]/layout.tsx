@@ -5,6 +5,7 @@ import { CollectionManage } from '@/components/collection-manage'
 import { CollectionTabs } from '@/components/collection-tabs'
 import { HeroBand } from '@/components/hero-band'
 import { Dot } from '@/components/ui/badge'
+import { HostChip } from '@/components/ui/host-chip'
 import { resolveCollectionAccess } from '@/lib/access'
 import {
   collectionStatusLine,
@@ -141,36 +142,14 @@ export default async function CollectionLayout({
 
       {siteList.length > 0 && (
         <div className="mt-5 flex flex-wrap gap-2">
-          {siteList.map((site) => {
-            const copy = SOURCE_STATUS_COPY[site.status]
-            return (
-              <span
-                key={site.id}
-                title={copy.sentence}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-[12.5px] font-semibold text-muted"
-              >
-                <Dot
-                  className={cn(
-                    site.status === 'ok' && 'bg-ok',
-                    site.status === 'healing' && 'animate-pulse bg-healing',
-                    site.status === 'needs_attention' && 'bg-attention',
-                    site.status === 'paused' && 'bg-paused',
-                  )}
-                />
-                <span className="font-mono">{site.host}</span>
-                <span
-                  className={cn(
-                    site.status === 'ok' && 'text-ok',
-                    site.status === 'healing' && 'text-healing',
-                    site.status === 'needs_attention' && 'text-attention',
-                    site.status === 'paused' && 'text-paused',
-                  )}
-                >
-                  {copy.short}
-                </span>
-              </span>
-            )
-          })}
+          {siteList.map((site) => (
+            <HostChip
+              key={site.id}
+              host={site.host}
+              status={site.status}
+              title={SOURCE_STATUS_COPY[site.status].sentence}
+            />
+          ))}
         </div>
       )}
 

@@ -15,8 +15,6 @@ import {
 import type { ApiItem, FieldDef } from '@endpointer/core'
 
 import { Badge } from '@/components/ui/badge'
-import { Table, TBody, TableShell, TD, TH, THead, TR } from '@/components/ui/table'
-import { FIELD_TYPE_HINT } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 // ── 값 그리기 ────────────────────────────────────────────────────────────
@@ -294,18 +292,18 @@ export function CollectionTable({ fields, items, hosts, storageKey }: Collection
   })
 
   const rows = table.getRowModel().rows
-  const fieldTypeByKey = new Map(fields.map((f) => [f.key, f.type]))
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="overflow-hidden rounded-card border border-border bg-surface">
+      {/* 필터 바 — 원본 DetailTable: 패널 안 상단에 붙고 아래로 표가 이어진다 */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-divider px-4 py-3">
         <input
           type="search"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="표 안에서 찾기"
+          placeholder="공고 검색"
           className={cn(
-            'h-9 min-w-52 flex-1 rounded-lg border border-border bg-surface px-3 text-sm',
+            'h-9 min-w-48 flex-1 rounded-lg border border-border bg-raised px-3 text-sm',
             'placeholder:text-faint focus:border-accent focus:outline-none',
           )}
         />
@@ -313,16 +311,15 @@ export function CollectionTable({ fields, items, hosts, storageKey }: Collection
           value={host}
           onChange={(e) => setHost(e.target.value)}
           aria-label="출처 고르기"
-          className="h-9 rounded-lg border border-border bg-surface px-2 text-sm"
+          className="h-9 rounded-lg border border-border bg-raised px-2 text-sm"
         >
-          <option value="">출처 전체</option>
+          <option value="">모든 출처</option>
           {hosts.map((h) => (
             <option key={h} value={h}>
               {h}
             </option>
           ))}
         </select>
-        <span className="text-xs text-muted">{rows.length}개 보이는 중</span>
         {reordered && (
           <button
             type="button"
@@ -332,19 +329,19 @@ export function CollectionTable({ fields, items, hosts, storageKey }: Collection
             열 순서 초기화
           </button>
         )}
+        <span className="ml-auto font-mono text-xs text-faint">{rows.length} rows</span>
       </div>
 
-      <TableShell>
-        <Table>
-          <THead>
+      <div className="scroll-x">
+        <table className="w-full border-collapse text-sm">
+          <thead>
             {table.getHeaderGroups().map((group) => (
-              <TR key={group.id}>
+              <tr key={group.id} className="border-b border-divider">
                 {group.headers.map((header) => {
                   const sorted = header.column.getIsSorted()
-                  const hint = fieldTypeByKey.get(header.column.id)
                   const colId = header.column.id
                   return (
-                    <TH
+                    <th
                       key={header.id}
                       draggable
                       onDragStart={() => {
@@ -356,42 +353,43 @@ export function CollectionTable({ fields, items, hosts, storageKey }: Collection
                         if (dragId.current !== null) moveColumn(dragId.current, colId)
                         dragId.current = null
                       }}
-                      className="cursor-grab active:cursor-grabbing"
+                      className="cursor-grab px-4 py-2.5 text-left text-[11px] font-semibold tracking-[0.07em] whitespace-nowrap text-faint uppercase active:cursor-grabbing"
                     >
                       <button
                         type="button"
                         onClick={header.column.getToggleSortingHandler()}
-                        className="flex items-center gap-1 hover:text-ink"
+                        className="flex items-center gap-1 uppercase hover:text-muted"
                       >
-                        <span aria-hidden className="text-faint/50 select-none">
-                          ⠿
-                        </span>
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        {hint && <span className="font-normal text-faint">· {FIELD_TYPE_HINT[hint]}</span>}
-                        <span aria-hidden className="text-faint">
-                          {sorted === 'asc' ? '↑' : sorted === 'desc' ? '↓' : '↕'}
+                        <span aria-hidden className="text-faint/70">
+                          {sorted === 'asc' ? '↑' : sorted === 'desc' ? '↓' : ''}
                         </span>
                       </button>
-                    </TH>
+                    </th>
                   )
                 })}
-              </TR>
+              </tr>
             ))}
-          </THead>
-          <TBody>
+          </thead>
+          <tbody>
             {rows.map((row) => (
-              <TR key={row.id} className="hover:bg-raised/50">
+              <tr
+                key={row.id}
+                className="border-b border-divider last:border-b-0 hover:bg-raised/40"
+              >
                 {row.getVisibleCells().map((cell) => (
-                  <TD key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TD>
+                  <td key={cell.id} className="px-4 py-2.5 align-top text-[13.5px] text-ink">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
                 ))}
-              </TR>
+              </tr>
             ))}
-          </TBody>
-        </Table>
-      </TableShell>
+          </tbody>
+        </table>
+      </div>
 
       {rows.length === 0 && (
-        <p className="text-sm text-muted">
+        <p className="px-4 py-4 text-sm text-muted">
           찾는 조건에 맞는 항목이 없어요. 검색어를 지우거나 출처를 전체로 바꿔보세요.
         </p>
       )}

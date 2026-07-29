@@ -4,6 +4,7 @@ import { currentUser, isAuthReady } from '@/auth'
 import { AuthNotice, SignInForm } from '@/components/auth-actions'
 import { UnavailableState } from '@/components/empty-state'
 import { HeroBand } from '@/components/hero-band'
+import { HostChip } from '@/components/ui/host-chip'
 import { Icon, type IconName } from '@/components/ui/icon'
 import { listCollections, type CollectionSummary } from '@/lib/collections'
 import { cardStatusCopy, healedCopy, type Tone } from '@/lib/labels'
@@ -51,12 +52,7 @@ function CollectionCard({ collection }: { collection: CollectionSummary }) {
 
       <div className="mb-4 flex flex-wrap gap-1.5">
         {collection.hosts.map((host) => (
-          <span
-            key={host}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-0.5 font-mono text-[11.5px] text-muted"
-          >
-            {host}
-          </span>
+          <HostChip key={host} host={host} />
         ))}
       </div>
 
