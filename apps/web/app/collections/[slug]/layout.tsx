@@ -215,9 +215,11 @@ export default async function CollectionLayout({
         )
       })}
 
-      <div className="mt-6 mb-6">
+      {/* 데스크톱은 좌측 사이드바가 섹션 nav 를 담당한다. 좁은 화면에서만 가로 탭 */}
+      <div className="mt-5 mb-6 md:hidden">
         <CollectionTabs slug={collection.slug} manage={access.canManage} />
       </div>
+      <div className="mt-6 hidden md:block" />
 
       {children}
     </div>

@@ -45,8 +45,8 @@ export function DeveloperDetails({
         <div className="flex flex-col gap-2">
           <span className="text-xs font-semibold text-muted">{COPY.apiLabel}</span>
           <div className="flex flex-wrap items-center gap-2">
-            <code className="scroll-x rounded-lg bg-brand px-4 py-3 font-mono text-xs text-accent-line">
-              <span className="text-accent-line/70">GET</span> {apiUrl}
+            <code className="scroll-x rounded-lg bg-[oklch(0.2_0.008_277)] px-4 py-3 font-mono text-xs text-[oklch(0.89_0.005_277)]">
+              <span className="text-[oklch(0.67_0.007_277)]">GET</span> {apiUrl}
             </code>
             <CopyButton value={apiUrl} />
           </div>

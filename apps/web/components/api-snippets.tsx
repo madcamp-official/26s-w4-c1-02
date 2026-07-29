@@ -54,7 +54,9 @@ export function ApiSnippets({ apiUrl, sampleJson }: { apiUrl: string; sampleJson
             onClick={() => setFormat(f)}
             className={cn(
               'rounded-md px-2.5 py-1 text-xs font-semibold transition-colors',
-              format === f ? 'bg-accent text-accent-ink' : 'bg-raised text-muted hover:text-ink',
+              format === f
+                ? 'bg-[oklch(0.24_0.008_277)] text-white'
+                : 'bg-raised text-muted hover:text-ink',
             )}
           >
             {f}
@@ -63,7 +65,7 @@ export function ApiSnippets({ apiUrl, sampleJson }: { apiUrl: string; sampleJson
       </div>
 
       <div className="relative">
-        <pre className="scroll-x rounded-lg bg-brand px-4 py-3.5 font-mono text-xs leading-relaxed text-accent-line">
+        <pre className="scroll-x rounded-lg bg-[oklch(0.2_0.008_277)] px-4 py-3.5 font-mono text-xs leading-relaxed text-[oklch(0.89_0.005_277)]">
           {snippet}
         </pre>
         <div className="absolute top-2 right-2">
