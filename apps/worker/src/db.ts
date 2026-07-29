@@ -383,11 +383,15 @@ export async function closeAbandonedRuns(olderThanMinutes = 30): Promise<number>
 }
 
 export async function healAttemptsToday(sourceId: string): Promise<number> {
+  // 경계는 "KST 자정" 이어야 한다. `date_trunc(…, now() at time zone 'Asia/Seoul')` 만 쓰면
+  // naive 값이 나와 세션 시간대(UTC)로 다시 읽히고 — 경계가 KST 09시가 된다.
+  // 그러면 KST 00~09시엔 경계가 미래라 카운트가 항상 0, 하루 상한이 밤마다 무효였다.
+  // 바깥의 `at time zone 'Asia/Seoul'` 이 naive 자정을 "KST 자정" timestamptz 로 되돌린다.
   const rows = await queryClient<{ n: number }[]>`
     select count(*)::int as n from runs
     where source_id = ${sourceId}
       and status in ('healed', 'drift')
-      and started_at >= date_trunc('day', now() at time zone 'Asia/Seoul')
+      and started_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')
   `
   return rows[0]?.n ?? 0
 }

@@ -183,7 +183,7 @@ export async function listCollections(ownerId: string | null): Promise<Loaded<Co
          where i.collection_id = c.id and i.first_seen_at >= now() - interval '3 days') as new_count,
       (select count(*)::int from runs r join sources s on s.id = r.source_id
          where s.collection_id = c.id and r.status = 'healed'
-           and r.started_at >= date_trunc('month', now())) as healed_count,
+           and r.started_at >= (date_trunc('month', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')) as healed_count,
       (select max(s.last_ok_at) from sources s where s.collection_id = c.id) as last_ok_at
     `
     const rows = ownerId
@@ -251,7 +251,7 @@ export async function countHealedThisMonth(collectionId: string): Promise<Loaded
       join sources s on s.id = r.source_id
       where s.collection_id = ${collectionId}
         and r.status = 'healed'
-        and r.started_at >= date_trunc('month', now())
+        and r.started_at >= (date_trunc('month', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')
     `
     return Number(rows[0]?.n ?? 0)
   })
