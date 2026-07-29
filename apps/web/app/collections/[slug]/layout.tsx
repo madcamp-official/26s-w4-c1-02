@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 import { CollectionManage } from '@/components/collection-manage'
 import { CollectionTabs } from '@/components/collection-tabs'
-import { Badge, Dot } from '@/components/ui/badge'
+import { Dot } from '@/components/ui/badge'
 import { resolveCollectionAccess } from '@/lib/access'
 import {
   collectionStatusLine,
@@ -75,57 +75,84 @@ export default async function CollectionLayout({
         <span> / {collection.name}</span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-[25px] font-extrabold tracking-tight text-ink">{collection.name}</h1>
-        <Badge tone="neutral">{VISIBILITY_COPY[collection.visibility]}</Badge>
-        <Badge tone={healedCount > 0 ? 'accent' : 'neutral'} className="ml-auto">
-          {healedCopy(healedCount)}
-        </Badge>
-        {/* 기능 ② 의 입구 — 소스가 늘수록 커버리지가 좋아진다 (델타 2-9). 주인만 본다 (A40) */}
-        {access.canManage ? (
-          <>
-            <Link
-              href={`/collections/${collection.slug}/attach`}
-              className="rounded-[9px] bg-accent px-4 py-2 text-[13px] font-bold text-accent-ink hover:bg-accent-hover hover:no-underline"
-            >
-              + 사이트 붙이기
-            </Link>
-            <CollectionManage
-              name={collection.name}
-              rename={renameCollectionAction.bind(null, collection.slug)}
-              remove={deleteCollectionAction.bind(null, collection.slug)}
-            />
-          </>
-        ) : (
-          <Badge tone="neutral">함께 보는 중 · 읽기만</Badge>
-        )}
-      </div>
-
-      {(statusParts.length > 0 || quietList.length > 0) && (
-        <p className="mt-1.5 text-[13px] text-muted">
-          {statusParts.map((part, index) => (
-            <span key={part}>
-              {index > 0 && <span className="text-border-strong"> · </span>}
-              {part.startsWith('새 항목') ? (
-                <span className="font-semibold text-accent">{part}</span>
-              ) : part.startsWith('마감') ? (
-                <span className="font-semibold text-attention">{part}</span>
-              ) : (
-                part
-              )}
-            </span>
-          ))}
-          {/* 침묵 경고 (델타 4-3) — 관찰만 말한다. 판정 정본은 워커 silence 잡 */}
-          {quietList.map((line) => (
-            <span key={line.host}>
-              <span className="text-border-strong"> · </span>
-              <span className="font-semibold text-healing" title={line.sentence}>
-                ⚠ {line.short}
+      {/* 브랜드 밴드 (원본 EpBand) — 인디고 위 흰 제목 + 다이아몬드 모티프. 콘솔의 시그니처 모먼트 */}
+      <div className="relative mb-5 overflow-hidden rounded-2xl bg-accent px-6 py-5 text-white sm:px-7 sm:py-6">
+        <img
+          src="/diamond-motif.svg"
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute -top-12 right-6 hidden h-[260px] opacity-25 sm:block"
+        />
+        <div className="relative flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[26px] font-bold tracking-[-0.03em] text-white">
+                {collection.name}
+              </h1>
+              <span className="rounded-full bg-white/15 px-2.5 py-1 text-[12px] font-semibold text-white/90">
+                {VISIBILITY_COPY[collection.visibility]}
               </span>
-            </span>
-          ))}
-        </p>
-      )}
+              {healedCount > 0 && (
+                <span className="rounded-full bg-white/15 px-2.5 py-1 text-[12px] font-semibold text-white/90">
+                  {healedCopy(healedCount)}
+                </span>
+              )}
+            </div>
+
+            {(statusParts.length > 0 || quietList.length > 0) && (
+              <p className="mt-2.5 text-[13px] text-white/75">
+                {statusParts.map((part, index) => (
+                  <span key={part}>
+                    {index > 0 && <span className="text-white/40"> · </span>}
+                    {part.startsWith('마감') ? (
+                      <span className="font-semibold text-[oklch(0.9_0.09_75)]">{part}</span>
+                    ) : part.startsWith('새 항목') ? (
+                      <span className="font-semibold text-white">{part}</span>
+                    ) : (
+                      part
+                    )}
+                  </span>
+                ))}
+                {/* 침묵 경고 (델타 4-3) — 관찰만 말한다. 판정 정본은 워커 silence 잡 */}
+                {quietList.map((line) => (
+                  <span key={line.host}>
+                    <span className="text-white/40"> · </span>
+                    <span
+                      className="font-semibold text-[oklch(0.9_0.09_75)]"
+                      title={line.sentence}
+                    >
+                      ⚠ {line.short}
+                    </span>
+                  </span>
+                ))}
+              </p>
+            )}
+          </div>
+
+          {/* 기능 ② 의 입구 — 소스가 늘수록 커버리지가 좋아진다 (델타 2-9). 주인만 본다 (A40) */}
+          <div className="flex shrink-0 items-center gap-2">
+            {access.canManage ? (
+              <>
+                <Link
+                  href={`/collections/${collection.slug}/attach`}
+                  className="rounded-[10px] bg-white px-4 py-2 text-[13px] font-bold text-accent hover:bg-white/90 hover:no-underline"
+                >
+                  + 사이트 붙이기
+                </Link>
+                <CollectionManage
+                  name={collection.name}
+                  rename={renameCollectionAction.bind(null, collection.slug)}
+                  remove={deleteCollectionAction.bind(null, collection.slug)}
+                />
+              </>
+            ) : (
+              <span className="rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] font-semibold text-white/90">
+                함께 보는 중 · 읽기만
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
 
       {siteList.length > 0 && (
         <div className="mt-3.5 flex flex-wrap gap-2">
