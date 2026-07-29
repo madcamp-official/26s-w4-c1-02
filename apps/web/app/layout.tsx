@@ -12,13 +12,13 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#f6f0e1',
+  themeColor: '#f4edda',
 }
 
 /**
- * 폰트: Pretendard Variable 을 CDN <link> 로 받는다. next/font 를 쓰지 않는 이유는
- * 빌드 때 외부 네트워크에 의존하게 되기 때문 — <link> 는 런타임 로드라 빌드가 안 깨지고,
- * CDN 이 죽어도 globals.css 의 시스템 폰트 스택으로 떨어진다.
+ * 폰트: Pretendard Variable(한글·UI) + JetBrains Mono(경로·키·숫자) 를 CDN <link> 로 받는다.
+ * next/font 를 쓰지 않는 이유는 빌드 때 외부 네트워크에 의존하게 되기 때문 — <link> 는
+ * 런타임 로드라 빌드가 안 깨지고, CDN 이 죽어도 globals.css 의 시스템 폰트 스택으로 떨어진다.
  */
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -27,6 +27,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
         />
       </head>
       <body className="min-h-dvh">

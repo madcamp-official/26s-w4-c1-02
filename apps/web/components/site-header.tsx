@@ -10,11 +10,12 @@ export async function SiteHeader() {
   return (
     <header className="sticky top-0 z-10 border-b border-border bg-surface">
       <div className="mx-auto flex h-[58px] w-full max-w-[1080px] items-center gap-7 px-6">
+        {/* 워드마크 — 원본 브랜드: 대문자 E + 인디고 트레일링 마침표 ("두 점을 잇는 선") */}
         <Link
           href="/"
-          className="text-[17px] font-extrabold tracking-tight text-brand hover:no-underline"
+          className="text-[18px] font-bold tracking-[-0.04em] text-ink hover:no-underline"
         >
-          endpointer
+          Endpointer<span className="text-accent">.</span>
         </Link>
         <Link href="/collections" className="text-sm font-semibold text-ink hover:text-accent">
           내 컬렉션
