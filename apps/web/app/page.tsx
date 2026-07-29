@@ -111,9 +111,9 @@ export default async function HomePage() {
               </span>
             </h1>
             {/* break-keep — 한글이 "코드 없/이"처럼 글자 중간에서 꺾이지 않게 어절 단위로 줄바꿈 */}
-            <p className="mt-5 max-w-[440px] text-[17px] leading-[1.65] break-keep text-muted">
-              비슷한 일을 하는 서로 다른 사이트들을 하나의 표로 합쳐요. 코드 없이 표와 알림으로,
-              코드로는 주소(API)와 AI(MCP)로.
+            <p className="mt-5 max-w-[460px] text-[17px] leading-[1.65] break-keep text-muted">
+              웹에 있는 어떤 목록이든, 붙여넣는 순간 당신의 데이터가 돼요. 갱신도 알림도 알아서 —
+              당신은 꺼내 쓰기만 하세요.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-2.5">
               {isAuthReady ? <SignInHero /> : <AuthNotice />}
