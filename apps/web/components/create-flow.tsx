@@ -72,7 +72,7 @@ function formatValue(value: unknown, field: FieldDef): string {
 
 function ProbeSteps({ activeStep, allDone }: { activeStep: number; allDone: boolean }) {
   return (
-    <div className="mt-6 flex flex-col gap-3 border-t border-divider pt-5">
+    <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-5">
       {PROBE_STEPS.map((label, index) => {
         const done = allDone || index < activeStep
         const active = !allDone && index === activeStep
@@ -106,11 +106,10 @@ function ProbeSteps({ activeStep, allDone }: { activeStep: number; allDone: bool
 
 /**
  * 컬렉션 생성 플로우 (기획서 9-1 · 보장선 B1·B3 · ADR A30).
- * 사용자가 입력하는 것은 주소뿐이고, 빈 스키마 에디터 대신 워커가 실제로 수집해
- * 정규화까지 마친 "이미 채워진 표"를 받는다. 사용자는 이름을 바꾸고 열을 지울 뿐이다.
- *
- * TODO(G2): 못 찾은 열을 값 붙여넣기로 해결하는 경로(기능 ② · traceValue)는
- *           "사이트 붙이기" 화면에서 이어진다 — 워커의 attach 경로가 그 담당이다.
+ * 왼쪽에서 주소를 담고(직접 붙여넣기 · 말로 찾기), 오른쪽 "담은 사이트" 카드에서 만든다 —
+ * 입력과 실행을 분리해 "무엇으로 만드는지"가 항상 눈에 보이게 한다.
+ * 빈 스키마 에디터 대신 워커가 실제로 수집·정규화한 "이미 채워진 표"를 받고,
+ * 사용자는 이름을 바꾸고 열을 지울 뿐이다.
  */
 export function CreateFlow({
   initialUrl,
@@ -123,9 +122,13 @@ export function CreateFlow({
   create: (prev: CreateActionState, formData: FormData) => Promise<CreateActionState>
   suggest: (prev: SuggestActionState, formData: FormData) => Promise<SuggestActionState>
 }) {
-  const [url, setUrl] = useState(initialUrl)
-  // 첫 표에 함께 접합할 추가 주소들 (기능 ②를 생성 단계로). 결과는 하나의 표다.
-  const [extraUrls, setExtraUrls] = useState<string[]>([])
+  // 입력칸의 현재 글자 — "담기"를 누르면 바구니로 들어간다
+  const [draft, setDraft] = useState('')
+  // 담은 주소들. 첫 화면에서 주소를 들고 왔으면(?url=) 이미 담긴 채로 시작한다
+  const [basket, setBasket] = useState<string[]>(() => {
+    const seeded = initialUrl.trim()
+    return seeded === '' ? [] : [seeded]
+  })
   const [previewState, previewFormAction, previewPending] = useActionState(
     previewAction,
     PREVIEW_IDLE,
@@ -136,10 +139,23 @@ export function CreateFlow({
     SUGGEST_IDLE,
   )
 
-  function addExtraUrl(candidate: string): void {
+  // 만들기의 대상은 담긴 주소 전부다. 입력칸에 아직 담지 않은 글자가 있으면 그것도 센다 —
+  // "붙여넣고 바로 만들기"가 한 번의 클릭으로 되게 (담기를 강요하지 않는다).
+  const typed = draft.trim()
+  const allUrls = typed !== '' && !basket.includes(typed) ? [typed, ...basket] : basket
+  const leadUrl = allUrls[0] ?? ''
+  const mergeUrls = allUrls.slice(1)
+  const canBuild = leadUrl !== ''
+
+  function addToBasket(candidate: string): void {
     const trimmed = candidate.trim()
-    if (trimmed === '' || trimmed === url.trim() || extraUrls.includes(trimmed)) return
-    setExtraUrls((prev) => [...prev, trimmed])
+    if (trimmed === '' || basket.includes(trimmed)) return
+    setBasket((prev) => [...prev, trimmed])
+  }
+
+  function removeUrl(target: string): void {
+    if (target === typed) setDraft('')
+    setBasket((prev) => prev.filter((u) => u !== target))
   }
 
   // 살펴보는 동안의 단계 연출 — 마지막 단계에서 멈춰 서버 응답을 기다린다
@@ -172,155 +188,189 @@ export function CreateFlow({
 
   const keptFields = preview ? preview.fields.filter((f) => !removedKeys.includes(f.key)) : []
 
-  // 표 만들기의 대상은 직접 입력칸 하나가 아니라 **담긴 URL 전부**다 (직접 입력 + 자연어로 담은 것).
-  // 대표 하나로 표의 뼈대를 잡고(미리보기), 나머지는 같은 표에 합쳐진다.
-  // 직접 입력칸이 비어 있어도 담은 URL 이 있으면 그 첫 번째가 대표가 된다.
-  const typedUrl = url.trim()
-  const leadUrl = typedUrl !== '' ? typedUrl : (extraUrls[0] ?? '')
-  const mergeUrls = typedUrl !== '' ? extraUrls : extraUrls.slice(1)
-  const canBuild = leadUrl !== ''
-
   return (
-    <div className="flex flex-col gap-7">
-      {/* 1. 주소 입력 (보장선 B1 — 다른 건 묻지 않는다) */}
-      <section className="rounded-card border border-border bg-surface p-6">
-        <form action={previewFormAction} className="flex flex-col gap-2.5 sm:flex-row">
-          <label htmlFor="create-url" className="sr-only">
-            지켜보고 싶은 목록 페이지 주소
-          </label>
-          {/* 미리보기의 대상은 대표 URL — 직접 입력이 있으면 그것, 없으면 담은 것의 첫 번째.
-              그래서 보이는 칸에는 name 을 두지 않고 대표 URL 을 히든으로 보낸다 */}
-          <input type="hidden" name="entry_url" value={leadUrl} />
-          <input
-            id="create-url"
-            type="text"
-            inputMode="url"
-            autoComplete="url"
-            autoFocus
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder={extraUrls.length > 0 ? '직접 입력하거나, 담은 사이트로 만들어요' : 'https://…'}
-            className={cn(
-              'h-12 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-4',
-              'font-mono text-sm text-ink placeholder:text-faint',
-              'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+    <div className="flex flex-col gap-5">
+      {/* ── 1. 담기(왼쪽) + 담은 사이트·만들기(오른쪽) ── */}
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        {/* 왼쪽 — 주소를 담는 카드 (보장선 B1 — 다른 건 묻지 않는다) */}
+        <section className="rounded-card border border-border bg-surface p-6">
+          <div className="flex flex-col gap-2.5 sm:flex-row">
+            <label htmlFor="create-url" className="sr-only">
+              지켜보고 싶은 목록 페이지 주소
+            </label>
+            <input
+              id="create-url"
+              type="text"
+              inputMode="url"
+              autoComplete="url"
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addToBasket(draft)
+                  setDraft('')
+                }
+              }}
+              placeholder="https://…"
+              className={cn(
+                'h-12 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-4',
+                'font-mono text-sm text-ink placeholder:text-faint',
+                'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+              )}
+            />
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              disabled={typed === ''}
+              onClick={() => {
+                addToBasket(draft)
+                setDraft('')
+              }}
+            >
+              담기
+            </Button>
+          </div>
+
+          {/* 자연어로 사이트 찾기 (ADR A42) — 무엇을 모을지 말하면 후보를 제시한다. 붙이기는 사용자가 고른다.
+              아직 아무것도 안 담겼으면(=막막한 사람) 펼친 채로 시작한다 */}
+          <details
+            className="group mt-4 border-t border-divider pt-4"
+            open={initialUrl.trim() === ''}
+          >
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-semibold text-muted select-none hover:text-accent">
+              <span className="inline-block text-[11px] transition-transform group-open:rotate-90">▸</span>
+              주소를 모르겠으면 — 무엇을 모으고 싶은지 말로 적어보세요
+            </summary>
+            <form action={suggestFormAction} className="mt-3 flex flex-col gap-2">
+              <input type="hidden" name="already" value={JSON.stringify(allUrls)} />
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  name="query"
+                  type="text"
+                  placeholder="예: 경기도 창업 지원사업 공고"
+                  className={cn(
+                    'h-11 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-4',
+                    'text-sm text-ink placeholder:text-faint',
+                    'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+                  )}
+                />
+                <Button type="submit" variant="outline" disabled={suggestPending}>
+                  {suggestPending ? '찾는 중…' : '후보 찾기'}
+                </Button>
+              </div>
+            </form>
+
+            {suggestState.message !== null && (
+              <p className="mt-2 text-[13px] text-faint">{suggestState.message}</p>
             )}
-          />
-          <Button type="submit" size="lg" disabled={previewPending || !canBuild}>
-            표 만들기
-          </Button>
-        </form>
 
-        {previewState.status === 'problem' && previewState.message !== null && (
-          <p className="mt-3 rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
-            {previewState.message}
-          </p>
-        )}
+            {suggestState.candidates.length > 0 && (
+              <div className="mt-3 flex flex-col gap-2">
+                <p className="text-xs text-faint">
+                  아래는 추천일 뿐이에요 — 눌러서 담으면 만들 때 실제로 확인해요.
+                </p>
+                {suggestState.candidates.map((c) => {
+                  const added = allUrls.includes(c.url)
+                  return (
+                    <div
+                      key={c.url}
+                      className="flex items-start gap-3 rounded-[10px] border border-border bg-surface px-4 py-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13.5px] font-semibold text-ink">{c.title}</div>
+                        <div className="truncate font-mono text-xs text-faint">{c.url}</div>
+                        {c.why !== null && <div className="mt-0.5 text-xs text-muted">{c.why}</div>}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={added ? 'ghost' : 'outline'}
+                        disabled={added}
+                        onClick={() => addToBasket(c.url)}
+                      >
+                        {added ? '담음' : '담기'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </details>
+        </section>
 
-        {(previewPending || preview !== null) && (
-          <ProbeSteps activeStep={activeStep} allDone={preview !== null && !previewPending} />
-        )}
-
-        {/* 담은 사이트 — 대표 하나로 표를 만들고 나머지는 같은 표에 합쳐진다 (기능 ②) */}
-        {extraUrls.length > 0 && (
-          <div className="mt-4 flex flex-col gap-2 border-t border-divider pt-4">
-            <span className="text-[13px] font-bold text-muted">
-              담은 사이트 {extraUrls.length}곳
-              {typedUrl === '' ? ' · 첫 사이트로 표를 만들고 나머지를 합쳐요' : ' · 만들 때 같은 표로 합쳐져요'}
+        {/* 오른쪽 — 담은 사이트와 만들기 버튼 (스케치의 오른쪽 카드) */}
+        <section className="flex flex-col gap-3 rounded-card border border-border bg-surface p-5 lg:sticky lg:top-6">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[13.5px] font-bold text-ink">
+              담은 사이트 {allUrls.length}곳
             </span>
-            <div className="flex flex-wrap gap-2">
-              {extraUrls.map((u, index) => {
-                const isLead = typedUrl === '' && index === 0
+            {/* 만들기의 실체는 미리보기 요청이다 — 대표 주소로 표를 만들어 아래에 보여준다 */}
+            <form action={previewFormAction}>
+              <input type="hidden" name="entry_url" value={leadUrl} />
+              <Button type="submit" disabled={previewPending || !canBuild}>
+                {previewPending ? '만드는 중…' : '컬렉션 만들기 →'}
+              </Button>
+            </form>
+          </div>
+
+          {allUrls.length === 0 ? (
+            <p className="rounded-[10px] border border-dashed border-border-strong bg-raised px-4 py-4 text-[13px] text-muted">
+              아직 담은 사이트가 없어요. 주소를 붙여넣거나, 말로 찾아 담아보세요.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {allUrls.map((u, index) => {
+                const isLead = index === 0
                 return (
-                  <span
+                  <li
                     key={u}
                     className={cn(
-                      'inline-flex max-w-full items-center gap-2 rounded-full border py-1.5 pr-2 pl-3.5 text-[12.5px]',
+                      'flex items-center gap-2 rounded-[10px] border py-2 pr-2 pl-3',
                       isLead ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
                     )}
                   >
-                    {isLead && <span className="shrink-0 text-[11px] font-bold text-accent">대표</span>}
-                    <span className="truncate font-mono text-ink">{u}</span>
+                    {isLead && (
+                      <span className="shrink-0 text-[11px] font-bold text-accent">대표</span>
+                    )}
+                    <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink">
+                      {u}
+                    </span>
                     <button
                       type="button"
                       aria-label="이 사이트 빼기"
-                      onClick={() => setExtraUrls((prev) => prev.filter((x) => x !== u))}
+                      onClick={() => removeUrl(u)}
                       className="flex size-[18px] shrink-0 items-center justify-center rounded-full text-[11px] text-faint hover:bg-divider hover:text-ink"
                     >
                       ✕
                     </button>
-                  </span>
+                  </li>
                 )
               })}
-            </div>
-          </div>
-        )}
-
-        {/* 자연어로 사이트 찾기 (ADR A42) — 무엇을 모을지 말하면 후보를 제시한다. 붙이기는 사용자가 고른다.
-            주소 없이 들어왔으면(=말로 찾으러 온 사람) 펼친 채로 시작한다 */}
-        <details className="group mt-4 border-t border-divider pt-4" open={initialUrl.trim() === ''}>
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-semibold text-muted select-none hover:text-accent">
-            <span className="inline-block text-[11px] transition-transform group-open:rotate-90">▸</span>
-            주소를 모르겠으면 — 무엇을 모으고 싶은지 말로 적어보세요
-          </summary>
-          <form action={suggestFormAction} className="mt-3 flex flex-col gap-2">
-            <input type="hidden" name="already" value={JSON.stringify([url, ...extraUrls])} />
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                name="query"
-                type="text"
-                placeholder="예: 경기도 창업 지원사업 공고"
-                className={cn(
-                  'h-11 min-w-0 flex-1 rounded-[9px] border-[1.5px] border-border-strong bg-raised px-4',
-                  'text-sm text-ink placeholder:text-faint',
-                  'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
-                )}
-              />
-              <Button type="submit" variant="outline" disabled={suggestPending}>
-                {suggestPending ? '찾는 중…' : '후보 찾기'}
-              </Button>
-            </div>
-          </form>
-
-          {suggestState.message !== null && (
-            <p className="mt-2 text-[13px] text-faint">{suggestState.message}</p>
+            </ul>
           )}
 
-          {suggestState.candidates.length > 0 && (
-            <div className="mt-3 flex flex-col gap-2">
-              <p className="text-xs text-faint">
-                아래는 추천일 뿐이에요 — 눌러서 담으면 만들 때 실제로 확인해요.
-              </p>
-              {suggestState.candidates.map((c) => {
-                const added = extraUrls.includes(c.url) || c.url === url.trim()
-                return (
-                  <div
-                    key={c.url}
-                    className="flex items-start gap-3 rounded-[10px] border border-border bg-surface px-4 py-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13.5px] font-semibold text-ink">{c.title}</div>
-                      <div className="truncate font-mono text-xs text-faint">{c.url}</div>
-                      {c.why !== null && <div className="mt-0.5 text-xs text-muted">{c.why}</div>}
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={added ? 'ghost' : 'outline'}
-                      disabled={added}
-                      onClick={() => addExtraUrl(c.url)}
-                    >
-                      {added ? '담음' : '담기'}
-                    </Button>
-                  </div>
-                )
-              })}
-            </div>
+          {allUrls.length > 1 && (
+            <p className="text-xs text-faint">
+              대표 사이트로 표를 만들고, 나머지 {allUrls.length - 1}곳을 같은 표에 합쳐요.
+            </p>
           )}
-        </details>
-      </section>
+        </section>
+      </div>
 
-      {/* 2. 이미 채워진 표 (보장선 B3) — 워커가 실제로 수집·정규화한 값이다 */}
+      {previewState.status === 'problem' && previewState.message !== null && (
+        <p className="rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
+          {previewState.message}
+        </p>
+      )}
+
+      {(previewPending || preview !== null) && (
+        <ProbeSteps activeStep={activeStep} allDone={preview !== null && !previewPending} />
+      )}
+
+      {/* ── 2. 이미 채워진 표 (보장선 B3) — 워커가 실제로 수집·정규화한 값이다 ── */}
       {preview !== null && !previewPending && (
         <section className="flex flex-col gap-4">
           <div className="flex items-center gap-2.5">

@@ -15,7 +15,7 @@ export default async function NewCollectionPage({ searchParams }: PageProps) {
 
   return (
     <HeroBand title="새 컬렉션" sub="페이지를 붙여넣으면, 표가 되어 돌아와요">
-      <div className="w-full max-w-[880px]">
+      <div className="w-full max-w-[1100px]">
         <CreateFlow
           initialUrl={url ?? ''}
           preview={previewCollectionAction}

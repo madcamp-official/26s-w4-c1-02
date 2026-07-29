@@ -4,7 +4,7 @@
 
 import { redirect } from 'next/navigation'
 
-import { currentUser } from '@/auth'
+import { currentUser, isAuthReady } from '@/auth'
 import type {
   CreateActionState,
   PreviewActionState,
@@ -29,10 +29,15 @@ function normalizeUrl(raw: string): string | null {
   }
 }
 
-/** 로그인 사용자 또는 데모 주인 */
+/**
+ * 로그인 사용자, 또는 (로그인이 아예 설정되지 않은 개발 환경에서만) 데모 주인.
+ * 로그인이 붙어 있는데 세션이 없으면 null — 예전처럼 데모 주인으로 만들면
+ * 남의 소유가 되어, 만들자마자 404 로 사라져 보이는 조용한 버그가 된다.
+ */
 async function resolveOwnerId(): Promise<string | null> {
   const user = await currentUser()
   if (user?.id) return user.id
+  if (isAuthReady) return null
   const demo = await demoOwnerId()
   return demo.ok ? demo.data : null
 }
@@ -93,7 +98,10 @@ export async function createCollectionAction(
 
   const ownerId = await resolveOwnerId()
   if (ownerId === null) {
-    return { status: 'problem', message: '로그인하고 다시 시도해 주세요.' }
+    return {
+      status: 'problem',
+      message: '로그인이 풀린 것 같아요. 화면을 새로 고쳐 로그인한 뒤 다시 만들어 주세요.',
+    }
   }
 
   const created = await createWithSourcesViaWorker({
@@ -128,7 +136,11 @@ export async function suggestSourcesAction(
 
   const ownerId = await resolveOwnerId()
   if (ownerId === null) {
-    return { status: 'problem', message: '로그인하고 다시 시도해 주세요.', candidates: [] }
+    return {
+      status: 'problem',
+      message: '로그인이 풀린 것 같아요. 화면을 새로 고쳐 로그인한 뒤 다시 찾아 주세요.',
+      candidates: [],
+    }
   }
 
   const result = await suggestSourcesViaWorker({ query, ownerId, already })
