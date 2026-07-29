@@ -88,9 +88,9 @@ export const COPY = {
   feedEmpty: '아직 보여드릴 항목이 없어요. 사이트에서 새 내용을 받아오면 여기부터 채워집니다.',
   /** 새 항목 받아보기 (기획서 9-4 · P7 — 웹훅 먼저) */
   subscribeTitle: '새 항목을 알아서 받아보기',
-  subscribeBody: '매번 들어와서 확인하지 않아도 돼요 — 정해진 시각에 새 것만 묶어서 보내드려요.',
+  subscribeBody: '매번 들어와서 확인하지 않아도 돼요 — 새 항목이 생기면 여기로 보내드려요.',
   subscribeTargetLabel: '어디로 보낼까요? — 웹훅 주소 하나면 끝, 슬랙·노션에 바로',
-  subscribeSchedule: '매일 오전 9시에 보내드려요. 같은 항목을 두 번 보내지 않아요.',
+  subscribeSchedule: '새 항목이 확인되는 대로 보내드려요. 같은 항목을 두 번 보내지 않아요.',
   subscribePlaceholder: 'https://hooks.slack.com/services/…',
   subscribeSubmit: '받아보기',
   subscribeStop: '그만 받기',

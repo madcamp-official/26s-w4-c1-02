@@ -22,13 +22,16 @@ import {
   loadSourceContext,
   markSourceRun,
   recentValidationReports,
+  recentlyNotified,
+  recordNotifications,
   setSourceStatus,
   startRun,
   upsertItems,
 } from '../db'
 import { runAdapter } from '../fetchers'
 import { childLogger } from '../logger'
-import { enqueueDeliver, enqueueHeal, type CollectJobData } from '../queues'
+import { enqueueDeliver, enqueueEvaluate, enqueueHeal, type CollectJobData } from '../queues'
+import { channelKeyOf } from './channel-key'
 
 export interface CollectJobResult {
   /** 실제로 수집을 돌렸는지. 일시정지·미컴파일 소스는 false */
@@ -146,12 +149,13 @@ export async function runCollectJob(data: CollectJobData): Promise<CollectJobRes
   await fanOutToSubscriptions(collection.id, upsert.newItemIds)
 
   // ── 뷰 평가 (A34) — 새 데이터가 들어왔으니 enter 를 잡는다 ───────────
-  // 평가가 죽어도 수집은 성공이다 — 표에는 이미 새 항목이 앉아 있다 (원칙 ④).
+  // 여기서 직접 부르지 않고 **큐로 민다** (enqueueEvaluate 머리말) — 같은 컬렉션의
+  // 소스 둘이 동시에 수집을 마치면 평가가 겹쳐 돌아 같은 enter 가 두 번 잡혔다.
+  // 큐 등록이 죽어도 수집은 성공이다 — 다음 평가(자정)가 따라잡는다 (원칙 ④).
   try {
-    const { evaluateCollectionViews } = await import('./evaluate-views')
-    await evaluateCollectionViews(collection.id)
+    await enqueueEvaluate(collection.id)
   } catch (e) {
-    log.error({ err: e }, '수집 후 뷰 평가에 실패했다 — 다음 평가(자정)가 따라잡는다')
+    log.error({ err: e }, '수집 후 뷰 평가를 큐에 넣지 못했다 — 다음 평가(자정)가 따라잡는다')
   }
 
   log.info(
@@ -170,24 +174,34 @@ export async function runCollectJob(data: CollectJobData): Promise<CollectJobRes
 }
 
 /**
- * 신규 아이템을 구독마다 발송 큐에 넣는다.
+ * 신규 아이템을 구독(받아보기 채널)마다 발송 큐에 넣는다.
  *
- * 기획서 9-4 는 "즉시 발송이 아니라 정해진 시각에 묶어 보냄" 이라고 못 박았다.
- * 그 묶음 발송은 구독별 repeatable job (`reason: 'schedule'`) 이 맡고, 여기서 미는 잡은
- * **지연이 무의미한 채널(웹훅)** 을 위한 것이다. 두 경로가 같은 아이템을 두 번 보내지 않는 것은
- * `deliveries` 기록으로 막는다 (`alreadyDelivered`).
+ * 채널만 등록한 사람에게는 **모든 신규 항목이 바로** 간다 — 이게 구독 폼의 약속이고,
+ * 조건을 걸고 싶으면 뷰에 알림을 붙인다 (델타 3절 — 정밀한 알림은 뷰의 몫).
  *
- * TODO(G3): 구독마다 "즉시 / 묶어서" 를 고르게 하고, 여기서는 즉시인 것만 민다.
+ * 뷰 알림(evaluate-views)과 **같은 원장(notification_log · A36)** 을 쓴다.
+ * 예전엔 이 경로가 원장을 우회해서, 같은 항목이 "전건 발송 + 뷰 enter 발송" 으로
+ * 같은 채널에 두 번 갈 수 있었다. 이제 어느 경로가 먼저 보냈든 24시간 안에는
+ * 같은 (채널, 항목) 이 다시 나가지 않는다. view_ids 는 빈 배열로 남긴다 —
+ * "뷰에 걸려서" 가 아니라 "채널 구독이라서" 나간 발송이라는 표시다.
  */
 async function fanOutToSubscriptions(collectionId: string, newItemIds: readonly string[]): Promise<void> {
   if (newItemIds.length === 0) return // 신규가 없으면 침묵한다
 
   const subs = await listSubscriptions(collectionId)
+  const now = new Date()
   for (const sub of subs) {
+    const channelKey = channelKeyOf(sub.channel, sub.target)
+    const recent = await recentlyNotified(channelKey, [...newItemIds], now)
+    const fresh = newItemIds.filter((id) => !recent.has(id))
+    if (fresh.length === 0) continue
+
+    // 사건 기록이 발송보다 먼저다 (evaluate-views 와 같은 순서) — 발송이 재시도돼도 기록은 한 번
+    await recordNotifications(channelKey, fresh.map((item_id) => ({ item_id, view_ids: [] })), now)
     await enqueueDeliver({
       subscription_id: sub.id,
       collection_id: collectionId,
-      item_ids: [...newItemIds],
+      item_ids: fresh,
       reason: 'immediate',
     })
   }

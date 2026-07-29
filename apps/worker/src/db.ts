@@ -540,13 +540,16 @@ export async function recordDelivery(input: {
 /** 같은 아이템을 두 번 보내지 않기 위한 확인 (기획서 9-4 "재발송·중복 방지") */
 export async function alreadyDelivered(subscriptionId: string, itemIds: readonly string[]): Promise<Set<string>> {
   if (itemIds.length === 0) return new Set()
+  // 최근 50행만 보던 창을 없앴다 — 행이 쌓이면 창 밖의 옛 발송이 "안 보낸 것" 이 되어
+  // 같은 항목이 다시 나갈 수 있었다. 배열 겹침(&&)으로 물으면 이력 전체를 한 번에 본다.
   const rows = await queryClient<{ item_ids: string[] }[]>`
     select item_ids from deliveries
     where subscription_id = ${subscriptionId} and status = 'sent'
-    order by sent_at desc limit 50
+      and item_ids && (string_to_array(${itemIds.join(',')}, ',')::uuid[])
   `
+  const asked = new Set(itemIds)
   const sent = new Set<string>()
-  for (const row of rows) for (const id of row.item_ids) sent.add(id)
+  for (const row of rows) for (const id of row.item_ids) if (asked.has(id)) sent.add(id)
   return sent
 }
 
