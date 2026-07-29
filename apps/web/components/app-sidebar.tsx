@@ -54,6 +54,10 @@ interface NavItem {
 export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
   const pathname = usePathname()
   const collectionName = useCollectionName()
+
+  // 랜딩(/)은 웹사이트다 — 콘솔 사이드바 없이 자기 nav 를 그린다 (원본 ui_kits/website)
+  if (pathname === '/') return null
+
   const seg = pathname.split('/').filter(Boolean)
   const inCollections = seg[0] === 'collections'
   const slug = inCollections && seg[1] && seg[1] !== 'new' ? seg[1] : null

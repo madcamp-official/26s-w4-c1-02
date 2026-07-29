@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { currentUser, isAuthReady } from '@/auth'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SignInForm, SignOutForm } from '@/components/auth-actions'
+import { ConsoleFooter } from '@/components/console-footer'
 
 import './globals.css'
 
@@ -79,9 +80,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
             {/* 패딩 없음 — 밴드(HeroBand)가 자기 패딩을 갖고 전폭으로 깔린다 */}
             <main className="flex-1">{children}</main>
-            <footer className="px-6 pt-4 pb-10 text-xs text-faint md:px-10">
-              한 번 만들어 두면 표로도, 주소로도, 쓰시는 AI 에서도 같은 내용을 볼 수 있어요.
-            </footer>
+            <ConsoleFooter />
           </div>
         </div>
       </body>

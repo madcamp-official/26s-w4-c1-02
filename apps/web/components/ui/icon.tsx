@@ -14,6 +14,9 @@ export type IconName =
   | 'refresh'
   | 'alert-triangle'
   | 'plus'
+  | 'merge'
+  | 'terminal'
+  | 'link2'
 
 const PATHS: Record<IconName, ReactNode> = {
   grid: (
@@ -83,6 +86,26 @@ const PATHS: Record<IconName, ReactNode> = {
   plus: (
     <>
       <path d="M12 5v14M5 12h14" />
+    </>
+  ),
+  merge: (
+    <>
+      <circle cx="18" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <path d="M6 21V9a9 9 0 0 0 9 9" />
+    </>
+  ),
+  terminal: (
+    <>
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </>
+  ),
+  link2: (
+    <>
+      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+      <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+      <line x1="8" y1="12" x2="16" y2="12" />
     </>
   ),
 }
