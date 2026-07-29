@@ -59,9 +59,13 @@ export async function runCollectJob(data: CollectJobData): Promise<CollectJobRes
   // ── 어댑터 로드 ──────────────────────────────────────────────────────
   const ctx = await loadSourceContext(data.source_id)
   if (ctx === null) {
-    // 소스가 지워졌는데 스케줄이 남아 있는 경우. 잡을 실패시키지 않는다 —
-    // 스케줄 청소는 부팅 시 syncSourceSchedules 가 한다.
-    log.warn('없는 사이트에 대한 수집 요청 — 건너뜁니다')
+    // 소스가 지워졌는데 스케줄만 남은 경우 (컬렉션 삭제는 화면 쪽 SQL 이라 스케줄을 모른다).
+    // 부팅 동기화만 기다리면 재시작 없는 프로덕션에선 고아 스케줄이 매일 영원히 헛돈다 —
+    // 그래서 여기서 스스로 뗀다. loadSourceContext 의 null 은 "행이 없다" 일 때뿐이라
+    // (DB 장애는 throw → BullMQ 재시도) 산 소스를 잘못 뗄 일은 없다.
+    log.warn('없는 사이트에 대한 수집 요청 — 스케줄을 떼고 건너뜁니다')
+    const { unscheduleSource } = await import('../queues')
+    await unscheduleSource(data.source_id).catch(() => {})
     return SKIPPED(null)
   }
 
