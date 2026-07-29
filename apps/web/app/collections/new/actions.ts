@@ -105,7 +105,7 @@ export async function createCollectionAction(
   })
   if (!created.ok) return { status: 'problem', message: created.message }
 
-  redirect(`/collections/${created.data.slug}`)
+  redirect(`/collections/${created.data.slug}/table`)
 }
 
 /** 자연어 → 소스 후보 제안 (ADR A42). 사용자가 요청할 때만 부른다 */

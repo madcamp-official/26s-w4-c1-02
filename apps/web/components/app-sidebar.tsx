@@ -33,10 +33,13 @@ function Ic({ path, size = 17 }: { path: ReactNode; size?: number }) {
 }
 const ICON = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></>,
+  merge: <><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path d="M6 21V9a9 9 0 0 0 9 9" /></>,
   table: <><path d="M12 3v18" /><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18" /></>,
   bell: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>,
-  sliders: <><line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" /><line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" /><line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" /><line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" /></>,
+  filter: <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />,
+  link2: <><path d="M9 17H7A5 5 0 0 1 7 7h2" /><path d="M15 7h2a5 5 0 1 1 0 10h-2" /><line x1="8" y1="12" x2="16" y2="12" /></>,
   plug: <><path d="M12 22v-5" /><path d="M9 8V2" /><path d="M15 8V2" /><path d="M6 8h12v4a6 6 0 0 1-12 0Z" /></>,
+  settings: <><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></>,
   chevronLeft: <path d="M15 18l-6-6 6-6" />,
 } as const
 
@@ -54,12 +57,16 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
   const slug = inCollections && seg[1] && seg[1] !== 'new' ? seg[1] : null
   const section = slug ? (seg[2] ?? '') : ''
 
+  // 원본 콘솔 Sidebar.jsx 의 7항목 — 대시보드 · 표 · 읽기 피드 · 뷰·알림 · 소스 · 연결 · 설정
   const items: NavItem[] = slug
     ? [
-        { label: '표', href: `/collections/${slug}`, icon: 'table', active: section === '' },
+        { label: '대시보드', href: `/collections/${slug}`, icon: 'merge', active: section === '' },
+        { label: '표', href: `/collections/${slug}/table`, icon: 'table', active: section === 'table' },
         { label: '읽기 피드', href: `/collections/${slug}/feed`, icon: 'bell', active: section === 'feed' },
-        { label: '작업실', href: `/collections/${slug}/workshop`, icon: 'sliders', active: section === 'workshop' },
+        { label: '뷰 · 알림', href: `/collections/${slug}/views`, icon: 'filter', active: section === 'views' || section === 'workshop' },
+        { label: '소스', href: `/collections/${slug}/sources`, icon: 'link2', active: section === 'sources' || section === 'attach' },
         { label: '연결', href: `/collections/${slug}/connect`, icon: 'plug', active: section === 'connect' },
+        { label: '설정', href: `/collections/${slug}/settings`, icon: 'settings', active: section === 'settings' },
       ]
     : [
         {

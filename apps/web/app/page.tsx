@@ -20,7 +20,8 @@ export default async function HomePage() {
   const exampleList = examples.ok ? examples.data : []
 
   return (
-    <div className="flex flex-col gap-12">
+    // 랜딩은 밴드가 없다 — main 이 패딩을 잃었으므로 자기 컨테이너를 가진다
+    <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-12 px-6 py-8 md:px-10">
       <section className="mx-auto flex max-w-[720px] flex-col items-center gap-0 pt-12 text-center">
         <span className="mb-7 inline-flex items-center gap-2 rounded-full border border-accent-line bg-accent-soft px-3.5 py-1.5 text-[13px] font-semibold text-brand">
           한 번 만들면, 살아서 갱신되는 컬렉션

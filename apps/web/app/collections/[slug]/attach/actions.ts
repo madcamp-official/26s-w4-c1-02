@@ -95,7 +95,7 @@ export async function saveAttachAction(
     return { status: 'problem', message: saved.message, url, pasted, preview: null }
   }
 
-  redirect(`/collections/${slug}`)
+  redirect(`/collections/${slug}/sources`)
 }
 
 /**

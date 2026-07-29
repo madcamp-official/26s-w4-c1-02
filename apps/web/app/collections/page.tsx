@@ -80,7 +80,7 @@ export default async function CollectionsPage() {
   // 로그인이 실제로 붙어 있는데 아직 안 들어온 사람 — 목록을 보여주지 않는다
   if (isAuthReady && user === null) {
     return (
-      <div className="flex flex-col gap-4 pt-6">
+      <div className="flex flex-col gap-4 px-6 py-10 md:px-10">
         <h1 className="text-[26px] font-extrabold tracking-tight text-ink">내 컬렉션</h1>
         <p className="text-sm text-muted">로그인하면 만들어 둔 표가 여기에 쌓입니다.</p>
         <SignInForm redirectTo="/collections" variant="primary" size="lg" />

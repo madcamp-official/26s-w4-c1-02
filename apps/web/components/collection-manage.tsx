@@ -13,89 +13,105 @@ export interface ManageState {
 
 const MANAGE_IDLE: ManageState = { status: 'idle', message: null }
 
-/**
- * 컬렉션 관리 — 이름 변경과 삭제. 접혀 있다가 필요할 때만 열린다.
- * 삭제는 두 번 눌러야 한다 (한 번에 지워지는 실수를 막는 최소 장치).
- */
-export function CollectionManage({
+/** 이름 바꾸기 폼 (원본 Settings 의 이름 패널 내용) */
+export function RenameForm({
   name,
   rename,
-  remove,
 }: {
   name: string
   rename: (prev: ManageState, formData: FormData) => Promise<ManageState>
-  remove: (formData: FormData) => Promise<void>
 }) {
-  const [renameState, renameAction, renamePending] = useActionState(rename, MANAGE_IDLE)
-  const [confirming, setConfirming] = useState(false)
+  const [state, action, pending] = useActionState(rename, MANAGE_IDLE)
 
   return (
-    <details className="group relative">
-      <summary className="cursor-pointer list-none rounded-lg border border-border bg-surface px-3.5 py-2 text-[13px] font-semibold text-muted select-none hover:border-accent hover:text-accent">
-        관리
-      </summary>
+    <form action={action} className="flex flex-wrap items-center gap-2.5">
+      <input
+        name="name"
+        defaultValue={name}
+        aria-label="컬렉션 이름"
+        className={cn(
+          'h-9 max-w-[340px] flex-1 rounded-lg border-[1.5px] border-border-strong bg-raised px-3 text-sm text-ink',
+          'focus:border-accent focus:outline-none',
+        )}
+      />
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>
+        저장
+      </Button>
+      {state.message !== null && (
+        <span className={cn('text-xs', state.status === 'problem' ? 'text-attention' : 'text-ok')}>
+          {state.message}
+        </span>
+      )}
+    </form>
+  )
+}
 
-      <div className="absolute right-0 z-20 mt-2 flex w-[300px] flex-col gap-4 rounded-card border border-border bg-surface p-4 shadow-[0_8px_24px_rgba(35,48,63,0.12)]">
-        <form action={renameAction} className="flex flex-col gap-2">
-          <label htmlFor="manage-name" className="text-xs font-bold text-muted">
-            컬렉션 이름
-          </label>
-          <input
-            id="manage-name"
-            name="name"
-            defaultValue={name}
-            className={cn(
-              'h-9 rounded-lg border-[1.5px] border-border-strong bg-raised px-3 text-sm text-ink',
-              'focus:border-accent focus:outline-none',
-            )}
-          />
-          <div className="flex items-center gap-2">
-            <Button type="submit" size="sm" variant="outline" disabled={renamePending}>
-              이름 바꾸기
-            </Button>
-            {renameState.message !== null && (
-              <span
-                className={cn(
-                  'text-xs',
-                  renameState.status === 'problem' ? 'text-attention' : 'text-ok',
-                )}
-              >
-                {renameState.message}
-              </span>
-            )}
-          </div>
-        </form>
+/**
+ * 지우기 (원본 Settings 의 위험 구역) — 컬렉션 이름을 그대로 적어야 지워진다.
+ * 표·뷰·주소·AI 연결이 모두 사라지므로 실수 한 번으로는 못 지운다.
+ */
+export function DeleteZone({
+  name,
+  remove,
+}: {
+  name: string
+  remove: (formData: FormData) => Promise<void>
+}) {
+  const [confirming, setConfirming] = useState(false)
+  const [typed, setTyped] = useState('')
 
-        <div className="flex flex-col gap-2 border-t border-divider pt-3">
-          {confirming ? (
-            <>
-              <p className="text-xs text-attention">
-                정말 지울까요? 담긴 항목과 받아보기 설정까지 전부 지워지고, 되돌릴 수 없어요.
-              </p>
-              <div className="flex gap-2">
-                <form action={remove}>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    className="bg-attention text-white hover:bg-attention/90"
-                  >
-                    네, 지울게요
-                  </Button>
-                </form>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(false)}>
-                  아니요
-                </Button>
-              </div>
-            </>
-          ) : (
-            <div>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setConfirming(true)}>
-                이 컬렉션 지우기
-              </Button>
-            </div>
-          )}
-        </div>
+  if (!confirming) {
+    return (
+      <div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="text-attention"
+          onClick={() => setConfirming(true)}
+        >
+          이 컬렉션 지우기
+        </Button>
       </div>
-    </details>
+    )
+  }
+
+  return (
+    <div className="flex max-w-[420px] flex-col gap-2.5">
+      <p className="text-[13px] text-muted">
+        정말 지우려면 컬렉션 이름(<b className="font-semibold text-ink">{name}</b>)을 그대로 적어
+        주세요. 표·뷰·주소·AI 연결이 모두 사라져요.
+      </p>
+      <input
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
+        placeholder={name}
+        aria-label="컬렉션 이름 확인"
+        className="h-9 rounded-lg border-[1.5px] border-border-strong bg-raised px-3 text-sm text-ink focus:border-attention focus:outline-none"
+      />
+      <div className="flex gap-2">
+        <form action={remove}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={typed !== name}
+            className="bg-attention text-white hover:bg-attention/90 disabled:opacity-40"
+          >
+            영구 삭제
+          </Button>
+        </form>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setConfirming(false)
+            setTyped('')
+          }}
+        >
+          그만두기
+        </Button>
+      </div>
+    </div>
   )
 }

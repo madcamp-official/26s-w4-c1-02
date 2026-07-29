@@ -267,6 +267,24 @@ export async function countCollectionItems(collectionId: string): Promise<Loaded
   })
 }
 
+/** 사이트별 항목 수 (대시보드의 연결 카드 — 어느 출처가 얼마나 채웠는지) */
+export async function countItemsByHost(
+  collectionId: string,
+): Promise<Loaded<Record<string, number>>> {
+  return safeQuery(async (core) => {
+    const rows = await core.queryClient<{ host: string; n: number }[]>`
+      select s.host, count(i.id)::int as n
+      from sources s
+      left join items i on i.source_id = s.id
+      where s.collection_id = ${collectionId}
+      group by s.host
+    `
+    const byHost: Record<string, number> = {}
+    for (const row of rows) byHost[row.host] = Number(row.n)
+    return byHost
+  })
+}
+
 /** 상단 상태 줄의 재료 (델타 4-3 — "살아있다"는 인상은 기능보다 먼저) */
 export interface CollectionStatusLine {
   /** 마지막으로 성공한 수집. null 이면 아직 받아온 적 없음 */
@@ -357,6 +375,19 @@ export async function renameCollection(id: string, name: string): Promise<Loaded
   return safeQuery(async (core) => {
     await core.queryClient`
       update collections set name = ${name}, updated_at = now() where id = ${id}
+    `
+    return null
+  })
+}
+
+/** 공개범위 변경 — API 인증 방식도 이 값을 따라간다 (기획서 12장) */
+export async function updateCollectionVisibility(
+  id: string,
+  visibility: Visibility,
+): Promise<Loaded<null>> {
+  return safeQuery(async (core) => {
+    await core.queryClient`
+      update collections set visibility = ${visibility}, updated_at = now() where id = ${id}
     `
     return null
   })

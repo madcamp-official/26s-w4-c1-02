@@ -1,43 +1,49 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { CollectionTable } from '@/components/collection-table'
-import { EmptyState, UnavailableState } from '@/components/empty-state'
-import { FilterBar } from '@/components/filter-bar'
-import { SaveViewForm } from '@/components/save-view-form'
-import { Badge, Dot } from '@/components/ui/badge'
+import { UnavailableState } from '@/components/empty-state'
+import { HeroBand } from '@/components/hero-band'
+import { Dot } from '@/components/ui/badge'
 import { resolveCollectionAccess } from '@/lib/access'
-import { fetchCollectionPage, getCollectionBySlug, listSites } from '@/lib/collections'
-import { cn } from '@/lib/utils'
-import {
-  conditionsFromParams,
-  fetchViewPage,
-  listViews,
-  paramsFromConditions,
-  summarizeConditions,
-  type ViewRecord,
-} from '@/lib/views'
+import type { SourceStatus } from '@endpointer/core'
 
-import { createViewAction } from './view-actions'
+import {
+  collectionStatusLine,
+  countCollectionItems,
+  countHealedThisMonth,
+  countItemsByHost,
+  getCollectionBySlug,
+  listSites,
+} from '@/lib/collections'
+import {
+  SOURCE_STATUS_COPY,
+  VISIBILITY_COPY,
+  checkedAgoCopy,
+  closingCountCopy,
+} from '@/lib/labels'
+import { quietSourceLines } from '@/lib/silence'
+import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ slug: string }>
-  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
-/** 화면은 한 번에 넉넉히 받아두고 정렬·검색은 브라우저에서 즉시 한다 (기획서 8장) */
-const SCREEN_QUERY = 'limit=200&include=provenance'
+// 연결 카드의 행 표기 (원본 EpColDashboard) — 상태 키를 그대로 찍지 않는다 (B2)
+const ROW_LABEL: Record<SourceStatus, { label: string; className: string }> = {
+  ok: { label: '연결됨', className: 'text-accent' },
+  healing: { label: '동기화 중', className: 'text-accent' },
+  needs_attention: { label: '확인 필요', className: 'text-faint' },
+  paused: { label: '멈춤', className: 'text-faint' },
+}
 
 /**
- * 표 탭 = 뷰 #0 (조건 없는 뷰 — 델타 2-3).
- * 저장된 뷰를 고르거나, 필터 바로 임시 조건을 걸고 "이 조건 저장"으로 뷰를 만든다.
- * 조건 해석은 저장/임시 모두 core 의 viewToQuery 하나를 탄다 (A33).
+ * 대시보드 (원본 콘솔의 컬렉션 첫 화면) — 인디고 밴드에 큰 지표,
+ * 겹쳐 올라온 연결 카드가 사이트별로 얼마나 채웠는지 보여준다.
  */
-export default async function CollectionDetailPage({ params, searchParams }: PageProps) {
+export default async function CollectionDashboardPage({ params }: PageProps) {
   const { slug } = await params
-  const rawParams = await searchParams
 
   const found = await getCollectionBySlug(slug)
   if (!found.ok) return <UnavailableState message={found.message} />
@@ -45,116 +51,162 @@ export default async function CollectionDetailPage({ params, searchParams }: Pag
 
   const collection = found.data
 
-  // 주인·멤버가 아니면 없는 것과 같다 (ADR A40) — 존재 여부도 정보다
+  // 주인·멤버가 아니면 없는 것과 같다 (ADR A40)
   const access = await resolveCollectionAccess(collection)
   if (!access.canView) notFound()
 
-  const basePath = `/collections/${collection.slug}`
-
-  const viewsResult = await listViews(collection)
-  const views = viewsResult.ok ? viewsResult.data : []
-
-  // 저장된 뷰가 골라졌나 → 그 조건으로. 아니면 필터 바의 임시 조건으로
-  const viewSlug = typeof rawParams['view'] === 'string' ? rawParams['view'] : null
-  const activeView: ViewRecord | null =
-    viewSlug === null ? null : (views.find((v) => v.slug === viewSlug) ?? null)
-  const adhocConditions = activeView === null ? conditionsFromParams(rawParams, collection.schema_json) : []
-  const conditions = activeView?.where ?? adhocConditions
-
-  const [page, sites] = await Promise.all([
-    conditions.length > 0 || activeView !== null
-      ? fetchViewPage(collection, { where: conditions, sort: activeView?.sort ?? [] })
-      : fetchCollectionPage(collection, SCREEN_QUERY),
+  const [sites, healed, status, quiet, itemCount, byHost] = await Promise.all([
     listSites(collection.id),
+    countHealedThisMonth(collection.id),
+    collectionStatusLine(collection),
+    quietSourceLines(collection.id),
+    countCollectionItems(collection.id),
+    countItemsByHost(collection.id),
   ])
-
+  const quietList = quiet.ok ? quiet.data : []
   const siteList = sites.ok ? sites.data : []
-  const items = page.ok ? page.data.items : []
-  const summary = summarizeConditions(conditions, collection.schema_json)
-  const filterValues = paramsFromConditions(conditions)
+  const healedCount = healed.ok ? healed.data : 0
+  const items = itemCount.ok ? itemCount.data : 0
+  const newCount = status.ok ? status.data.new_count : 0
+  const hostCounts = byHost.ok ? byHost.data : {}
+  const troubled = siteList.filter((s) => s.status === 'healing' || s.status === 'needs_attention')
+
+  // 상단 상태 줄 (델타 4-3) — 확인시각 · 마감 · 침묵 감지
+  const numberFormat = new Intl.NumberFormat('ko-KR')
+  const statusParts = status.ok
+    ? [checkedAgoCopy(status.data.last_ok_at), closingCountCopy(status.data.closing_count)].filter(
+        (part): part is string => part !== null,
+      )
+    : []
+
+  const statusLine =
+    statusParts.length > 0 || quietList.length > 0 ? (
+      <>
+        {statusParts.map((part, index) => (
+          <span key={part}>
+            {index > 0 && <span className="text-white/40"> · </span>}
+            {part.startsWith('마감') ? (
+              <span className="font-semibold text-[oklch(0.9_0.09_75)]">{part}</span>
+            ) : (
+              part
+            )}
+          </span>
+        ))}
+        {quietList.map((line) => (
+          <span key={line.host}>
+            {statusParts.length > 0 && <span className="text-white/40"> · </span>}
+            <span className="font-semibold text-[oklch(0.9_0.09_75)]" title={line.sentence}>
+              ⚠ {line.short}
+            </span>
+          </span>
+        ))}
+      </>
+    ) : null
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* 뷰 칩 — 전체(뷰 #0) + 저장된 뷰들 */}
-      {views.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={basePath}
-            className={cn(
-              'rounded-full border px-3.5 py-1.5 text-[13px] font-bold hover:no-underline',
-              activeView === null && conditions.length === 0
-                ? 'border-accent bg-accent text-accent-ink'
-                : 'border-border bg-surface text-muted hover:border-accent hover:text-accent',
-            )}
-          >
-            전체
-          </Link>
-          {views.map((view) => (
-            <Link
-              key={view.id}
-              href={`${basePath}?view=${view.slug}`}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-bold hover:no-underline',
-                activeView?.id === view.id
-                  ? 'border-accent bg-accent text-accent-ink'
-                  : 'border-border bg-surface text-muted hover:border-accent hover:text-accent',
-              )}
-            >
-              {view.health !== 'ok' && <Dot className="bg-attention" />}
-              {view.pinned && <span aria-hidden>★</span>}
-              {view.name}
-            </Link>
-          ))}
+    <HeroBand
+      dense
+      title={
+        <>
+          <h1 className="text-[22px] font-bold tracking-[-0.03em] text-white">{collection.name}</h1>
+          <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11.5px] font-semibold text-white/90">
+            {VISIBILITY_COPY[collection.visibility]}
+          </span>
+        </>
+      }
+      status={statusLine}
+      metrics={[
+        { label: '항목', value: numberFormat.format(items) },
+        { label: '새 항목', value: numberFormat.format(newCount) },
+        { label: '자동 복구', value: `${healedCount}회` },
+      ]}
+      action={
+        !access.canManage ? (
+          <span className="rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] font-semibold text-white/90">
+            함께 보는 중 · 읽기만
+          </span>
+        ) : undefined
+      }
+    >
+      {/* 연결 카드 (원본 EpColDashboard) — 사이트별로 얼마나 채웠는지 */}
+      <section className="rounded-card border border-divider bg-surface px-7 pt-2.5 pb-4 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
+        <div className="flex items-center justify-between py-3">
+          <span className="text-[15px] font-semibold text-ink">연결</span>
+          <span className="font-mono text-[12px] text-faint">
+            GET /api/v1/{collection.slug} → {siteList.length} sources
+          </span>
         </div>
-      )}
-
-      <FilterBar basePath={basePath} fields={collection.schema_json} values={filterValues} />
-
-      {/* 임시 조건이 걸려 있으면 저장을 권한다 (델타 2-10) — 뷰 저장은 주인 몫이다 (A40) */}
-      {adhocConditions.length > 0 && access.canManage && (
-        <SaveViewForm
-          conditionsJson={JSON.stringify(adhocConditions)}
-          summary={summary}
-          suggestedName={summary.slice(0, 60) || '내 조건'}
-          save={createViewAction.bind(null, collection.slug)}
-        />
-      )}
-      {activeView !== null && (
-        <p className="text-[13px] text-muted">
-          <Badge tone="accent" className="mr-1.5 font-bold">
-            {activeView.name}
-          </Badge>
-          {summary === '' ? '조건 없이 전체를 봐요' : `조건: ${summary}`}
-          {activeView.health === 'broken' && (
-            <span className="ml-2 font-semibold text-attention">
-              조건에 쓰인 칸이 표에서 사라졌어요 — 작업실에서 고쳐 주세요
-            </span>
-          )}
-        </p>
-      )}
-
-      {!page.ok ? (
-        <UnavailableState message={page.message} />
-      ) : items.length === 0 ? (
-        conditions.length > 0 ? (
-          <p className="rounded-card border border-border bg-raised px-4 py-4 text-sm text-muted">
-            이 조건에 맞는 항목이 지금은 없어요. 조건을 넓히거나, 저장해 두면 새로 생길 때 알 수
-            있어요.
+        {siteList.length === 0 ? (
+          <p className="pb-2 text-sm text-muted">
+            아직 붙은 사이트가 없어요.{' '}
+            <Link href={`/collections/${collection.slug}/attach`} className="font-semibold text-accent">
+              사이트를 붙이면
+            </Link>{' '}
+            표가 채워지기 시작해요.
           </p>
         ) : (
-          <EmptyState
-            title="아직 이 표에 담긴 항목이 없어요"
-            body="사이트를 하나 더 붙이면 같은 표에 같은 형식으로 담깁니다."
-          />
+          siteList.map((site, index) => {
+            const row = ROW_LABEL[site.status]
+            const count = hostCounts[site.host]
+            return (
+              <div
+                key={site.id}
+                className={cn(
+                  'flex items-center gap-3.5 py-3.5',
+                  index < siteList.length - 1 && 'border-b border-divider',
+                )}
+                title={SOURCE_STATUS_COPY[site.status].sentence}
+              >
+                {site.status === 'needs_attention' ? (
+                  <span aria-hidden className="size-[9px] rounded-full border-2 border-border-strong" />
+                ) : (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-[9px] rounded-full bg-accent',
+                      site.status === 'healing' && 'animate-pulse opacity-50',
+                      site.status === 'paused' && 'bg-border-strong',
+                    )}
+                  />
+                )}
+                <span className="flex-1 font-mono text-[13px] font-medium text-ink">{site.host}</span>
+                <span className="font-mono text-[12px] text-faint">
+                  {site.status === 'needs_attention' ? '—' : numberFormat.format(count ?? 0)}
+                </span>
+                <span className={cn('w-[70px] text-right text-[12.5px] font-semibold', row.className)}>
+                  {row.label}
+                </span>
+              </div>
+            )
+          })
+        )}
+      </section>
+
+      {/* 아픈 사이트는 배너로 — 빨간 에러가 아니라 사람 문장 (보장선 B4) */}
+      {troubled.map((site) => {
+        const copy = SOURCE_STATUS_COPY[site.status]
+        return (
+          <div
+            key={site.id}
+            className={cn(
+              'flex items-center gap-3 rounded-xl border px-5 py-3.5 text-[13.5px]',
+              site.status === 'healing'
+                ? 'border-healing-line bg-healing-soft text-healing-deep'
+                : 'border-attention/30 bg-attention-soft text-attention',
+            )}
+          >
+            <Dot
+              className={cn(
+                'shrink-0',
+                site.status === 'healing' ? 'animate-pulse bg-healing' : 'bg-attention',
+              )}
+            />
+            <span>
+              <b className="font-mono font-semibold">{site.host}</b> — {copy.sentence}
+            </span>
+          </div>
         )
-      ) : (
-        <CollectionTable
-          fields={collection.schema_json}
-          items={items}
-          hosts={siteList.map((site) => site.host)}
-          storageKey={collection.slug}
-        />
-      )}
-    </div>
+      })}
+    </HeroBand>
   )
 }

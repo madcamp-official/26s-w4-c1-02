@@ -5,9 +5,16 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
+import { VisibilitySchema } from '@endpointer/core'
+
 import { currentUser, isAuthReady } from '@/auth'
 import type { ManageState } from '@/components/collection-manage'
-import { deleteCollection, getCollectionBySlug, renameCollection } from '@/lib/collections'
+import {
+  deleteCollection,
+  getCollectionBySlug,
+  renameCollection,
+  updateCollectionVisibility,
+} from '@/lib/collections'
 
 /** 주인 확인. 로그인 설정 전(데모)에는 통과시킨다 */
 async function ownedCollection(
@@ -45,6 +52,24 @@ export async function renameCollectionAction(
   revalidatePath(`/collections/${slug}`, 'layout')
   revalidatePath('/collections')
   return { status: 'done', message: '이름을 바꿨어요.' }
+}
+
+export async function updateVisibilityAction(
+  slug: string,
+  _prev: ManageState,
+  formData: FormData,
+): Promise<ManageState> {
+  const parsed = VisibilitySchema.safeParse(formData.get('visibility'))
+  if (!parsed.success) return { status: 'problem', message: '고를 수 없는 값이에요.' }
+
+  const owned = await ownedCollection(slug)
+  if (!owned.ok) return { status: 'problem', message: owned.message }
+
+  const result = await updateCollectionVisibility(owned.id, parsed.data)
+  if (!result.ok) return { status: 'problem', message: result.message }
+
+  revalidatePath(`/collections/${slug}`, 'layout')
+  return { status: 'done', message: '공개범위를 바꿨어요.' }
 }
 
 export async function deleteCollectionAction(slug: string, _formData: FormData): Promise<void> {

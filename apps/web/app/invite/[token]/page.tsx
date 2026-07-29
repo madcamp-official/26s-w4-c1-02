@@ -13,7 +13,7 @@ interface PageProps {
 
 function Notice({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
   return (
-    <div className="mx-auto mt-16 max-w-md rounded-card border border-border bg-surface p-8 text-center">
+    <div className="mx-auto my-16 w-[calc(100%-40px)] max-w-md rounded-card border border-border bg-surface p-8 text-center">
       <h1 className="mb-2 text-lg font-bold text-ink">{title}</h1>
       <p className="mb-5 text-[13.5px] leading-relaxed text-muted">{body}</p>
       {children}

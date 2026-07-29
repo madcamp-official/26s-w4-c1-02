@@ -18,7 +18,8 @@ export function EmptyState({ title, body }: { title?: string; body?: string }) {
 /** 저장해 둔 내용을 못 읽었을 때. 빨간 에러가 아니라 상태 문구다 (보장선 B4) */
 export function UnavailableState({ message }: { message: string }) {
   return (
-    <section className="rounded-card border border-border bg-raised px-5 py-6">
+    // 밴드 없이 단독으로 그려질 수 있으므로 자기 여백을 갖는다 (main 은 패딩이 없다)
+    <section className="m-5 rounded-card border border-border bg-raised px-5 py-6 md:mx-10 md:my-8">
       <p className="text-sm text-muted">{message}</p>
     </section>
   )

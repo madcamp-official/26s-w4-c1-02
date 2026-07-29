@@ -3,24 +3,11 @@ import { notFound } from 'next/navigation'
 import { CopyButton } from '@/components/copy-button'
 import { DeveloperDetails } from '@/components/developer-details'
 import { UnavailableState } from '@/components/empty-state'
-import { ShareManage, type ShareMemberItem } from '@/components/share-manage'
+import { HeroBand } from '@/components/hero-band'
 import { resolveCollectionAccess } from '@/lib/access'
 import { fetchCollectionPage, getCollectionBySlug } from '@/lib/collections'
 import { COPY } from '@/lib/labels'
-import { getInviteStatus, listMembers } from '@/lib/share'
 import { apiUrlFor, mcpUrlFor } from '@/lib/urls'
-
-import {
-  createInviteLinkAction,
-  disableInviteLinkAction,
-  removeMemberAction,
-} from '../share-actions'
-
-const JOINED_FORMAT = new Intl.DateTimeFormat('ko-KR', {
-  month: 'long',
-  day: 'numeric',
-  timeZone: 'Asia/Seoul',
-})
 
 export const dynamic = 'force-dynamic'
 
@@ -43,21 +30,9 @@ export default async function CollectionConnectPage({ params }: PageProps) {
 
   const collection = found.data
 
-  // 주인·멤버가 아니면 없는 것과 같다 (ADR A40). 함께 보기 관리는 주인만 그린다
+  // 주인·멤버가 아니면 없는 것과 같다 (ADR A40). 함께 보기 관리는 설정 탭으로 옮겨갔다
   const access = await resolveCollectionAccess(collection)
   if (!access.canView) notFound()
-
-  const [invite, memberRows] = access.canManage
-    ? await Promise.all([getInviteStatus(collection.id), listMembers(collection.id)])
-    : [null, null]
-  const members: ShareMemberItem[] =
-    memberRows?.ok === true
-      ? memberRows.data.map((m) => ({
-          id: m.user_id,
-          label: m.label,
-          joinedLabel: JOINED_FORMAT.format(m.joined_at),
-        }))
-      : []
 
   const mcpUrl = mcpUrlFor(collection.slug)
 
@@ -69,6 +44,12 @@ export default async function CollectionConnectPage({ params }: PageProps) {
       : null
 
   return (
+    <HeroBand
+      dense
+      overlap={false}
+      title="연결"
+      sub="같은 표가 나가는 네 출구 — 화면 · 피드 · 주소 · AI"
+    >
     <div className="grid items-start gap-4 lg:grid-cols-2">
       <section className="rounded-card border border-border bg-surface p-7">
         <span className="mb-3 inline-flex rounded-full bg-accent-soft px-3 py-1 text-[11px] font-extrabold tracking-wide text-brand">
@@ -114,21 +95,7 @@ export default async function CollectionConnectPage({ params }: PageProps) {
         fields={collection.schema_json}
         sampleJson={sampleJson}
       />
-
-      {access.canManage && (
-        <ShareManage
-          inviteActive={invite?.ok === true && invite.data.active}
-          inviteCreatedLabel={
-            invite?.ok === true && invite.data.created_at !== null
-              ? JOINED_FORMAT.format(invite.data.created_at)
-              : null
-          }
-          members={members}
-          create={createInviteLinkAction.bind(null, collection.slug)}
-          disable={disableInviteLinkAction.bind(null, collection.slug)}
-          removeMember={removeMemberAction.bind(null, collection.slug)}
-        />
-      )}
     </div>
+    </HeroBand>
   )
 }

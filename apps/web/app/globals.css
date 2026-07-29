@@ -3,7 +3,7 @@
 /*
   색·폰트 토큰. Tailwind v4 는 CSS-first 라 여기가 유일한 디자인 토큰 출처다.
   값은 클로드 디자인 프로젝트(endpointer Prototype)의 팔레트를 그대로 옮긴 것 —
-  따뜻한 크림 배경 + 파란 강조. 디자인이 라이트 단일 톤으로 확정돼 다크 변형은 두지 않는다
+  화이트 바닥 + 인디고 강조 (콘솔에서 크림 톤은 폐기). 디자인이 라이트 단일 톤으로 확정돼 다크 변형은 두지 않는다
   (두 벌이 되면 한쪽이 조용히 썩는다는 이유는 그대로다).
 */
 @theme {
@@ -22,8 +22,9 @@
   /* ── 아래 색은 Endpointer 디자인 시스템 tokens/colors.css 를 그대로 옮긴 것 (OKLCH) ──
      크림 종이 배경 + 흰 카드 + 근중립 잉크 그레이 + 인디고 강조 + 그린 성공. */
 
-  /* 면 */
-  --color-canvas: oklch(0.965 0.013 95); /* cream-50 — 채도 낮은 크림 종이 */
+  /* 면 — 콘솔은 화이트가 바닥이다 (크림은 랜딩 전용 토큰으로만 남고 화면에서는 폐기).
+     canvas 는 "가라앉은 면"(thead·코드칩) 으로 의미가 바뀌었다 = 원본 --surface-sunken(ink-100) */
+  --color-canvas: oklch(0.945 0.004 277); /* ink-100 — surface-sunken */
   --color-surface: oklch(1 0 0); /* ink-0 — 순백 카드 */
   --color-raised: oklch(0.975 0.003 277); /* ink-50 — 입력칸 등 살짝 가라앉은 면 */
   --color-border: oklch(0.89 0.005 277); /* ink-200 */
@@ -65,7 +66,8 @@
   }
 
   body {
-    background-color: var(--color-canvas);
+    /* 원본 콘솔 index.html — 루트·main 모두 #fff. 크림은 화면에서 폐기됐다 */
+    background-color: var(--color-surface);
     color: var(--color-ink);
     font-family: var(--font-sans);
     /* 원본 tracking-body — 한글이 살짝 촘촘하게 붙는다 */

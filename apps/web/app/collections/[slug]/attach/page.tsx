@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 
 import { AttachFlow } from '@/components/attach-flow'
+import { HeroBand } from '@/components/hero-band'
 import { UnavailableState } from '@/components/empty-state'
 import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
@@ -28,17 +29,15 @@ export default async function AttachSourcePage({ params, searchParams }: PagePro
   if (!access.canManage) notFound()
 
   return (
-    <div className="mx-auto w-full max-w-[880px]">
-      <h2 className="mb-1 text-lg font-bold text-ink">사이트 붙이기</h2>
-      <p className="mb-5 text-sm text-faint">
-        이미 만든 표에 새 사이트를 붙여요. 기존 열은 자동으로 찾아보고, 못 찾은 것만 여쭤볼게요.
-      </p>
-      <AttachFlow
-        initialUrl={url ?? ''}
-        preview={previewAttachAction.bind(null, found.data.slug)}
-        save={saveAttachAction.bind(null, found.data.slug)}
-        suggest={suggestAttachSourcesAction.bind(null, found.data.slug)}
-      />
-    </div>
+    <HeroBand dense title="사이트 붙이기" sub={`${found.data.name}에 새 소스를 합쳐요`}>
+      <div className="w-full max-w-[880px]">
+        <AttachFlow
+          initialUrl={url ?? ''}
+          preview={previewAttachAction.bind(null, found.data.slug)}
+          save={saveAttachAction.bind(null, found.data.slug)}
+          suggest={suggestAttachSourcesAction.bind(null, found.data.slug)}
+        />
+      </div>
+    </HeroBand>
   )
 }

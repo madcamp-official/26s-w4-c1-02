@@ -54,7 +54,7 @@ export async function createViewAction(
 
   revalidatePath(`/collections/${slug}`, 'layout')
   // 저장한 조건이 바로 적용된 표로 돌아간다 — 결과를 보면서 정의한다 (델타 2-10)
-  redirect(`/collections/${slug}?view=${result.data.slug}`)
+  redirect(`/collections/${slug}/table?view=${result.data.slug}`)
 }
 
 export async function deleteViewAction(slug: string, formData: FormData): Promise<void> {

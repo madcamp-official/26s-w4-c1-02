@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#f4edda',
+  themeColor: '#ffffff',
 }
 
 /**
@@ -60,11 +60,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap"
         />
       </head>
-      <body className="min-h-dvh">
-        <div className="flex min-h-dvh">
+      {/* 원본 콘솔 셸 — 사이드바 + 스크롤 main, 바닥은 흰색. 밴드가 main 전폭을 가로지른다 */}
+      <body className="h-dvh overflow-hidden">
+        <div className="flex h-dvh">
           <AppSidebar authSlot={authSlot} />
 
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
             {/* 모바일 상단바 — 사이드바가 숨는 좁은 화면용 (컬렉션 섹션 nav 는 가로 탭이 담당) */}
             <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-divider bg-surface px-5 py-3 md:hidden">
               <Link
@@ -76,10 +77,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               <div className="ml-auto">{authSlot}</div>
             </header>
 
-            <main className="mx-auto w-full max-w-[1180px] flex-1 px-6 py-8 md:px-10">
-              {children}
-            </main>
-            <footer className="mx-auto w-full max-w-[1180px] px-6 pt-4 pb-10 text-xs text-faint md:px-10">
+            {/* 패딩 없음 — 밴드(HeroBand)가 자기 패딩을 갖고 전폭으로 깔린다 */}
+            <main className="flex-1">{children}</main>
+            <footer className="px-6 pt-4 pb-10 text-xs text-faint md:px-10">
               한 번 만들어 두면 표로도, 주소로도, 쓰시는 AI 에서도 같은 내용을 볼 수 있어요.
             </footer>
           </div>

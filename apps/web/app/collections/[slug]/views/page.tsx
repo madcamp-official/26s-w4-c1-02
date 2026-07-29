@@ -1,0 +1,211 @@
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+
+import { SubscribeForm, type SubscriptionView } from '@/components/subscribe-form'
+import { UnavailableState } from '@/components/empty-state'
+import { HeroBand } from '@/components/hero-band'
+import { Badge, Dot } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { resolveCollectionAccess } from '@/lib/access'
+import { getCollectionBySlug } from '@/lib/collections'
+import { COPY, lastSentCopy } from '@/lib/labels'
+import { listWebhookSubscriptions, type SubscriptionRecord } from '@/lib/subscriptions'
+import { fetchViewPage, healthCopy, listViews, summarizeConditions } from '@/lib/views'
+
+import { stopSubscriptionAction, subscribeWebhookAction } from '../subscribe/actions'
+import { deleteViewAction, setViewNotifyAction, toggleViewPinAction } from '../view-actions'
+
+export const dynamic = 'force-dynamic'
+
+interface PageProps {
+  params: Promise<{ slug: string }>
+}
+
+const SENT_AT_FORMAT = new Intl.DateTimeFormat('ko-KR', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Seoul',
+})
+
+// 뒤에서 도는 것 (원본 ViewsAlarms) — 화면에는 결과만 보인다는 약속을 문장으로
+const BACKGROUND_JOBS = [
+  '정기 수집 · 하루 1회',
+  '스스로 고치기',
+  '뷰 평가 · 매일 KST 자정',
+  '조용한 사이트 감지',
+  '알림 발송(웹훅)',
+] as const
+
+function toChannelView(subscription: SubscriptionRecord): SubscriptionView {
+  return {
+    id: subscription.id,
+    target: subscription.target,
+    sentCopy:
+      subscription.last_sent_at === null
+        ? COPY.subscribeNeverSent
+        : lastSentCopy(SENT_AT_FORMAT.format(subscription.last_sent_at)),
+  }
+}
+
+/**
+ * 뷰 · 알림 (델타 3절 — 옛 작업실에서 분리).
+ * 저장된 조건이 곧 뷰 — 화면 · API · MCP · 알림 네 곳이 같은 뷰를 본다.
+ */
+export default async function CollectionViewsPage({ params }: PageProps) {
+  const { slug } = await params
+
+  const found = await getCollectionBySlug(slug)
+  if (!found.ok) return <UnavailableState message={found.message} />
+  if (found.data === null) notFound()
+
+  const collection = found.data
+
+  // 뷰 관리는 관리 표면이다 — 읽기 전용 멤버에게는 없는 것과 같다 (ADR A40)
+  const access = await resolveCollectionAccess(collection)
+  if (!access.canManage) notFound()
+
+  const basePath = `/collections/${collection.slug}`
+  const tablePath = `${basePath}/table`
+
+  const [viewsResult, subscriptions] = await Promise.all([
+    listViews(collection),
+    listWebhookSubscriptions(collection.id),
+  ])
+  const views = viewsResult.ok ? viewsResult.data : []
+  const channels = subscriptions.ok ? subscriptions.data : []
+
+  // 뷰별 현재 건수 — 표와 같은 문(viewToQuery)으로 센다. 50개 넘으면 "50+"
+  const cards = await Promise.all(
+    views.map(async (view) => {
+      const page = view.health === 'broken' ? null : await fetchViewPage(collection, view, 50)
+      const count = page !== null && page.ok ? page.data.items.length : null
+      const more = page !== null && page.ok && page.data.page.next_cursor !== null
+      return { view, countLabel: count === null ? '—' : `${count}${more ? '+' : ''}건` }
+    }),
+  )
+
+  return (
+    <HeroBand
+      dense
+      overlap={false}
+      title="뷰 · 알림"
+      sub="저장된 조건이 곧 뷰 — 화면·API·AI·알림이 같은 뷰를 봐요"
+    >
+      {cards.length === 0 ? (
+        <p className="rounded-card border border-dashed border-border-strong bg-raised px-5 py-5 text-sm text-muted">
+          아직 저장한 조건이 없어요.{' '}
+          <Link href={tablePath} className="font-semibold text-accent">
+            표에서 조건을 걸고
+          </Link>{' '}
+          ‘이 조건 저장’을 누르면 여기에 쌓입니다.
+        </p>
+      ) : (
+        <div className="grid items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+          {cards.map(({ view, countLabel }) => {
+            const health = healthCopy(view.health)
+            const summary = summarizeConditions(view.where, collection.schema_json)
+            return (
+              <article
+                key={view.id}
+                className="flex flex-col gap-2.5 rounded-card border border-divider bg-surface p-4 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`${tablePath}?view=${view.slug}`}
+                    className="text-[14px] font-semibold text-ink hover:text-accent hover:no-underline"
+                  >
+                    {view.pinned && <span aria-hidden>★ </span>}
+                    {view.name}
+                  </Link>
+                  <span className="text-[13px] font-semibold text-accent">{countLabel}</span>
+                  <Badge tone={health.tone} className="ml-auto">
+                    <Dot />
+                    {health.text}
+                  </Badge>
+                </div>
+
+                {/* 조건 요약 — 원본은 술어 문자열을 가라앉은 mono 박스에 담는다 */}
+                <p className="rounded-md bg-canvas px-2.5 py-1.5 font-mono text-[11.5px] text-muted">
+                  {summary === '' ? '조건 없음 (전체)' : summary}
+                </p>
+
+                <p className="text-xs text-faint">
+                  표 · 주소(API) · AI(MCP)
+                  {view.notify !== null
+                    ? ` · 알림 켜짐 (채널 ${view.notify.channels.length}개)`
+                    : ' · 알림 꺼짐'}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-divider pt-2.5">
+                  {/* 알림 — 채널(받을 주소)을 골라 켠다. 실체는 아래 '받아보기 채널'의 행이다 */}
+                  <form
+                    action={setViewNotifyAction.bind(null, collection.slug)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <input type="hidden" name="view_id" value={view.id} />
+                    <select
+                      name="channel"
+                      defaultValue={view.notify?.channels[0] ?? ''}
+                      className="h-8 max-w-[180px] rounded-lg border border-border bg-surface px-2 text-xs text-ink"
+                    >
+                      <option value="">알림 끄기</option>
+                      {channels.map((channel) => (
+                        <option key={channel.id} value={channel.id}>
+                          {channel.target.slice(0, 28)}…
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="submit" size="sm" variant="outline">
+                      적용
+                    </Button>
+                  </form>
+
+                  <form action={toggleViewPinAction.bind(null, collection.slug)} className="ml-auto">
+                    <input type="hidden" name="view_id" value={view.id} />
+                    <input type="hidden" name="pinned" value={view.pinned ? 'false' : 'true'} />
+                    <Button type="submit" size="sm" variant="ghost">
+                      {view.pinned ? '고정 풀기' : '고정'}
+                    </Button>
+                  </form>
+                  <form action={deleteViewAction.bind(null, collection.slug)}>
+                    <input type="hidden" name="view_id" value={view.id} />
+                    <Button type="submit" size="sm" variant="ghost" className="text-attention">
+                      지우기
+                    </Button>
+                  </form>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+
+      {/* 받아보기 채널 (계약 §4-b: 채널의 실체) */}
+      <section className="max-w-[640px]">
+        <SubscribeForm
+          subscribe={subscribeWebhookAction.bind(null, collection.slug)}
+          stop={stopSubscriptionAction.bind(null, collection.slug)}
+          subscriptions={channels.map(toChannelView)}
+        />
+      </section>
+
+      {/* 뒤에서 도는 것 (원본 ViewsAlarms) — 관찰만 말한다 (델타 4-4) */}
+      <section className="rounded-card border border-divider bg-surface p-4 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
+        <h2 className="mb-3 text-[15px] font-semibold text-ink">뒤에서 도는 것</h2>
+        <div className="flex flex-wrap gap-1.5">
+          {BACKGROUND_JOBS.map((job) => (
+            <span
+              key={job}
+              className="rounded-full border border-border bg-raised px-3 py-1 text-[12px] font-medium text-muted"
+            >
+              {job}
+            </span>
+          ))}
+        </div>
+        <p className="mt-2.5 text-[12.5px] text-faint">
+          화면에는 결과만 보여요 — “자동 복구 2회”, “3주째 조용함” 같은 문장으로.
+        </p>
+      </section>
+    </HeroBand>
+  )
+}

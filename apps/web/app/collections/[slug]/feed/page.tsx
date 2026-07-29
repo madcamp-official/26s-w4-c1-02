@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { FeedList } from '@/components/feed-list'
+import { HeroBand } from '@/components/hero-band'
 import { UnavailableState } from '@/components/empty-state'
 import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
@@ -35,6 +36,12 @@ export default async function CollectionFeedPage({ params }: PageProps) {
   const { fresh, closing, dateField } = feed.data
 
   return (
+    <HeroBand
+      dense
+      overlap={false}
+      title="읽기 피드"
+      sub="훑기만 해도 되게 — 마감 임박과 새 항목만 추려요"
+    >
     <div className="flex flex-col gap-7">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-accent bg-accent px-4 py-2 text-[13.5px] font-bold text-accent-ink">
@@ -46,7 +53,7 @@ export default async function CollectionFeedPage({ params }: PageProps) {
           </span>
         )}
         <Link
-          href={`/collections/${collection.slug}/workshop`}
+          href={`/collections/${collection.slug}/views`}
           className="ml-auto rounded-[9px] border-[1.5px] border-accent px-4 py-2 text-[13.5px] font-bold text-accent hover:bg-accent-soft hover:no-underline"
         >
           새 항목 받아보기 →
@@ -78,5 +85,6 @@ export default async function CollectionFeedPage({ params }: PageProps) {
         )}
       </section>
     </div>
+    </HeroBand>
   )
 }
