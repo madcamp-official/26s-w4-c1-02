@@ -110,6 +110,37 @@ describe('validateSpec — 기획서 11장 예시는 통과한다', () => {
   it('서브도메인은 같은 사이트로 본다 (www.k-startup.go.kr ↔ k-startup.go.kr)', () => {
     expect(validateSpec(kstartupSpec(), { host: 'www.k-startup.go.kr' }).ok).toBe(true)
   })
+
+  // 날짜 파라미터 API (상영시간표 등) — POST + body + {today} 자리표시자
+  it('JSON 모드 · POST + body ({today} 자리표시자)', () => {
+    const megaboxSpec = {
+      spec_version: 1,
+      fetch: {
+        mode: 'json',
+        url: 'https://www.megabox.co.kr/on/oh/ohb/PlayTime/selectPlayTimeMasterList.do',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json;charset=UTF-8' },
+        body: '{"playDe":"{today_iso}"}',
+      },
+      list: '$.movieList[*]',
+      fields: { title: { path: '$.movieNm', type: 'text' } },
+      pagination: { kind: 'none' },
+    }
+    const result = validateSpec(megaboxSpec, { host: 'www.megabox.co.kr' })
+    expect(result.ok).toBe(true)
+    if (result.ok && result.spec.fetch.mode === 'json') {
+      expect(result.spec.fetch.method).toBe('POST')
+      expect(result.spec.fetch.body).toBe('{"playDe":"{today_iso}"}')
+    }
+  })
+
+  it('body 는 선택이다 — 없는 기존 JSON 스펙도 그대로 통과한다 (회귀)', () => {
+    const result = validateSpec(kstartupSpec(), { host: HOST })
+    expect(result.ok).toBe(true)
+    if (result.ok && result.spec.fetch.mode === 'json') {
+      expect(result.spec.fetch.body).toBeUndefined()
+    }
+  })
 })
 
 // ── 호스트 · SSRF ──────────────────────────────────────────────────────
