@@ -27,21 +27,25 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await currentUser()
 
-  // 로그인/로그아웃 영역은 서버 컴포넌트라 사이드바(클라이언트)에 노드로 주입한다
+  // 로그인/로그아웃 영역은 서버 컴포넌트라 사이드바(클라이언트)에 노드로 주입한다.
+  // 한 줄 배치: [사진][이름] ── [로그아웃] — 이름은 남는 폭을 차지하고 버튼은 오른쪽에 붙는다
   const authSlot: ReactNode = user ? (
     <div className="flex items-center gap-2.5">
-      <span
-        aria-hidden
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-semibold text-accent-ink"
-      >
-        {(user.name ?? '나').slice(0, 1)}
+      {user.image !== null ? (
+        // eslint-disable-next-line @next/next/no-img-element -- 아바타 하나에 next/image 설정(원격 도메인 허용)을 열 이유가 없다
+        <img src={user.image} alt="" className="size-8 shrink-0 rounded-full" />
+      ) : (
+        <span
+          aria-hidden
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-[13px] font-semibold text-accent-ink"
+        >
+          {(user.name ?? '나').slice(0, 1)}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
+        {user.name ?? '내 계정'}
       </span>
-      <div className="-ml-0.5 flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[12.5px] font-medium text-ink">{user.name ?? '내 계정'}</span>
-        <div className="-ml-2 -mt-0.5">
-          <SignOutForm />
-        </div>
-      </div>
+      <SignOutForm />
     </div>
   ) : isAuthReady ? (
     <SignInForm />
