@@ -7,11 +7,22 @@ import type { JsonFetchSpec } from '@endpointer/core/spec'
 import { httpGet } from './http'
 import type { PageFetchOutcome } from './types'
 
-export async function fetchJsonPayload(fetchSpec: JsonFetchSpec, url: string): Promise<PageFetchOutcome> {
+export async function fetchJsonPayload(
+  fetchSpec: JsonFetchSpec,
+  url: string,
+  /** {today} 가 이미 치환된 본문. POST 일 때만 의미가 있다 (index.ts 가 넣어 준다) */
+  body?: string,
+): Promise<PageFetchOutcome> {
+  const headers = { ...(fetchSpec.headers ?? {}) }
+  // POST 본문이 JSON 인데 Content-Type 이 없으면 서버가 파싱을 못 한다 — 기본값을 채운다
+  if (body !== undefined && headers['Content-Type'] === undefined && headers['content-type'] === undefined) {
+    headers['Content-Type'] = 'application/json;charset=UTF-8'
+  }
   const opts = {
     accept: fetchSpec.headers?.['Accept'] ?? 'application/json, text/plain, */*',
-    headers: fetchSpec.headers ?? {},
+    headers,
     method: fetchSpec.method,
+    ...(body !== undefined ? { body } : {}),
   } as const
 
   const res = await httpGet(url, opts)

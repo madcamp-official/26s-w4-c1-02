@@ -386,7 +386,10 @@ function fetchSchemas(): GeminiSchema[] {
 
   const json: Record<string, GeminiSchema> = {
     mode: { type: 'STRING', enum: ['json'], description: '내부 JSON 엔드포인트를 찾은 경우' },
-    url: S('요청할 주소. 페이지를 넘겨야 하면 {page} 자리표시자를 넣는다'),
+    url: S(
+      '요청할 주소. 페이지를 넘겨야 하면 {page} 자리표시자를 넣는다. ' +
+        '오늘 날짜가 필요하면 {today}(YYYYMMDD) 또는 {today_iso}(YYYY-MM-DD) 를 쓴다 — 매 수집 순간의 날짜로 바뀐다. 절대 날짜를 박지 마라',
+    ),
     method: { type: 'STRING', enum: ['GET', 'POST'], description: 'HTTP 메서드' },
     headers: {
       type: 'OBJECT',
@@ -394,6 +397,10 @@ function fetchSchemas(): GeminiSchema[] {
       properties: headerProps,
       propertyOrdering: Object.keys(headerProps),
     },
+    body: S(
+      'POST 요청 본문 (JSON 문자열). method 가 POST 이고 날짜·조건을 body 로 받는 API 일 때만. ' +
+        'url 과 같은 {today}·{today_iso} 자리표시자를 쓸 수 있다. 예: {"playDe":"{today}"}',
+    ),
   }
   const html: Record<string, GeminiSchema> = {
     mode: { type: 'STRING', enum: ['html'], description: 'HTML 을 그대로 받아 파싱하는 경우' },

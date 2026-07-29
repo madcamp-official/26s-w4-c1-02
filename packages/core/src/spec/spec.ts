@@ -62,10 +62,20 @@ const HttpUrlSchema = z
 /** 내부 JSON 엔드포인트를 찾은 경우 (원칙 ③ — 가장 안정적인 경로) */
 export const JsonFetchSpecSchema = z.strictObject({
   mode: z.literal('json'),
-  /** `{page}` 자리표시자를 쓸 수 있다 */
+  /**
+   * `{page}` 자리표시자로 페이지를 넘긴다.
+   * `{today}`(YYYYMMDD) · `{today_iso}`(YYYY-MM-DD) 는 매 수집 순간의 오늘 날짜(KST)로 바뀐다 —
+   * 상영시간표·예약 현황처럼 날짜가 파라미터로 들어가는 API 를 매일 갱신되게 한다.
+   * 절대 날짜를 박으면 그 하루만 보고 다음날 죽으므로, 오늘 날짜가 필요하면 반드시 이 자리표시자를 쓴다.
+   */
   url: HttpUrlSchema,
   method: z.enum(['GET', 'POST']).default('GET'),
   headers: z.record(z.string(), z.string()).default({}),
+  /**
+   * POST 요청 본문 (JSON 문자열). method 가 POST 일 때만 의미가 있다.
+   * url 과 같은 자리표시자(`{today}`·`{today_iso}`)를 쓸 수 있다 — 예: `{"playDe":"{today}"}`.
+   */
+  body: z.string().optional(),
 })
 
 /** HTML 폴백 */

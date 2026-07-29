@@ -31,6 +31,8 @@ export type CandidateSource =
       /** 브라우저가 실제로 부른 URL. 이게 곧 fetch.url 후보다 (원칙 ③) */
       url: string
       method: string
+      /** POST 요청이었으면 그 본문. 날짜 파라미터를 {today} 로 바꾸는 근거가 된다 (없으면 undefined) */
+      post_body?: string
       json_path: string
     }
   | {

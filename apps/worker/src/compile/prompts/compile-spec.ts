@@ -26,6 +26,10 @@ export interface CompileCandidateBrief {
   list_path: string
   fetch_mode: FetchMode
   fetch_url: string
+  /** 이 후보를 목격했을 때의 HTTP 메서드 (network 후보면 실제 관찰값) */
+  method?: string
+  /** POST 였으면 그 요청 본문 — 날짜 파라미터를 {today} 로 바꾸는 근거 */
+  post_body?: string
   keys: string[]
   /** 항목 표본 몇 개 */
   sample: unknown[]

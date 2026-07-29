@@ -39,6 +39,15 @@ export interface DiscoverPromptInput {
   previousErrors?: string[]
 }
 
+/** 프롬프트에 "오늘 날짜로 보이는 값"의 예시를 준다 — LLM 이 본문에서 뭘 {today} 로 바꿀지 짚게 */
+function todayHint(): string {
+  const kst = new Date(Date.now() + 9 * 3_600_000)
+  const y = kst.getUTCFullYear()
+  const m = String(kst.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(kst.getUTCDate()).padStart(2, '0')
+  return `${y}${m}${d} 또는 ${y}-${m}-${d}`
+}
+
 const FETCH_MODE_HINT: Record<FetchMode, string> = {
   json: 'json — 아래 주소가 JSON 을 그대로 돌려준다. 모든 경로를 JSONPath 로 적는다.',
   html: 'html — 페이지 HTML 을 받아 파싱한다. 모든 경로를 css: 로 적는다.',
@@ -86,6 +95,16 @@ export function buildDiscoverPrompt(input: DiscoverPromptInput): string {
     `- 호스트: ${input.host} (fetch.url 은 반드시 이 호스트여야 한다)`,
     `- 받아오는 방식: ${FETCH_MODE_HINT[candidate.fetch_mode]}`,
     `- 받아올 주소 후보: ${candidate.fetch_url}`,
+    ...(candidate.method !== undefined && candidate.method !== 'GET'
+      ? [`- 이 주소는 ${candidate.method} 로 불렸다. fetch.method 를 ${candidate.method} 로 둔다`]
+      : []),
+    ...(candidate.post_body !== undefined
+      ? [
+          `- 목격한 요청 본문: ${candidate.post_body}`,
+          '  이 본문을 fetch.body 로 그대로 쓰되, **오늘 날짜로 보이는 값(예: ' +
+            `${todayHint()})은 {today} 또는 {today_iso} 자리표시자로 바꾼다** — 매일 갱신되게. 절대 날짜를 박지 마라.`,
+        ]
+      : []),
     '',
     COLUMN_GUIDANCE,
     '',

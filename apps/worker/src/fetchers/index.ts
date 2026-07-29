@@ -10,6 +10,7 @@
 import type { CollectionSchemaJson, FieldValidation, ValidationReport } from '@endpointer/core'
 import type { AdapterSpec, InterpretedItem } from '@endpointer/core/spec'
 import { evaluateCssPath, evaluateJsonPath, interpretSpec } from '@endpointer/core/spec'
+import { kstToday } from '@endpointer/core/query'
 
 import { getConfig } from '../config'
 import { childLogger } from '../logger'
@@ -29,11 +30,26 @@ export type { PageFetchOutcome } from './types'
 
 const log = childLogger({ mod: 'fetch' })
 
-/** 페이지 하나를 스펙대로 받아온다 */
-export async function fetchPage(spec: AdapterSpec, url: string): Promise<PageFetchOutcome> {
+/**
+ * 날짜 자리표시자를 그 순간의 오늘(KST)로 바꾼다.
+ * `{today}` → YYYYMMDD · `{today_iso}` → YYYY-MM-DD. 상영시간표·예약 API 가 요구하는 날짜 파라미터.
+ * 한 수집(run) 안에서는 같은 `now` 를 써 페이지마다 날짜가 어긋나지 않게 한다.
+ */
+export function applyDatePlaceholders(template: string, now: Date): string {
+  const iso = kstToday(now)
+  const compact = iso.replace(/-/g, '')
+  return template.replaceAll('{today}', compact).replaceAll('{today_iso}', iso)
+}
+
+/** 페이지 하나를 스펙대로 받아온다. url 은 이미 {page}·{today} 가 치환된 상태로 들어온다 */
+export async function fetchPage(spec: AdapterSpec, url: string, now: Date = new Date()): Promise<PageFetchOutcome> {
   switch (spec.fetch.mode) {
-    case 'json':
-      return fetchJsonPayload(spec.fetch, url)
+    case 'json': {
+      // body 의 {today} 는 여기서 푼다 (url 은 호출부가 이미 풀어서 넘긴다)
+      const body =
+        spec.fetch.body === undefined ? undefined : applyDatePlaceholders(spec.fetch.body, now)
+      return fetchJsonPayload(spec.fetch, url, body)
+    }
     case 'html':
       return fetchHtmlPayload(spec.fetch, url)
     case 'browser': {
@@ -86,7 +102,8 @@ export async function runAdapter(input: RunAdapterInput): Promise<RunAdapterResu
   let failure: string | null = null
 
   for (let page = 0; page < maxPages && url !== null; page += 1) {
-    const outcome = await fetchPage(spec, url)
+    // {page} 는 firstUrl/nextUrl 이 이미 풀었다. {today} 는 여기서 이 run 의 now 로 푼다
+    const outcome = await fetchPage(spec, applyDatePlaceholders(url, now), now)
     if (!outcome.ok) {
       if (page === 0) failure = outcome.message
       else warnings.push(`${page + 1}번째 페이지는 받아오지 못했습니다`)

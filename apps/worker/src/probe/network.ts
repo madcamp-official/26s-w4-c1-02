@@ -67,7 +67,7 @@ export async function probeNetwork(input: NetworkProbeInput): Promise<NetworkPro
     return { ...EMPTY, note: '브라우저를 띄우지 못했습니다 (playwright install chromium 필요)' }
   }
 
-  const seen: { url: string; method: string; body: unknown }[] = []
+  const seen: { url: string; method: string; postData: string | null; body: unknown }[] = []
   let jsonResponses = 0
   let renderedHtml: string | null = null
   let renderedText: string | null = null
@@ -96,7 +96,8 @@ export async function probeNetwork(input: NetworkProbeInput): Promise<NetworkPro
         jsonResponses += 1
         try {
           const body: unknown = await res.json()
-          seen.push({ url: res.url(), method: res.request().method(), body })
+          const req = res.request()
+          seen.push({ url: res.url(), method: req.method(), postData: req.postData(), body })
         } catch {
           // 본문을 못 읽는 응답(리다이렉트·204 등)은 그냥 넘어간다
         }
@@ -126,7 +127,13 @@ export async function probeNetwork(input: NetworkProbeInput): Promise<NetworkPro
       candidates.push({
         id: `network:${res.url}${arr.path}`,
         origin: 'network',
-        source: { kind: 'network', url: res.url, method: res.method, json_path: arr.path },
+        source: {
+          kind: 'network',
+          url: res.url,
+          method: res.method,
+          ...(res.postData !== null && res.postData !== '' ? { post_body: res.postData } : {}),
+          json_path: arr.path,
+        },
         list_path: arr.list_path,
         // **여기가 원칙 ③의 결실이다** — 내부 API 를 목격했으므로 json 모드로 간다
         fetch_mode: 'json',
