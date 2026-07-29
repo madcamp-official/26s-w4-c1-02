@@ -99,7 +99,7 @@ export async function updateListedAction(
 
   revalidatePath(`/collections/${slug}/settings`)
   revalidatePath('/gallery')
-  return { status: 'done', message: listed ? '창작마당에 올렸어요.' : '창작마당에서 내렸어요.' }
+  return { status: 'done', message: listed ? '모두의 컬렉션에 올렸어요.' : '모두의 컬렉션에서 내렸어요.' }
 }
 
 export async function deleteCollectionAction(slug: string, _formData: FormData): Promise<void> {

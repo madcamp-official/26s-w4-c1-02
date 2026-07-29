@@ -5,7 +5,7 @@
 //   POST /internal/collections   같은 것 + DB 에 앉히기
 //   POST /internal/attach        두 번째 주소 → 기존 표에 맞춰본 결과 (저장하지 않는다)
 //   POST /internal/sources       같은 것 + 소스로 앉히기
-//   POST /internal/clone         공개 컬렉션 하나 → 내 것으로 복제 (창작마당 · 델타 §8)
+//   POST /internal/clone         공개 컬렉션 하나 → 내 것으로 복제 (모두의 컬렉션 · 델타 §8)
 //
 // ── 왜 큐가 아니라 HTTP 인가 ────────────────────────────────────────────
 // 미리보기는 본질적으로 요청-응답이다. 사용자는 표를 **보고 나서** 저장한다 (보장선 B3).
@@ -199,7 +199,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return
   }
 
-  // 복제는 주소가 아니라 원본 slug 를 받는다 (창작마당 · 델타 §8) — url 검사 앞에 둔다
+  // 복제는 주소가 아니라 원본 slug 를 받는다 (모두의 컬렉션 · 델타 §8) — url 검사 앞에 둔다
   if (path === '/internal/clone') {
     await clone(res, body)
     return
@@ -252,7 +252,7 @@ async function suggest(res: ServerResponse, body: Record<string, unknown>): Prom
   send(res, 200, { ok: true, candidates: outcome.candidates } satisfies SuggestResponse)
 }
 
-/** `POST /internal/clone` 의 성공 응답 (창작마당 · 델타 §8). `apps/web` 의 복제 흐름이 받는다 */
+/** `POST /internal/clone` 의 성공 응답 (모두의 컬렉션 · 델타 §8). `apps/web` 의 복제 흐름이 받는다 */
 export interface CloneResponse {
   ok: true
   /** 복제본 slug — 화면은 여기로 이동한다 */

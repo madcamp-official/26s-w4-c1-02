@@ -1,6 +1,6 @@
 'use server'
 
-// 창작마당 서버 액션 — 복제. 로그인한 사람이 공개 컬렉션을 자기 것으로 가져온다 (델타 §8).
+// 모두의 컬렉션 서버 액션 — 복제. 로그인한 사람이 공개 컬렉션을 자기 것으로 가져온다 (델타 §8).
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -38,7 +38,7 @@ export async function cloneCollectionAction(
   const result = await cloneViaWorker({ sourceSlug, ownerId: owner.id })
   if (!result.ok) return { status: 'problem', message: result.message }
 
-  // 복제본은 내 목록에 새로 생겼다 — 목록과 창작마당(복제수) 둘 다 새로 그린다
+  // 복제본은 내 목록에 새로 생겼다 — 목록과 모두의 컬렉션(복제수) 둘 다 새로 그린다
   revalidatePath('/collections')
   revalidatePath('/gallery')
   redirect(`/collections/${result.data.slug}`)

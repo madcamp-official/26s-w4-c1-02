@@ -75,7 +75,7 @@ export default async function GalleryPage() {
 
   return (
     <HeroBand
-      title={<h1 className="text-[26px] font-bold tracking-[-0.03em] text-white">창작마당</h1>}
+      title={<h1 className="text-[26px] font-bold tracking-[-0.03em] text-white">모두의 컬렉션</h1>}
       sub="다른 사람이 만든 표를 복제해 내 것으로 — 여기에 내가 아는 사이트를 더하면 나만의 카테고리가 됩니다"
     >
       {!result.ok ? (
@@ -83,10 +83,10 @@ export default async function GalleryPage() {
       ) : result.data.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-card border-[1.5px] border-dashed border-border-strong bg-surface px-6 py-16 text-center">
           <Icon name="sparkles" size={24} className="text-muted" />
-          <div className="text-[14px] font-semibold text-muted">아직 전시된 컬렉션이 없어요</div>
+          <div className="text-[14px] font-semibold text-muted">아직 올라온 컬렉션이 없어요</div>
           <p className="max-w-sm text-[13px] text-faint">
             컬렉션 설정에서 <b className="font-semibold text-ink">공개</b>로 바꾼 뒤{' '}
-            <b className="font-semibold text-ink">창작마당에 전시</b>를 켜면 여기에 올라옵니다.
+            <b className="font-semibold text-ink">모두의 컬렉션에 올리기</b>를 켜면 여기에 나타납니다.
           </p>
           <Link
             href="/collections"
