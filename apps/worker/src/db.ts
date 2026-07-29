@@ -87,12 +87,42 @@ export async function recentValidationReports(sourceId: string, limit = 5): Prom
     .filter((v): v is ValidationReport => v !== null && v !== undefined)
 }
 
-/** 치유 승격 관문의 비교 대상 — 이 소스에 이미 들어 있는 아이템 키들 */
+/** 이 소스에 이미 들어 있는 아이템 키들 (누적 · 최신순 200개) */
 export async function existingItemKeys(sourceId: string, limit = 200): Promise<string[]> {
   const rows = await db.query.items.findMany({
     where: (i, { eq }) => eq(i.source_id, sourceId),
     orderBy: (i, { desc }) => [desc(i.last_seen_at)],
     limit,
+  })
+  return rows.map((r) => r.external_key)
+}
+
+/**
+ * 치유 승격 관문의 비교 대상 — **직전 성공 수집에서 실제로 페이지에 보였던** 아이템 키들.
+ *
+ * 누적 전체(existingItemKeys)로 재면 안 된다: overlap.ts 의 겹침률은 분모가 "직전 목록"이라는
+ * 계약인데, 누적으로 재면 목록에서 밀려난 옛 항목이 분모에 쌓여 시간이 갈수록 비율이 내려가고
+ * (실측: bizinfo 0.50 까지 하강), 결국 **정상 스펙이 wrong_list 로 영구 거부**된다 — 자가 치유가
+ * 오래된 소스일수록 안 되는, 기능 ④의 조용한 죽음이다.
+ *
+ * "직전 목록" = 마지막 성공 수집(run)이 시작된 뒤로 last_seen_at 이 갱신된 항목들.
+ * 수집은 페이지에 지금 보이는 항목만 last_seen_at 을 갱신하므로 이 집합이 곧 그때의 페이지다.
+ * 성공 수집이 없으면 빈 목록 — passesHealGate 가 관문을 건너뛴다 (없는 근거로 막지 않는다).
+ *
+ * `finished_at` 이 있는 run 만 센다. startRun 이 낙관적으로 status='ok' 를 먼저 쓰므로,
+ * 안 거르면 **지금 진행 중인 치유 run 자신**이 "직전 성공"으로 잡혀 빈 목록이 나오고
+ * 관문이 통째로 건너뛰어진다 — wrong_list 방어가 사라지는 조용한 무력화다.
+ */
+export async function lastSeenItemKeys(sourceId: string): Promise<string[]> {
+  const lastOk = await db.query.runs.findFirst({
+    where: (r, { and, eq, inArray, isNotNull }) =>
+      and(eq(r.source_id, sourceId), inArray(r.status, ['ok', 'healed']), isNotNull(r.finished_at)),
+    orderBy: (r, { desc }) => [desc(r.started_at)],
+  })
+  if (lastOk === undefined) return []
+  const rows = await db.query.items.findMany({
+    where: (i, { and, eq, gte }) =>
+      and(eq(i.source_id, sourceId), gte(i.last_seen_at, lastOk.started_at)),
   })
   return rows.map((r) => r.external_key)
 }
@@ -353,11 +383,15 @@ export async function closeAbandonedRuns(olderThanMinutes = 30): Promise<number>
 }
 
 export async function healAttemptsToday(sourceId: string): Promise<number> {
+  // 경계는 "KST 자정" 이어야 한다. `date_trunc(…, now() at time zone 'Asia/Seoul')` 만 쓰면
+  // naive 값이 나와 세션 시간대(UTC)로 다시 읽히고 — 경계가 KST 09시가 된다.
+  // 그러면 KST 00~09시엔 경계가 미래라 카운트가 항상 0, 하루 상한이 밤마다 무효였다.
+  // 바깥의 `at time zone 'Asia/Seoul'` 이 naive 자정을 "KST 자정" timestamptz 로 되돌린다.
   const rows = await queryClient<{ n: number }[]>`
     select count(*)::int as n from runs
     where source_id = ${sourceId}
       and status in ('healed', 'drift')
-      and started_at >= date_trunc('day', now() at time zone 'Asia/Seoul')
+      and started_at >= (date_trunc('day', now() at time zone 'Asia/Seoul') at time zone 'Asia/Seoul')
   `
   return rows[0]?.n ?? 0
 }
@@ -506,13 +540,16 @@ export async function recordDelivery(input: {
 /** 같은 아이템을 두 번 보내지 않기 위한 확인 (기획서 9-4 "재발송·중복 방지") */
 export async function alreadyDelivered(subscriptionId: string, itemIds: readonly string[]): Promise<Set<string>> {
   if (itemIds.length === 0) return new Set()
+  // 최근 50행만 보던 창을 없앴다 — 행이 쌓이면 창 밖의 옛 발송이 "안 보낸 것" 이 되어
+  // 같은 항목이 다시 나갈 수 있었다. 배열 겹침(&&)으로 물으면 이력 전체를 한 번에 본다.
   const rows = await queryClient<{ item_ids: string[] }[]>`
     select item_ids from deliveries
     where subscription_id = ${subscriptionId} and status = 'sent'
-    order by sent_at desc limit 50
+      and item_ids && (string_to_array(${itemIds.join(',')}, ',')::uuid[])
   `
+  const asked = new Set(itemIds)
   const sent = new Set<string>()
-  for (const row of rows) for (const id of row.item_ids) sent.add(id)
+  for (const row of rows) for (const id of row.item_ids) if (asked.has(id)) sent.add(id)
   return sent
 }
 

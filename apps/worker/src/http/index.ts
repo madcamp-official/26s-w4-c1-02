@@ -40,6 +40,35 @@ import { suggestSources, type SourceSuggestion } from '../compile/suggest-source
 
 const log = childLogger({ mod: 'http' })
 
+/**
+ * 방금 앉힌 사이트를 그 자리에서 정기 수집에 태운다.
+ *
+ * 이게 없으면 스케줄 등록이 워커 **부팅 동기화 한 곳뿐**이라, 화면에서 만든 컬렉션은
+ * 워커가 재시작할 때까지 자동 수집이 없다 — 개발에선 tsx watch 의 잦은 재시작이 가려주지만
+ * 프로덕션(pnpm start)에선 영원히 안 걸린다. "한 번 만들어 두면 계속 갱신"이라는 약속의 배선이다.
+ *
+ * `upsertJobScheduler` 라 멱등 — 부팅 동기화(syncSourceSchedules)와 겹쳐도 안전하다.
+ * 실패해도 응답을 막지 않는다: 표는 이미 앉았고, 다음 부팅 동기화가 스케줄을 줍는다.
+ */
+async function scheduleSavedSource(source: {
+  id: string
+  collection_id: string
+  host: string
+  schedule: string
+}): Promise<void> {
+  try {
+    const { scheduleSource } = await import('../queues')
+    await scheduleSource({
+      source_id: source.id,
+      collection_id: source.collection_id,
+      host: source.host,
+      schedule: source.schedule,
+    })
+  } catch (cause) {
+    log.warn({ host: source.host, cause }, '방금 앉힌 사이트의 수집 스케줄 등록 실패 — 부팅 동기화가 줍는다')
+  }
+}
+
 /** 본문 상한. 우리가 받는 건 주소 하나와 이름 몇 개뿐이다 */
 const MAX_BODY_BYTES = 16 * 1024
 
@@ -319,6 +348,9 @@ async function create(res: ServerResponse, url: string, body: Record<string, unk
     report: outcome.report,
   })
 
+  // 재시작 없이도 내일 아침 수집이 돌게 — 만든 즉시 스케줄에 태운다
+  await scheduleSavedSource(saved.source)
+
   log.info({ slug: saved.collection.slug, items: saved.items_inserted }, '화면이 부른 요청으로 컬렉션을 만들었다')
   send(res, 200, {
     ok: true,
@@ -446,6 +478,9 @@ async function attachSave(res: ServerResponse, url: string, body: Record<string,
     items: outcome.items,
     report: outcome.report,
   })
+
+  // 붙인 사이트도 그 자리에서 스케줄에 태운다 (만들기와 같은 이유)
+  await scheduleSavedSource(saved.source)
 
   log.info(
     { slug: prepared.loaded.collection.slug, host: saved.source.host, items: saved.items_inserted },

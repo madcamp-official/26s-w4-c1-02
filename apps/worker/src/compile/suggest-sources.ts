@@ -63,7 +63,15 @@ export async function suggestSources(input: SuggestInput): Promise<SuggestOutcom
     purpose: 'suggest-sources',
   })
 
-  if (!out.ok) return { ok: false, reason: out.reason, message: out.message }
+  if (!out.ok) {
+    // 컴파일용 실패 문구는 "이 사이트를…" 인데, 후보 찾기에는 아직 사이트가 없다.
+    // 쿼터·예산 문구("내일 다시")는 그대로 살리고, 그 밖의 실패만 맥락에 맞는 문장으로 바꾼다.
+    const message =
+      out.reason === 'quota' || out.reason === 'budget_exhausted'
+        ? out.message
+        : '지금은 후보를 찾지 못했어요. 주소를 직접 붙여넣어 주세요.'
+    return { ok: false, reason: out.reason, message }
+  }
 
   const parsed = parseSuggestOutput(out.text, input.already ?? [])
 

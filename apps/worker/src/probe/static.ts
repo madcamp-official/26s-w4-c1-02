@@ -25,6 +25,15 @@ export interface StaticPage {
 
 export type StaticOutcome = { ok: true; page: StaticPage } | { ok: false; message: string }
 
+/** 비 2xx 를 사람 문장으로 (B4 — HTTP 코드를 화면에 내지 않는다) */
+function statusSentence(status: number): string {
+  if (status === 404 || status === 410) return '에 그런 페이지가 없다고 해요. 주소를 다시 확인해 주세요.'
+  if (status === 401 || status === 403) return '가 접근을 막았어요. 로그인해야 보이는 페이지일 수 있어요.'
+  if (status === 429) return '가 잠시 쉬었다 오라고 해요. 조금 뒤에 다시 시도해 주세요.'
+  if (status >= 500) return '에 지금 문제가 있는 것 같아요. 잠시 뒤에 다시 시도해 주세요.'
+  return '가 목록을 주지 않았어요. 잠시 뒤에 다시 시도해 주세요.'
+}
+
 /**
  * URL 하나를 정적으로 받아온다.
  *
@@ -37,10 +46,8 @@ export async function fetchStatic(url: string, opts: { noCache?: boolean } = {})
 
   const { response } = res
   if (!response.ok) {
-    return {
-      ok: false,
-      message: `${new URL(response.url).host} 가 목록을 주지 않았습니다 (응답 ${response.status})`,
-    }
+    // HTTP 코드는 화면에 내지 않는다 (B4). 상태군별 사람 문장으로 바꾸고, 코드는 로그가 안다
+    return { ok: false, message: `${new URL(response.url).host} ${statusSentence(response.status)}` }
   }
 
   const isJson = isJsonContentType(response.contentType)

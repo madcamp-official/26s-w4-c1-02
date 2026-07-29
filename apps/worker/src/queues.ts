@@ -148,6 +148,18 @@ export async function enqueueDeliver(data: DeliverJobData, opts?: JobsOptions): 
   await deliverQueue().add(`deliver:${data.subscription_id}`, data, opts)
 }
 
+/**
+ * 수집 직후의 뷰 평가를 **큐로** 민다 — 평가 워커(동시성 1)가 직렬화한다.
+ *
+ * 수집 잡 안에서 evaluateCollectionViews 를 직접 부르면 같은 컬렉션의 소스 둘이
+ * 동시에 수집을 마쳤을 때 평가가 겹쳐 돌고, 차집합이 서로 밟혀 같은 enter 가
+ * 두 번 잡힌다 — 웹훅이 같은 항목을 두 번 받는 경로였다. index.ts 의 평가 워커
+ * 주석("평가는 겹쳐 돌 이유가 없다")이 세운 규율을 수집 경로도 지키게 한다.
+ */
+export async function enqueueEvaluate(collectionId: string, opts?: JobsOptions): Promise<void> {
+  await evaluateQueue().add(`evaluate:${collectionId}`, { collection_id: collectionId }, opts)
+}
+
 // ── repeatable job = 크론 (ADR A8) ─────────────────────────────────────
 //
 // BullMQ v5 에서 `QueueScheduler` 클래스는 사라졌다 (v4 에서 Worker 안으로 흡수됐다).

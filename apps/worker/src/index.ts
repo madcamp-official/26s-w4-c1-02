@@ -56,7 +56,7 @@ async function main(): Promise<void> {
 
   // 키가 없어도 계속 간다 — 새 사이트를 읽어내는 기능만 꺼진다 (원칙 ④)
   const gemini = geminiStatus()
-  if (!gemini.ready) logger.warn(gemini.message)
+  if (!gemini.ready) logger.warn(gemini.note)
 
   // ── 잡 구현을 늦게 불러온다 ─────────────────────────────────────────
   // jobs/* 는 `./db` 를 타고 postgres 커넥션 풀을 만든다. 정적 import 로 두면 위의
