@@ -110,7 +110,8 @@ export default async function HomePage() {
                 당신의 도구로
               </span>
             </h1>
-            <p className="mt-5 max-w-[440px] text-[17px] leading-[1.65] text-muted">
+            {/* break-keep — 한글이 "코드 없/이"처럼 글자 중간에서 꺾이지 않게 어절 단위로 줄바꿈 */}
+            <p className="mt-5 max-w-[440px] text-[17px] leading-[1.65] break-keep text-muted">
               비슷한 일을 하는 서로 다른 사이트들을 하나의 표로 합쳐요. 코드 없이 표와 알림으로,
               코드로는 주소(API)와 AI(MCP)로.
             </p>
