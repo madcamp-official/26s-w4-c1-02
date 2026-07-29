@@ -332,8 +332,12 @@ export function CreateFlow({
                       isLead ? 'border-accent bg-accent-soft' : 'border-border bg-surface',
                     )}
                   >
+                    {/* 장식 글자는 선택에서 뺀다 — 칩째로 복사해도 주소만 딸려가야 한다.
+                        (실제로 ✕ 가 주소 끝에 붙어 들어와 엉뚱한 페이지를 살펴본 적이 있다) */}
                     {isLead && (
-                      <span className="shrink-0 text-[11px] font-bold text-accent">대표</span>
+                      <span className="shrink-0 text-[11px] font-bold text-accent select-none">
+                        대표
+                      </span>
                     )}
                     <span className="min-w-0 flex-1 truncate font-mono text-[12.5px] text-ink">
                       {u}
@@ -342,9 +346,9 @@ export function CreateFlow({
                       type="button"
                       aria-label="이 사이트 빼기"
                       onClick={() => removeUrl(u)}
-                      className="flex size-[18px] shrink-0 items-center justify-center rounded-full text-[11px] text-faint hover:bg-divider hover:text-ink"
+                      className="flex size-[18px] shrink-0 items-center justify-center rounded-full text-[11px] text-faint select-none hover:bg-divider hover:text-ink"
                     >
-                      ✕
+                      <span aria-hidden>✕</span>
                     </button>
                   </li>
                 )
@@ -399,9 +403,9 @@ export function CreateFlow({
                     type="button"
                     aria-label={`${f.label} 열 지우기`}
                     onClick={() => setRemovedKeys((prev) => [...prev, f.key])}
-                    className="flex size-[18px] items-center justify-center rounded-full text-[11px] text-faint hover:bg-divider hover:text-ink"
+                    className="flex size-[18px] items-center justify-center rounded-full text-[11px] text-faint select-none hover:bg-divider hover:text-ink"
                   >
-                    ✕
+                    <span aria-hidden>✕</span>
                   </button>
                 )}
               </span>
