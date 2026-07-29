@@ -104,15 +104,18 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
 
       {slug && (
         <>
-          <Link
-            href="/collections"
-            className="mx-3 flex items-center gap-1.5 px-3 py-1 text-[12.5px] text-faint hover:text-accent hover:no-underline"
-          >
-            <Ic path={ICON.chevronLeft} size={13} />내 컬렉션
-          </Link>
-          {/* 지금 보고 있는 컬렉션 이름 (원본 Sidebar.jsx 의 col.name 블록) */}
+          {/* 아래 nav 항목들과 같은 구조(px-3 래퍼 + px-3 링크 + 17px 아이콘 + text-sm)라 시작 x·글자 크기가 정확히 맞는다 */}
+          <div className="px-3">
+            <Link
+              href="/collections"
+              className="flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm font-medium text-faint hover:bg-raised hover:text-ink hover:no-underline"
+            >
+              <Ic path={ICON.chevronLeft} />내 컬렉션
+            </Link>
+          </div>
+          {/* 지금 보고 있는 컬렉션 이름 (원본 Sidebar.jsx 의 col.name 블록) — 이 화면의 주인공이라 크고 굵게 */}
           {collectionName !== null && (
-            <div className="px-6 pt-2 pb-2.5 text-[13px] leading-[1.4] font-semibold text-ink">
+            <div className="px-6 pt-2 pb-3 text-[16px] leading-[1.35] font-bold tracking-[-0.01em] text-ink">
               {collectionName}
             </div>
           )}
