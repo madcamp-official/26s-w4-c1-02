@@ -97,3 +97,241 @@
   overflow-x: auto;
   max-width: 100%;
 }
+
+/* ═══ 원본 디자인 시스템 토큰 (zip tokens/*.css) — 원본 컴포넌트가 참조 ═══ */
+/*
+  Endpointer 디자인 시스템 — 원본 토큰 (zip 의 tokens/*.css 를 그대로 옮김).
+  원본 컴포넌트들이 var(--ep-blue-600) · var(--surface-card) · var(--radius-md) ·
+  var(--size-control-md) 같은 이 변수들을 그대로 참조하므로, 손으로 다시 짜지 않고
+  원본 코드를 이식하려면 이 파일이 먼저 로드돼야 한다.
+  (Tailwind 의 --color-* 는 globals.css @theme 에 따로 있고, 값은 여기서 파생된 것이라 서로 일치.)
+*/
+:root {
+  /* ── colors.css ──────────────────────────────────────────────── */
+  --ep-blue-700: oklch(0.44 0.2 274);
+  --ep-blue-600: oklch(0.51 0.22 274);
+  --ep-blue-500: oklch(0.57 0.2 274);
+  --ep-blue-200: oklch(0.85 0.06 277);
+  --ep-blue-100: oklch(0.92 0.035 277);
+  --ep-blue-50: oklch(0.965 0.018 277);
+  --ep-green-700: oklch(0.5 0.13 162);
+  --ep-green-600: oklch(0.6 0.15 162);
+  --ep-green-500: oklch(0.7 0.16 162);
+  --ep-green-200: oklch(0.88 0.09 162);
+  --ep-green-100: oklch(0.945 0.05 162);
+  --ep-green-50: oklch(0.975 0.024 162);
+  --cream-50: oklch(0.965 0.013 95);
+  --cream-100: oklch(0.94 0.016 95);
+  --ep-blue-25: oklch(0.973 0.009 277);
+  --ep-blue-35: oklch(0.955 0.014 277);
+  --ink-950: oklch(0.18 0.008 277);
+  --ink-900: oklch(0.24 0.008 277);
+  --ink-700: oklch(0.39 0.008 277);
+  --ink-500: oklch(0.55 0.008 277);
+  --ink-400: oklch(0.67 0.007 277);
+  --ink-300: oklch(0.8 0.006 277);
+  --ink-200: oklch(0.89 0.005 277);
+  --ink-100: oklch(0.945 0.004 277);
+  --ink-50: oklch(0.975 0.003 277);
+  --ink-0: oklch(1 0 0);
+  --red-700: oklch(0.48 0.18 27);
+  --red-600: oklch(0.55 0.19 27);
+  --red-100: oklch(0.94 0.04 27);
+  --amber-600: oklch(0.68 0.14 75);
+  --amber-100: oklch(0.95 0.05 85);
+  --text-strong: var(--ink-950);
+  --text-body: var(--ink-900);
+  --text-muted: var(--ink-500);
+  --text-faint: var(--ink-400);
+  --text-inverse: var(--ink-0);
+  --text-link: var(--ep-blue-600);
+  --text-on-accent: var(--ink-0);
+  --surface-page: var(--cream-50);
+  --surface-card: var(--ink-0);
+  --surface-sunken: var(--ink-100);
+  --surface-inverse: var(--ink-950);
+  --surface-accent-soft: var(--ep-blue-50);
+  --border-default: var(--ink-200);
+  --border-strong: var(--ink-300);
+  --border-focus: var(--ep-blue-500);
+  --accent-primary: var(--ep-blue-600);
+  --accent-primary-hover: var(--ep-blue-700);
+  --accent-secondary: var(--ep-green-600);
+  --status-success: var(--ep-green-600);
+  --status-success-soft: var(--ep-green-50);
+  --status-warning: var(--amber-600);
+  --status-warning-soft: var(--amber-100);
+  --status-danger: var(--red-600);
+  --status-danger-soft: var(--red-100);
+  --status-info: var(--ep-blue-600);
+  --status-info-soft: var(--ep-blue-50);
+  --gradient-connect: linear-gradient(90deg, var(--ep-blue-600), var(--ep-green-600));
+  --gradient-connect-soft: linear-gradient(90deg, var(--ep-blue-50), var(--ep-green-50));
+
+  /* ── typography.css ──────────────────────────────────────────── */
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --text-display: 40px;
+  --text-h1: 30px;
+  --text-h2: 22px;
+  --text-h3: 17px;
+  --text-body: 15px;
+  --text-small: 13px;
+  --text-micro: 11.5px;
+  --leading-display: 1.2;
+  --leading-heading: 1.3;
+  --leading-body: 1.6;
+  --weight-regular: 440;
+  --weight-medium: 560;
+  --weight-semibold: 640;
+  --weight-bold: 740;
+  --tracking-display: -0.03em;
+  --tracking-heading: -0.02em;
+  --tracking-body: -0.008em;
+  --tracking-mono: -0.01em;
+  --tracking-caps: 0.08em;
+
+  /* ── spacing.css ─────────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --size-control-sm: 30px;
+  --size-control-md: 36px;
+  --size-control-lg: 44px;
+
+  /* ── radius.css ──────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+  --radius-node: var(--radius-full);
+
+  /* ── shadow.css ──────────────────────────────────────────────── */
+  --shadow-card: 0 1px 2px oklch(0.17 0.015 255 / 0.05), 0 0 0 1px var(--ink-200);
+  --shadow-raised: 0 1px 2px oklch(0.17 0.015 255 / 0.06), 0 4px 12px oklch(0.17 0.015 255 / 0.07), 0 0 0 1px var(--ink-200);
+  --shadow-overlay: 0 4px 16px oklch(0.17 0.015 255 / 0.1), 0 12px 40px oklch(0.17 0.015 255 / 0.16), 0 0 0 1px var(--ink-200);
+  --focus-ring: 0 0 0 3px oklch(0.58 0.2 262 / 0.25);
+
+  /* ── motion.css ──────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 300ms;
+}
+
+/* ═══ 원본 컨트롤 컴포넌트 (zip components/*.jsx → CSS 이식) ═══ */
+/*
+  Endpointer 디자인 시스템 — 컨트롤 컴포넌트 (원본 components/*.jsx 를 서버 안전한 CSS 로 이식).
+  원본은 React.useState 로 hover 를 인라인 스타일로 바꾸는데, 이 앱은 서버 컴포넌트에서도
+  <Button> 을 쓰므로 hover/focus/active 는 CSS 로 옮기고 나머지는 원본 값 그대로 뒀다.
+  값은 원본 Button.jsx / Badge.jsx / Input.jsx / Select.jsx 와 1:1.
+*/
+
+/* ── Button ─────────────────────────────────────────────────────── */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-weight: 560;
+  letter-spacing: var(--tracking-body);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.ds-btn:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.ds-btn:disabled {
+  background: var(--ink-100);
+  color: var(--text-faint);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+.ds-btn-sm { height: var(--size-control-sm); padding: 0 12px; font-size: 13px; }
+.ds-btn-md { height: var(--size-control-md); padding: 0 16px; font-size: 14px; }
+.ds-btn-lg { height: var(--size-control-lg); padding: 0 20px; font-size: 15px; }
+.ds-btn-primary { background: var(--accent-primary); color: var(--text-on-accent); }
+.ds-btn-primary:hover:not(:disabled) { background: var(--accent-primary-hover); }
+.ds-btn-primary:active:not(:disabled) { background: var(--ep-blue-700); }
+.ds-btn-outline { background: var(--surface-card); color: var(--text-body); border-color: var(--border-default); }
+.ds-btn-outline:hover:not(:disabled) { background: var(--surface-sunken); }
+.ds-btn-outline:active:not(:disabled) { background: var(--ink-200); }
+.ds-btn-ghost { background: transparent; color: var(--text-body); }
+.ds-btn-ghost:hover:not(:disabled) { background: var(--surface-sunken); }
+.ds-btn-ghost:active:not(:disabled) { background: var(--ink-200); }
+.ds-btn-danger { background: var(--status-danger); color: #fff; }
+.ds-btn-danger:hover:not(:disabled) { background: var(--red-700); }
+
+/* ── Badge ──────────────────────────────────────────────────────── */
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 640;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.ds-badge-dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+
+/* ── Input / Select 껍데기 ──────────────────────────────────────── */
+.ds-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--size-control-md);
+  padding: 0 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.ds-field:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+.ds-field-sm { height: var(--size-control-sm); }
+.ds-field input,
+.ds-field select {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-strong);
+}
+.ds-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 22px;
+  cursor: pointer;
+}
