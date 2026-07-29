@@ -108,7 +108,7 @@ async function main(): Promise<void> {
   // 키가 없으면 표를 만들 수 없다. 스택 트레이스 대신 한 줄로 안내한다.
   const gemini = geminiStatus()
   if (!gemini.ready) {
-    process.stdout.write(`\n  ${gemini.message}\n\n`)
+    process.stdout.write(`\n  ${gemini.note}\n\n`)
     process.exit(1)
   }
 

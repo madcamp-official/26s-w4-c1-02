@@ -54,7 +54,9 @@ export interface GeminiJsonRequest {
 
 // ── 클라이언트 ─────────────────────────────────────────────────────────
 
-export type GeminiStatus = { ready: true; model: string } | { ready: false; message: string }
+// note 는 부팅 로그·CLI 전용이다 — 화면으로 나가는 message 와 이름부터 갈라 둔다
+// (guardrails.test 가 message: 리터럴만 검사하므로, 여기 환경변수 이름을 적어도 된다)
+export type GeminiStatus = { ready: true; model: string } | { ready: false; note: string }
 
 let client: GoogleGenAI | null = null
 
@@ -66,13 +68,13 @@ function getClient(): GoogleGenAI | null {
   return client
 }
 
-/** 부팅 시 한 줄 로그와 화면 상태 표시에 쓴다 */
+/** 부팅 시 한 줄 로그와 CLI 안내에 쓴다 (화면용 아님) */
 export function geminiStatus(): GeminiStatus {
   const cfg = getConfig()
   if (cfg.geminiApiKey === undefined) {
     return {
       ready: false,
-      message: 'GEMINI_API_KEY 가 비어 있습니다. 새 사이트를 읽어내는 기능은 꺼진 채로 돕니다.',
+      note: 'GEMINI_API_KEY 가 비어 있습니다. 새 사이트를 읽어내는 기능은 꺼진 채로 돕니다.',
     }
   }
   return { ready: true, model: cfg.geminiModelCompile }
@@ -89,8 +91,13 @@ export async function generateJson(req: GeminiJsonRequest): Promise<GeminiOutcom
 
   const ai = getClient()
   if (ai === null) {
-    const status = geminiStatus()
-    return { ok: false, reason: 'no_api_key', message: status.ready ? '' : status.message }
+    // 환경변수 이름(GEMINI_API_KEY)은 부팅 로그·CLI(geminiStatus)에만 남긴다.
+    // 이 message 는 컴파일 실패를 타고 화면까지 가므로 사람 문장이어야 한다 (B2·B4).
+    return {
+      ok: false,
+      reason: 'no_api_key',
+      message: '지금은 새 사이트를 읽어내는 기능이 꺼져 있어요. 잠시 뒤 다시 시도해 주세요.',
+    }
   }
 
   // 개발 중 쿼터 소진 방지 — 같은 입력이면 디스크 캐시에서 준다
@@ -125,7 +132,8 @@ export async function generateJson(req: GeminiJsonRequest): Promise<GeminiOutcom
 
     const text = res.text
     if (text === undefined || text.trim() === '') {
-      return { ok: false, reason: 'empty', message: '모델이 빈 응답을 보냈습니다' }
+      // "모델" 도 내부 명사다 — 화면에는 결과만 말한다 (B2)
+      return { ok: false, reason: 'empty', message: '이 사이트를 읽어내지 못했어요. 잠시 뒤 다시 시도해 주세요.' }
     }
 
     await writeCache(key, text)

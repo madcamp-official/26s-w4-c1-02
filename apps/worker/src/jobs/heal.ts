@@ -73,8 +73,8 @@ export function healSkipsBrowser(mode: AdapterSpec['fetch']['mode']): boolean {
   return mode === 'html'
 }
 
-/** 사용자가 읽는 문구. 내부 명사 금지 (보장선 B2 · B4) */
-const MESSAGES: Record<HealFailureReason, string> = {
+/** 사용자가 읽는 문구. 내부 명사 금지 (보장선 B2 · B4) — guardrails.test 가 검사한다 */
+export const MESSAGES: Record<HealFailureReason, string> = {
   budget:
     '오늘은 이 사이트를 자동으로 고쳐보는 횟수를 다 썼어요. 마지막으로 받아둔 내용을 그대로 보여드리는 중이고, 내일 다시 시도합니다.',
   no_candidate: '이 사이트 구조가 바뀐 것 같아요. 목록을 찾지 못했습니다.',
