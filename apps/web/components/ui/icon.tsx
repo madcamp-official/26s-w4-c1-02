@@ -17,6 +17,8 @@ export type IconName =
   | 'merge'
   | 'terminal'
   | 'link2'
+  | 'copy'
+  | 'sparkles'
 
 const PATHS: Record<IconName, ReactNode> = {
   grid: (
@@ -106,6 +108,18 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M9 17H7A5 5 0 0 1 7 7h2" />
       <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
       <line x1="8" y1="12" x2="16" y2="12" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+      <path d="M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7L5.6 5.6" />
     </>
   ),
 }

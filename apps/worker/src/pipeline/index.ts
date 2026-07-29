@@ -47,3 +47,5 @@ export {
   type AttachPersistInput,
   type AttachPersistResult,
 } from './persist'
+
+export { cloneCollection, type CloneInput, type CloneOutcome } from './clone'

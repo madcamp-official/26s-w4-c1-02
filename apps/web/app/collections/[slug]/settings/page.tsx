@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { DeleteZone, RenameForm } from '@/components/collection-manage'
 import { UnavailableState } from '@/components/empty-state'
+import { GalleryListingForm } from '@/components/gallery-listing-form'
 import { HeroBand } from '@/components/hero-band'
 import { ShareManage, type ShareMemberItem } from '@/components/share-manage'
 import { VisibilityForm } from '@/components/visibility-form'
@@ -12,6 +13,7 @@ import { getInviteStatus, listMembers } from '@/lib/share'
 import {
   deleteCollectionAction,
   renameCollectionAction,
+  updateListedAction,
   updateVisibilityAction,
 } from '../actions'
 import {
@@ -71,6 +73,19 @@ export default async function CollectionSettingsPage({ params }: PageProps) {
             current={collection.visibility}
             save={updateVisibilityAction.bind(null, collection.slug)}
           />
+
+          {/* 창작마당 전시 — 공개일 때만 켤 수 있다 (델타 §8) */}
+          <div className="mt-4 border-t border-divider pt-4">
+            <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="text-[14px] font-semibold text-ink">창작마당</h3>
+              <span className="text-[12.5px] text-faint">다른 사람이 복제해 갈 수 있어요</span>
+            </div>
+            <GalleryListingForm
+              listed={collection.listed}
+              isPublic={collection.visibility === 'public'}
+              save={updateListedAction.bind(null, collection.slug)}
+            />
+          </div>
         </section>
 
         <section className="rounded-card border border-divider bg-surface p-5 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">

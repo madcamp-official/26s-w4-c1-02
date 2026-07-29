@@ -8,6 +8,7 @@
 
 import { relations, sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   boolean,
   index,
   integer,
@@ -128,10 +129,28 @@ export const collections = pgTable(
     visibility: text('visibility').$type<Visibility>().notNull().default('private'),
     /** private 일 때 필수 */
     api_key_hash: text('api_key_hash'),
+    /**
+     * 창작마당에서 복제됐다면 원본 컬렉션 (델타 §8). 원작자 크레딧·복제수 집계의 근거.
+     * 원본이 지워져도 복제본은 독립이므로 CASCADE 가 아니라 SET NULL 이다 — 복제는 스냅샷이다.
+     */
+    forked_from: uuid('forked_from').references((): AnyPgColumn => collections.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * 창작마당에 전시할지 (델타 §8). visibility 와 다르다 —
+     * "누구나 볼 수 있음(public)" 과 "갤러리에 올림(listed)" 은 의도가 다르다.
+     * 전시하려면 둘 다 참이어야 한다.
+     */
+    listed: boolean('listed').notNull().default(false),
     created_at: ts('created_at').notNull().defaultNow(),
     updated_at: ts('updated_at').notNull().defaultNow(),
   },
-  (t) => [index('collections_owner_idx').on(t.owner_id)],
+  (t) => [
+    index('collections_owner_idx').on(t.owner_id),
+    // 창작마당 목록 — listed=true AND visibility='public' 만 훑는다
+    index('collections_listed_idx').on(t.listed, t.visibility),
+    index('collections_forked_from_idx').on(t.forked_from),
+  ],
 )
 
 export const sources = pgTable(

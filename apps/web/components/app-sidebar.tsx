@@ -42,6 +42,7 @@ const ICON = {
   plug: <><path d="M12 22v-5" /><path d="M9 8V2" /><path d="M15 8V2" /><path d="M6 8h12v4a6 6 0 0 1-12 0Z" /></>,
   settings: <><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></>,
   chevronLeft: <path d="M15 18l-6-6 6-6" />,
+  sparkles: <><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /><path d="M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7L5.6 5.6" /></>,
 } as const
 
 interface NavItem {
@@ -60,6 +61,7 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
 
   const seg = pathname.split('/').filter(Boolean)
   const inCollections = seg[0] === 'collections'
+  const inGallery = seg[0] === 'gallery'
   const slug = inCollections && seg[1] && seg[1] !== 'new' ? seg[1] : null
   const section = slug ? (seg[2] ?? '') : ''
 
@@ -80,6 +82,12 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
           href: '/collections',
           icon: 'grid',
           active: inCollections,
+        },
+        {
+          label: '창작마당',
+          href: '/gallery',
+          icon: 'sparkles',
+          active: inGallery,
         },
       ]
 

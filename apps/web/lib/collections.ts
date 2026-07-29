@@ -28,6 +28,8 @@ export interface CollectionRecord {
   schema_version: number
   visibility: Visibility
   api_key_hash: string | null
+  /** 창작마당에 전시 중인지 (델타 §8) */
+  listed: boolean
 }
 
 export interface CollectionSummary {
@@ -73,6 +75,7 @@ interface RawCollectionRow {
   schema_version: number
   visibility: string
   api_key_hash: string | null
+  listed: boolean
 }
 
 interface RawSummaryRow {
@@ -141,7 +144,7 @@ const asMode = (v: string): FetchMode => (MODES.has(v) ? (v as FetchMode) : 'htm
 export async function getCollectionBySlug(slug: string): Promise<Loaded<CollectionRecord | null>> {
   return safeQuery(async (core) => {
     const rows = await core.queryClient<RawCollectionRow[]>`
-      select id, owner_id, slug, name, schema_json, schema_version, visibility, api_key_hash
+      select id, owner_id, slug, name, schema_json, schema_version, visibility, api_key_hash, listed
       from collections
       where slug = ${slug}
       limit 1
@@ -157,6 +160,7 @@ export async function getCollectionBySlug(slug: string): Promise<Loaded<Collecti
       schema_version: row.schema_version,
       visibility: asVisibility(row.visibility),
       api_key_hash: row.api_key_hash,
+      listed: row.listed === true,
     }
   })
 }

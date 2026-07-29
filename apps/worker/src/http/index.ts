@@ -5,6 +5,7 @@
 //   POST /internal/collections   같은 것 + DB 에 앉히기
 //   POST /internal/attach        두 번째 주소 → 기존 표에 맞춰본 결과 (저장하지 않는다)
 //   POST /internal/sources       같은 것 + 소스로 앉히기
+//   POST /internal/clone         공개 컬렉션 하나 → 내 것으로 복제 (창작마당 · 델타 §8)
 //
 // ── 왜 큐가 아니라 HTTP 인가 ────────────────────────────────────────────
 // 미리보기는 본질적으로 요청-응답이다. 사용자는 표를 **보고 나서** 저장한다 (보장선 B3).
@@ -29,6 +30,7 @@ import { getConfig } from '../config'
 import { childLogger } from '../logger'
 import {
   attachSourceToCollection,
+  cloneCollection,
   collectionNameFrom,
   createCollectionFromUrl,
   resolveByPastedValue,
@@ -168,6 +170,12 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return
   }
 
+  // 복제는 주소가 아니라 원본 slug 를 받는다 (창작마당 · 델타 §8) — url 검사 앞에 둔다
+  if (path === '/internal/clone') {
+    await clone(res, body)
+    return
+  }
+
   const url = typeof body['url'] === 'string' ? body['url'] : ''
   if (url === '') {
     send(res, 200, { ok: false, message: '주소를 넣어 주세요.', stage: 'url' })
@@ -213,6 +221,49 @@ async function suggest(res: ServerResponse, body: Record<string, unknown>): Prom
     return
   }
   send(res, 200, { ok: true, candidates: outcome.candidates } satisfies SuggestResponse)
+}
+
+/** `POST /internal/clone` 의 성공 응답 (창작마당 · 델타 §8). `apps/web` 의 복제 흐름이 받는다 */
+export interface CloneResponse {
+  ok: true
+  /** 복제본 slug — 화면은 여기로 이동한다 */
+  slug: string
+  name: string
+  sources_copied: number
+  items_copied: number
+  views_copied: number
+}
+
+async function clone(res: ServerResponse, body: Record<string, unknown>): Promise<void> {
+  const sourceSlug = typeof body['source_slug'] === 'string' ? body['source_slug'] : ''
+  const ownerId = typeof body['owner_id'] === 'string' ? body['owner_id'] : ''
+  if (sourceSlug === '') {
+    send(res, 200, { ok: false, message: '어느 컬렉션을 복제할지 알 수 없어요.', stage: 'source' })
+    return
+  }
+  if (ownerId === '') {
+    send(res, 200, { ok: false, message: '누구의 복제인지 알 수 없어요.', stage: 'owner' })
+    return
+  }
+
+  const newName = typeof body['name'] === 'string' ? body['name'] : undefined
+  const outcome = await cloneCollection({
+    source_slug: sourceSlug,
+    new_owner_id: ownerId,
+    ...(newName !== undefined ? { new_name: newName } : {}),
+  })
+  if (!outcome.ok) {
+    send(res, 200, { ok: false, message: outcome.message, stage: outcome.stage })
+    return
+  }
+  send(res, 200, {
+    ok: true,
+    slug: outcome.slug,
+    name: outcome.name,
+    sources_copied: outcome.sources_copied,
+    items_copied: outcome.items_copied,
+    views_copied: outcome.views_copied,
+  } satisfies CloneResponse)
 }
 
 async function preview(res: ServerResponse, url: string, body: Record<string, unknown>): Promise<void> {

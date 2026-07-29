@@ -15,6 +15,7 @@ import {
   renameCollection,
   updateCollectionVisibility,
 } from '@/lib/collections'
+import { setCollectionListed } from '@/lib/gallery'
 
 /** 주인 확인. 로그인 설정 전(데모)에는 통과시킨다 */
 async function ownedCollection(
@@ -70,6 +71,35 @@ export async function updateVisibilityAction(
 
   revalidatePath(`/collections/${slug}`, 'layout')
   return { status: 'done', message: '공개범위를 바꿨어요.' }
+}
+
+export async function updateListedAction(
+  slug: string,
+  _prev: ManageState,
+  formData: FormData,
+): Promise<ManageState> {
+  // 체크박스는 켜졌을 때만 값을 보낸다 — 없으면 끈 것
+  const listed = formData.get('listed') === 'on' || formData.get('listed') === 'true'
+
+  const found = await getCollectionBySlug(slug)
+  if (!found.ok) return { status: 'problem', message: found.message }
+  if (found.data === null) return { status: 'problem', message: '이 컬렉션을 찾지 못했어요.' }
+  if (isAuthReady) {
+    const user = await currentUser()
+    if (user === null || user.id !== found.data.owner_id) {
+      return { status: 'problem', message: '이 컬렉션의 주인만 바꿀 수 있어요.' }
+    }
+  }
+
+  const result = await setCollectionListed(
+    { id: found.data.id, visibility: found.data.visibility },
+    listed,
+  )
+  if (!result.ok) return { status: 'problem', message: result.message }
+
+  revalidatePath(`/collections/${slug}/settings`)
+  revalidatePath('/gallery')
+  return { status: 'done', message: listed ? '창작마당에 올렸어요.' : '창작마당에서 내렸어요.' }
 }
 
 export async function deleteCollectionAction(slug: string, _formData: FormData): Promise<void> {

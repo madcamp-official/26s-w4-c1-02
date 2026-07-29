@@ -21,6 +21,7 @@ import {
   checkedAgoCopy,
   closingCountCopy,
 } from '@/lib/labels'
+import { forkCreditFor } from '@/lib/gallery'
 import { quietSourceLines } from '@/lib/silence'
 import { cn } from '@/lib/utils'
 
@@ -55,14 +56,16 @@ export default async function CollectionDashboardPage({ params }: PageProps) {
   const access = await resolveCollectionAccess(collection)
   if (!access.canView) notFound()
 
-  const [sites, healed, status, quiet, itemCount, byHost] = await Promise.all([
+  const [sites, healed, status, quiet, itemCount, byHost, forkCredit] = await Promise.all([
     listSites(collection.id),
     countHealedThisMonth(collection.id),
     collectionStatusLine(collection),
     quietSourceLines(collection.id),
     countCollectionItems(collection.id),
     countItemsByHost(collection.id),
+    forkCreditFor(collection.id),
   ])
+  const origin = forkCredit.ok ? forkCredit.data : null
   const quietList = quiet.ok ? quiet.data : []
   const siteList = sites.ok ? sites.data : []
   const healedCount = healed.ok ? healed.data : 0
@@ -128,6 +131,28 @@ export default async function CollectionDashboardPage({ params }: PageProps) {
         ) : undefined
       }
     >
+      {/* 복제로 생긴 컬렉션이면 원본 크레딧 + "내 사이트를 더하라"는 다음 걸음 (델타 §8) */}
+      {origin !== null && access.canManage && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-accent-soft bg-accent-soft/40 px-5 py-3.5">
+          <p className="text-[13px] text-ink">
+            {origin.visible ? (
+              <Link href={`/gallery/${origin.slug}`} className="font-semibold text-accent">
+                {origin.name}
+              </Link>
+            ) : (
+              <b className="font-semibold text-ink">{origin.name}</b>
+            )}
+            <span className="text-muted"> ({origin.author} 님) 에서 복제했어요.</span>
+          </p>
+          <Link
+            href={`/collections/${collection.slug}/attach`}
+            className="text-[13px] font-semibold text-accent hover:no-underline"
+          >
+            내가 아는 사이트 더하기 →
+          </Link>
+        </div>
+      )}
+
       {/* 연결 카드 (원본 EpColDashboard) — 사이트별로 얼마나 채웠는지 */}
       <section className="rounded-card border border-divider bg-surface px-7 pt-2.5 pb-4 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
         <div className="flex items-center justify-between py-3">
