@@ -71,8 +71,14 @@ export const COPY = {
     '구글 로그인 설정이 아직 안 됐습니다. 설정을 마치기 전까지는 미리 담아둔 예시 내용을 볼 수 있어요.',
   signIn: '구글로 시작하기',
   signOut: '로그아웃',
-  /** 개발자용 서랍 (보장선 B5·B7 — 빼지 않고 접는다) */
-  developerSummary: '개발자용 — API 주소 / AI에 연결',
+  /**
+   * 개발자용 묶음 (보장선 B5·B7).
+   * '연결' 탭에서는 AI 연결 카드와 나란히 상시 펼쳐 둔다 — 두 출구가 대등하고,
+   * 어느 쪽을 쓸지는 사람마다 다르므로 한쪽만 접어 두면 그게 곧 순위 매김이 된다.
+   */
+  developerSummary: 'API 주소 복사하기',
+  developerBody:
+    '주소 한 줄이면 이 표를 그대로 받아 쓸 수 있어요. 표에서 건 조건이 그대로 쿼리가 됩니다.',
   developerNote: '필요한 사람만 열어보면 됩니다. 표를 쓰는 데는 없어도 괜찮아요.',
   apiLabel: '내 API 주소',
   mcpLabel: 'AI에 연결',
@@ -96,8 +102,7 @@ export const COPY = {
   subscribeStop: '그만 받기',
   subscribeNeverSent: '아직 보낸 적은 없어요',
   /** AI에 연결 (기획서 12장 · 보장선 B7) */
-  connectPill: 'AI에 연결',
-  connectTitle: '내 AI가 이 컬렉션을 직접 봐요',
+  connectTitle: 'AI에 연결하기 (MCP)',
   connectBody:
     '주소 한 줄을 복사해서 쓰는 AI의 커넥터 설정에 붙여넣으면 끝이에요. 설정 파일도, 설치도 없어요.',
   connectStep1: '아래 주소를 복사해요',

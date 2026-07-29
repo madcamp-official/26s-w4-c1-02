@@ -84,7 +84,7 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
           active: inCollections,
         },
         {
-          label: '창작마당',
+          label: '모두의 컬렉션',
           href: '/gallery',
           icon: 'sparkles',
           active: inGallery,

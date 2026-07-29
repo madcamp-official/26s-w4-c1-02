@@ -1,6 +1,6 @@
-// 창작마당 — 공개 컬렉션을 전시하고, 복제로 가져오게 한다 (델타 §8).
+// 모두의 컬렉션 — 공개 컬렉션을 전시하고, 복제로 가져오게 한다 (델타 §8).
 //
-// 창작마당은 "구독" 이 아니라 "복제" 다. 남이 만든 표를 **가져와 내 것으로** 만들고
+// 모두의 컬렉션은 "구독" 이 아니라 "복제" 다. 남이 만든 표를 **가져와 내 것으로** 만들고
 // 거기에 내가 아는 사이트를 빼고 더한다. 이 한 흐름이 빈 화면 문제와 소스 발견 문제를
 // 동시에 푼다 — 남이 만든 게 예시가 되고, 남이 이미 URL 을 찾아놨다.
 //
@@ -11,7 +11,7 @@ import { callWorker } from './create'
 import { asDate, type CollectionRecord } from './collections'
 import { safeQuery, type Loaded } from './db'
 
-/** 창작마당 카드 하나 — 목록에 그릴 최소 정보 */
+/** 모두의 컬렉션 카드 하나 — 목록에 그릴 최소 정보 */
 export interface GalleryCollection {
   id: string
   slug: string
@@ -42,7 +42,7 @@ interface RawGalleryRow {
 }
 
 /**
- * 창작마당에 전시된 컬렉션들. **전시(listed) + 공개(public) + 항목이 있는** 것만.
+ * 모두의 컬렉션에 전시된 컬렉션들. **전시(listed) + 공개(public) + 항목이 있는** 것만.
  * "누구나 볼 수 있음(public)" 과 "갤러리에 올림(listed)" 은 의도가 다르므로 둘 다 요구한다.
  * 인기(복제수) 우선, 그다음 최신순.
  */
@@ -114,7 +114,7 @@ export interface ForkCredit {
   slug: string
   name: string
   author: string
-  /** 원본이 아직 창작마당에 전시돼 있어 링크로 갈 수 있는지 */
+  /** 원본이 아직 모두의 컬렉션에 전시돼 있어 링크로 갈 수 있는지 */
   visible: boolean
 }
 
@@ -149,7 +149,7 @@ export async function forkCreditFor(collectionId: string): Promise<Loaded<ForkCr
 }
 
 /**
- * 창작마당 전시 여부를 바꾼다. **전시하려면 공개여야 한다** —
+ * 모두의 컬렉션 전시 여부를 바꾼다. **전시하려면 공개여야 한다** —
  * private·unlisted 를 갤러리에 올리면 카드는 보이는데 열면 막히는 모순이 된다.
  * 그래서 전시를 켤 때 공개가 아니면 여기서 막고, 부르는 쪽이 사람 문장을 낸다.
  */
@@ -158,7 +158,7 @@ export async function setCollectionListed(
   listed: boolean,
 ): Promise<Loaded<null> & { blocked?: boolean }> {
   if (listed && collection.visibility !== 'public') {
-    return { ok: false, message: '창작마당에 올리려면 먼저 공개로 바꿔 주세요.', blocked: true }
+    return { ok: false, message: '모두의 컬렉션에 올리려면 먼저 공개로 바꿔 주세요.', blocked: true }
   }
   return safeQuery(async (core) => {
     await core.queryClient`

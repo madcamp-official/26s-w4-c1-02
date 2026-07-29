@@ -28,7 +28,7 @@ export interface CollectionRecord {
   schema_version: number
   visibility: Visibility
   api_key_hash: string | null
-  /** 창작마당에 전시 중인지 (델타 §8) */
+  /** 모두의 컬렉션에 전시 중인지 (델타 §8) */
   listed: boolean
 }
 

@@ -22,7 +22,7 @@ interface PageProps {
 const SCREEN_QUERY = 'limit=200&include=provenance'
 
 /**
- * 창작마당 공개 상세 (델타 §8). **로그인 없이** 표를 읽기 전용으로 보고, 복제할지 정한다.
+ * 모두의 컬렉션 공개 상세 (델타 §8). **로그인 없이** 표를 읽기 전용으로 보고, 복제할지 정한다.
  * 소유자 전용 access(resolveCollectionAccess)를 타지 않는다 — 여기서는 visibility='public'
  * 자체가 열쇠다. 공개가 아니면 없는 것과 같다.
  */
@@ -34,7 +34,7 @@ export default async function GalleryDetailPage({ params }: PageProps) {
   if (found.data === null) notFound()
 
   const collection = found.data
-  // 공개만 창작마당에서 열린다. private·unlisted 는 존재 여부도 드러내지 않는다.
+  // 공개만 모두의 컬렉션에서 열린다. private·unlisted 는 존재 여부도 드러내지 않는다.
   if (collection.visibility !== 'public') notFound()
 
   const [page, sites, meta] = await Promise.all([
@@ -67,7 +67,7 @@ export default async function GalleryDetailPage({ params }: PageProps) {
           href="/gallery"
           className="inline-flex w-fit items-center gap-1.5 text-[13px] text-faint hover:text-accent hover:no-underline"
         >
-          <Icon name="chevron-left" size={13} strokeWidth={2} /> 창작마당으로
+          <Icon name="chevron-left" size={13} strokeWidth={2} /> 모두의 컬렉션으로
         </Link>
 
         {siteList.length > 0 && (

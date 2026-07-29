@@ -1,6 +1,6 @@
 'use client'
 
-// 창작마당 전시 토글 (델타 §8). 켜면 공개 컬렉션이 창작마당 목록에 올라간다.
+// 모두의 컬렉션 전시 토글 (델타 §8). 켜면 공개 컬렉션이 모두의 컬렉션 목록에 올라간다.
 // 전시하려면 공개여야 한다 — 공개가 아니면 켜기를 막고 이유를 문장으로 낸다.
 
 import { useActionState } from 'react'
@@ -32,11 +32,11 @@ export function GalleryListingForm({
           disabled={!isPublic || pending}
           className="size-4 rounded border-border-strong text-accent focus:ring-accent disabled:opacity-40"
         />
-        <span className={cn(!isPublic && 'text-faint')}>창작마당에 전시하기</span>
+        <span className={cn(!isPublic && 'text-faint')}>모두의 컬렉션에 올리기</span>
       </label>
 
       {!isPublic ? (
-        <p className="text-[12.5px] text-faint">먼저 공개로 바꾸면 전시할 수 있어요.</p>
+        <p className="text-[12.5px] text-faint">먼저 공개로 바꾸면 올릴 수 있어요.</p>
       ) : (
         <p className="text-[12.5px] text-faint">
           다른 사람이 이 표를 복제해 자기 것으로 가져갈 수 있어요.

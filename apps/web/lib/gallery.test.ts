@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { setCollectionListed } from './gallery'
 
 /**
- * 창작마당 전시의 핵심 불변식 (델타 §8):
+ * 모두의 컬렉션 전시의 핵심 불변식 (델타 §8):
  *   전시(listed)하려면 반드시 공개(public)여야 한다.
  *
- * 이걸 어기면 카드는 창작마당 목록에 보이는데 열면 막히는 모순이 생긴다
+ * 이걸 어기면 카드는 모두의 컬렉션 목록에 보이는데 열면 막히는 모순이 생긴다
  * (갤러리 상세는 visibility='public' 을 열쇠로 쓴다). 그래서 공개가 아닌 컬렉션을
  * 전시로 켜려 하면 DB 에 닿기 전에 값으로 거절한다.
  *

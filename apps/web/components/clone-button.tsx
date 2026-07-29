@@ -1,6 +1,6 @@
 'use client'
 
-// "이 컬렉션 복제하기" 버튼 (창작마당 · 델타 §8).
+// "이 컬렉션 복제하기" 버튼 (모두의 컬렉션 · 델타 §8).
 // 성공하면 서버 액션이 새 컬렉션으로 redirect 하므로 여기선 pending 과 실패 문구만 다룬다.
 
 import { useActionState } from 'react'
