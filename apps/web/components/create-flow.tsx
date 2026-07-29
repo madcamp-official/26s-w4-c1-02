@@ -139,13 +139,14 @@ export function CreateFlow({
     SUGGEST_IDLE,
   )
 
-  // 만들기의 대상은 담긴 주소 전부다. 입력칸에 아직 담지 않은 글자가 있으면 그것도 센다 —
-  // "붙여넣고 바로 만들기"가 한 번의 클릭으로 되게 (담기를 강요하지 않는다).
+  // 만들기의 대상은 **담긴 주소뿐**이다. 입력칸의 글자는 "담기"를 눌러야 바구니로 들어간다 —
+  // 담지 않은 글자는 목록에도, 만들기 대상에도 들어가지 않는다.
   const typed = draft.trim()
-  const allUrls = typed !== '' && !basket.includes(typed) ? [typed, ...basket] : basket
-  const leadUrl = allUrls[0] ?? ''
-  const mergeUrls = allUrls.slice(1)
-  const canBuild = leadUrl !== ''
+  const leadUrl = basket[0] ?? ''
+  const mergeUrls = basket.slice(1)
+  const canBuild = basket.length > 0
+  // 추천 중복 제거·"담음" 표시에 쓰는 이미-아는 주소 집합 (입력 중인 것도 다시 추천하지 않게)
+  const knownUrls = typed !== '' && !basket.includes(typed) ? [...basket, typed] : basket
 
   function addToBasket(candidate: string): void {
     const trimmed = candidate.trim()
@@ -154,7 +155,6 @@ export function CreateFlow({
   }
 
   function removeUrl(target: string): void {
-    if (target === typed) setDraft('')
     setBasket((prev) => prev.filter((u) => u !== target))
   }
 
@@ -245,7 +245,7 @@ export function CreateFlow({
               주소를 모르겠으면 — 무엇을 모으고 싶은지 말로 적어보세요
             </summary>
             <form action={suggestFormAction} className="mt-3 flex flex-col gap-2">
-              <input type="hidden" name="already" value={JSON.stringify(allUrls)} />
+              <input type="hidden" name="already" value={JSON.stringify(knownUrls)} />
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   name="query"
@@ -273,7 +273,7 @@ export function CreateFlow({
                   아래는 추천일 뿐이에요 — 눌러서 담으면 만들 때 실제로 확인해요.
                 </p>
                 {suggestState.candidates.map((c) => {
-                  const added = allUrls.includes(c.url)
+                  const added = basket.includes(c.url)
                   return (
                     <div
                       key={c.url}
@@ -305,7 +305,7 @@ export function CreateFlow({
         <section className="flex flex-col gap-3 rounded-card border border-border bg-surface p-5 lg:sticky lg:top-6">
           <div className="flex items-center justify-between gap-3">
             <span className="text-[13.5px] font-bold text-ink">
-              담은 사이트 {allUrls.length}곳
+              담은 사이트 {basket.length}곳
             </span>
             {/* 만들기의 실체는 미리보기 요청이다 — 대표 주소로 표를 만들어 아래에 보여준다 */}
             <form action={previewFormAction}>
@@ -316,13 +316,13 @@ export function CreateFlow({
             </form>
           </div>
 
-          {allUrls.length === 0 ? (
+          {basket.length === 0 ? (
             <p className="rounded-[10px] border border-dashed border-border-strong bg-raised px-4 py-4 text-[13px] text-muted">
-              아직 담은 사이트가 없어요. 주소를 붙여넣거나, 말로 찾아 담아보세요.
+              아직 담은 사이트가 없어요. 주소를 붙여넣고 “담기”를 누르거나, 말로 찾아 담아보세요.
             </p>
           ) : (
             <ul className="flex flex-col gap-1.5">
-              {allUrls.map((u, index) => {
+              {basket.map((u, index) => {
                 const isLead = index === 0
                 return (
                   <li
@@ -356,9 +356,9 @@ export function CreateFlow({
             </ul>
           )}
 
-          {allUrls.length > 1 && (
+          {basket.length > 1 && (
             <p className="text-xs text-faint">
-              대표 사이트로 표를 만들고, 나머지 {allUrls.length - 1}곳을 같은 표에 합쳐요.
+              대표 사이트로 표를 만들고, 나머지 {basket.length - 1}곳을 같은 표에 합쳐요.
             </p>
           )}
         </section>
