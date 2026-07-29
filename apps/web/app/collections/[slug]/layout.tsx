@@ -3,10 +3,12 @@ import type { ReactNode } from 'react'
 
 import { CollectionManage } from '@/components/collection-manage'
 import { CollectionTabs } from '@/components/collection-tabs'
+import { HeroBand } from '@/components/hero-band'
 import { Dot } from '@/components/ui/badge'
 import { resolveCollectionAccess } from '@/lib/access'
 import {
   collectionStatusLine,
+  countCollectionItems,
   countHealedThisMonth,
   getCollectionBySlug,
   listSites,
@@ -16,8 +18,6 @@ import {
   VISIBILITY_COPY,
   checkedAgoCopy,
   closingCountCopy,
-  healedCopy,
-  newCountCopy,
 } from '@/lib/labels'
 import { quietSourceLines } from '@/lib/silence'
 import { cn } from '@/lib/utils'
@@ -46,116 +46,101 @@ export default async function CollectionLayout({
   // 주인도 멤버도 아니면 셸을 그리지 않는다 (ADR A40) — 각 페이지가 notFound 를 낸다
   const access = await resolveCollectionAccess(collection)
   if (!access.canView) return <>{children}</>
-  const [sites, healed, status, quiet] = await Promise.all([
+  const [sites, healed, status, quiet, itemCount] = await Promise.all([
     listSites(collection.id),
     countHealedThisMonth(collection.id),
     collectionStatusLine(collection),
     quietSourceLines(collection.id),
+    countCollectionItems(collection.id),
   ])
   const quietList = quiet.ok ? quiet.data : []
   const siteList = sites.ok ? sites.data : []
   const healedCount = healed.ok ? healed.data : 0
+  const items = itemCount.ok ? itemCount.data : 0
+  const newCount = status.ok ? status.data.new_count : 0
   const troubled = siteList.filter((s) => s.status === 'healing' || s.status === 'needs_attention')
 
-  // 상단 상태 줄 (델타 4-3) — 있는 것만 이어붙인다. 침묵 감지(⚠)는 워커가 판정을 주면 붙는다
+  // 상단 상태 줄 (델타 4-3) — 밴드의 sub 자리. 새 항목은 지표로 빼고, 확인시각·마감만 여기.
   const statusParts = status.ok
-    ? [
-        checkedAgoCopy(status.data.last_ok_at),
-        newCountCopy(status.data.new_count),
-        closingCountCopy(status.data.closing_count),
-      ].filter((part): part is string => part !== null)
+    ? [checkedAgoCopy(status.data.last_ok_at), closingCountCopy(status.data.closing_count)].filter(
+        (part): part is string => part !== null,
+      )
     : []
+
+  // 밴드 지표 (원본 EpBand) — 큰 mono 숫자
+  const numberFormat = new Intl.NumberFormat('ko-KR')
+  const metrics = [
+    { label: '항목', value: numberFormat.format(items) },
+    { label: '새 항목', value: numberFormat.format(newCount) },
+    { label: '자동 복구', value: `${healedCount}회` },
+  ]
+
+  const statusLine =
+    statusParts.length > 0 || quietList.length > 0 ? (
+      <>
+        {statusParts.map((part, index) => (
+          <span key={part}>
+            {index > 0 && <span className="text-white/40"> · </span>}
+            {part.startsWith('마감') ? (
+              <span className="font-semibold text-[oklch(0.9_0.09_75)]">{part}</span>
+            ) : (
+              part
+            )}
+          </span>
+        ))}
+        {quietList.map((line) => (
+          <span key={line.host}>
+            {statusParts.length > 0 && <span className="text-white/40"> · </span>}
+            <span className="font-semibold text-[oklch(0.9_0.09_75)]" title={line.sentence}>
+              ⚠ {line.short}
+            </span>
+          </span>
+        ))}
+      </>
+    ) : null
 
   return (
     <div className="flex flex-col gap-0">
-      <div className="mb-1.5 text-[13px] text-faint">
-        <Link href="/collections" className="hover:text-accent">
-          내 컬렉션
-        </Link>
-        <span> / {collection.name}</span>
-      </div>
-
-      {/* 브랜드 밴드 (원본 EpBand) — 인디고 위 흰 제목 + 다이아몬드 모티프. 콘솔의 시그니처 모먼트 */}
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-accent px-6 py-5 text-white sm:px-7 sm:py-6">
-        <img
-          src="/diamond-motif.svg"
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute -top-12 right-6 hidden h-[260px] opacity-25 sm:block"
-        />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-[26px] font-bold tracking-[-0.03em] text-white">
-                {collection.name}
-              </h1>
-              <span className="rounded-full bg-white/15 px-2.5 py-1 text-[12px] font-semibold text-white/90">
-                {VISIBILITY_COPY[collection.visibility]}
-              </span>
-              {healedCount > 0 && (
-                <span className="rounded-full bg-white/15 px-2.5 py-1 text-[12px] font-semibold text-white/90">
-                  {healedCopy(healedCount)}
-                </span>
-              )}
-            </div>
-
-            {(statusParts.length > 0 || quietList.length > 0) && (
-              <p className="mt-2.5 text-[13px] text-white/75">
-                {statusParts.map((part, index) => (
-                  <span key={part}>
-                    {index > 0 && <span className="text-white/40"> · </span>}
-                    {part.startsWith('마감') ? (
-                      <span className="font-semibold text-[oklch(0.9_0.09_75)]">{part}</span>
-                    ) : part.startsWith('새 항목') ? (
-                      <span className="font-semibold text-white">{part}</span>
-                    ) : (
-                      part
-                    )}
-                  </span>
-                ))}
-                {/* 침묵 경고 (델타 4-3) — 관찰만 말한다. 판정 정본은 워커 silence 잡 */}
-                {quietList.map((line) => (
-                  <span key={line.host}>
-                    <span className="text-white/40"> · </span>
-                    <span
-                      className="font-semibold text-[oklch(0.9_0.09_75)]"
-                      title={line.sentence}
-                    >
-                      ⚠ {line.short}
-                    </span>
-                  </span>
-                ))}
-              </p>
-            )}
-          </div>
-
-          {/* 기능 ② 의 입구 — 소스가 늘수록 커버리지가 좋아진다 (델타 2-9). 주인만 본다 (A40) */}
-          <div className="flex shrink-0 items-center gap-2">
-            {access.canManage ? (
-              <>
-                <Link
-                  href={`/collections/${collection.slug}/attach`}
-                  className="rounded-[10px] bg-white px-4 py-2 text-[13px] font-bold text-accent hover:bg-white/90 hover:no-underline"
-                >
-                  + 사이트 붙이기
-                </Link>
-                <CollectionManage
-                  name={collection.name}
-                  rename={renameCollectionAction.bind(null, collection.slug)}
-                  remove={deleteCollectionAction.bind(null, collection.slug)}
-                />
-              </>
-            ) : (
-              <span className="rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] font-semibold text-white/90">
-                함께 보는 중 · 읽기만
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* 브랜드 밴드 (원본 EpBand) — 인디고 위 흰 제목 + 다이아몬드 모티프 + 큰 mono 지표 */}
+      <HeroBand
+        overlap={false}
+        title={
+          <>
+            <h1 className="text-[26px] font-bold tracking-[-0.03em] text-white">
+              {collection.name}
+            </h1>
+            <span className="rounded-full bg-white/15 px-2.5 py-1 text-[12px] font-semibold text-white/90">
+              {VISIBILITY_COPY[collection.visibility]}
+            </span>
+          </>
+        }
+        sub={statusLine}
+        metrics={metrics}
+        action={
+          access.canManage ? (
+            <>
+              <Link
+                href={`/collections/${collection.slug}/attach`}
+                className="inline-flex items-center rounded-[10px] bg-white px-4 py-2 text-[13px] font-bold text-accent hover:bg-white/90 hover:no-underline"
+              >
+                + 사이트 붙이기
+              </Link>
+              <CollectionManage
+                name={collection.name}
+                rename={renameCollectionAction.bind(null, collection.slug)}
+                remove={deleteCollectionAction.bind(null, collection.slug)}
+              />
+            </>
+          ) : (
+            <span className="rounded-full bg-white/15 px-3 py-1.5 text-[12.5px] font-semibold text-white/90">
+              함께 보는 중 · 읽기만
+            </span>
+          )
+        }
+      />
 
       {siteList.length > 0 && (
-        <div className="mt-3.5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap gap-2">
           {siteList.map((site) => {
             const copy = SOURCE_STATUS_COPY[site.status]
             return (

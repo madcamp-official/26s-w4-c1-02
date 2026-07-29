@@ -257,6 +257,16 @@ export async function countHealedThisMonth(collectionId: string): Promise<Loaded
   })
 }
 
+/** 표에 담긴 전체 항목 수 (히어로 밴드 지표) */
+export async function countCollectionItems(collectionId: string): Promise<Loaded<number>> {
+  return safeQuery(async (core) => {
+    const rows = await core.queryClient<RawCountRow[]>`
+      select count(*)::int as n from items where collection_id = ${collectionId}
+    `
+    return Number(rows[0]?.n ?? 0)
+  })
+}
+
 /** 상단 상태 줄의 재료 (델타 4-3 — "살아있다"는 인상은 기능보다 먼저) */
 export interface CollectionStatusLine {
   /** 마지막으로 성공한 수집. null 이면 아직 받아온 적 없음 */

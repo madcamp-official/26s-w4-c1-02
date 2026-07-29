@@ -3,10 +3,27 @@ import Link from 'next/link'
 import { currentUser, isAuthReady } from '@/auth'
 import { AuthNotice, SignInForm } from '@/components/auth-actions'
 import { UnavailableState } from '@/components/empty-state'
-import { Badge, Dot } from '@/components/ui/badge'
-import { UrlPasteForm } from '@/components/url-paste-form'
+import { HeroBand } from '@/components/hero-band'
+import { Icon, type IconName } from '@/components/ui/icon'
 import { listCollections, type CollectionSummary } from '@/lib/collections'
-import { cardStatusCopy, healedCopy } from '@/lib/labels'
+import { cardStatusCopy, healedCopy, type Tone } from '@/lib/labels'
+import { cn } from '@/lib/utils'
+
+// 카드 우상단 상태 — 텍스트 배지가 아니라 Lucide 아이콘 (원본 EpStatusPill)
+const STATUS_ICON: Record<string, { icon: IconName; color: string; spin?: boolean }> = {
+  ok: { icon: 'check-circle', color: 'text-ok' },
+  healing: { icon: 'refresh', color: 'text-accent', spin: true },
+  attention: { icon: 'alert-triangle', color: 'text-healing' },
+}
+
+function StatusIcon({ tone, label }: { tone: Tone; label: string }) {
+  const s = STATUS_ICON[tone] ?? STATUS_ICON['ok']!
+  return (
+    <span title={label} className={cn('shrink-0', s.color)}>
+      <Icon name={s.icon} size={17} strokeWidth={2} className={s.spin ? 'animate-spin' : undefined} />
+    </span>
+  )
+}
 
 // 로그인 상태와 저장된 내용에 따라 매번 달라진다
 export const dynamic = 'force-dynamic'
@@ -28,18 +45,15 @@ function CollectionCard({ collection }: { collection: CollectionSummary }) {
       className="flex h-full flex-col rounded-card border border-border bg-surface p-6 transition-[border-color,box-shadow] hover:border-accent hover:no-underline hover:shadow-[0_4px_14px_rgba(30,86,200,0.12)]"
     >
       <div className="mb-3.5 flex items-start justify-between gap-3">
-        <span className="text-[17px] font-bold tracking-tight text-ink">{collection.name}</span>
-        <Badge tone={status.tone} className="shrink-0 font-semibold">
-          <Dot className={status.tone === 'healing' ? 'animate-pulse' : undefined} />
-          <span title={status.sentence}>{status.short}</span>
-        </Badge>
+        <span className="text-[15px] font-semibold tracking-tight text-ink">{collection.name}</span>
+        <StatusIcon tone={status.tone} label={status.sentence} />
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1.5">
         {collection.hosts.map((host) => (
           <span
             key={host}
-            className="rounded-md bg-canvas px-2 py-0.5 font-mono text-xs text-muted"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-0.5 font-mono text-[11.5px] text-muted"
           >
             {host}
           </span>
@@ -79,32 +93,47 @@ export default async function CollectionsPage() {
   }
 
   const result = await listCollections(user?.id ?? null)
+  const list = result.ok ? result.data : []
+  const normalCount = list.filter((c) => c.healing_count === 0 && c.attention_count === 0).length
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1.5 pt-2">
-        <h1 className="text-[26px] font-extrabold tracking-tight text-ink">내 컬렉션</h1>
-        <p className="text-sm text-faint">지켜보고 있는 주제들이에요 — 매일 알아서 갱신돼요</p>
-      </header>
-
-      {!isAuthReady && <AuthNotice />}
+    <HeroBand
+      title={<h1 className="text-[26px] font-bold tracking-[-0.03em] text-white">내 컬렉션</h1>}
+      sub={`${list.length}개 컬렉션 · 정상 ${normalCount}`}
+      action={
+        <Link
+          href="/collections/new"
+          className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-4 py-2 text-[13px] font-bold text-accent hover:bg-white/90 hover:no-underline"
+        >
+          <Icon name="plus" size={15} strokeWidth={2.2} />새 컬렉션
+        </Link>
+      }
+    >
+      {!isAuthReady && (
+        <div className="mb-4">
+          <AuthNotice />
+        </div>
+      )}
 
       {!result.ok ? (
         <UnavailableState message={result.message} />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {result.data.map((collection) => (
             <CollectionCard key={collection.id} collection={collection} />
           ))}
 
           {/* 새로 만드는 길이 항상 목록과 나란히 있다 (기획서 2장 · 보장선 B1) */}
-          <div className="flex min-h-[170px] flex-col justify-center gap-2 rounded-card border-[1.5px] border-dashed border-border-strong bg-transparent p-6 transition-colors hover:border-accent hover:bg-raised">
-            <div className="text-sm font-semibold text-faint">새 컬렉션 만들기</div>
-            <div className="text-xs text-faint">URL 하나면 시작할 수 있어요</div>
-            <UrlPasteForm className="mt-2" />
-          </div>
+          <Link
+            href="/collections/new"
+            className="flex min-h-[150px] flex-col items-center justify-center gap-2 rounded-card border-[1.5px] border-dashed border-border-strong bg-surface p-6 text-center transition-colors hover:border-accent hover:bg-raised hover:no-underline"
+          >
+            <Icon name="plus" size={20} className="text-muted" />
+            <div className="text-[13.5px] font-semibold text-muted">새 컬렉션 만들기</div>
+            <div className="text-xs text-faint">URL을 붙여넣거나, 말로 찾아요</div>
+          </Link>
         </div>
       )}
-    </div>
+    </HeroBand>
   )
 }
