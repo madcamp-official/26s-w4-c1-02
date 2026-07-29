@@ -23,6 +23,8 @@ import { probeNetwork } from './network'
 import { rankCandidates } from './rank'
 import { findRecordArrays } from './scan'
 import { fetchStatic, parseJsonBody, type StaticPage } from './static'
+import { extractPage } from '../html'
+import { fetchBrowserPayload } from '../fetchers/browser'
 import {
   PROBE_DEFAULTS,
   type ProbeCandidate,
@@ -60,10 +62,28 @@ export async function probe(url: string, opts: ProbeOptions = {}): Promise<Probe
   // ── 1단계 · 정적 GET ─────────────────────────────────────────────────
   const staticStart = Date.now()
   const staticRes = await fetchStatic(url)
-  if (!staticRes.ok) {
-    return failed(url, startedAt, steps, [staticRes.message])
+
+  // 정적 GET 이 막혀도(봇 차단 403 등) 브라우저로는 열릴 수 있다 — 여기서 끝내지 않는다.
+  // 한국 공공·대학 사이트는 기본 UA 에 403 을 주고 브라우저 UA 에는 본문을 주는 곳이 흔하다.
+  // browserRescue 는 `fetchBrowserPayload` 를 쓰므로 4xx·5xx(소프트 404 포함)는 그대로 거부된다
+  // — 정적이 막힌 것과 브라우저로 뚫리는 것만 살린다 (A 의 b6a4ae7 4xx 방어와 일관).
+  let page: StaticPage
+  if (staticRes.ok) {
+    page = staticRes.page
+  } else {
+    if (opts.skipBrowser === true) {
+      // 브라우저를 못 쓰면 정적이 유일한 길이었다 — 진짜 실패
+      steps.push(step('network', false, 0, staticStart, `정적 요청이 막혔습니다 (${staticRes.message}) · 브라우저 건너뜀`))
+      return failed(url, startedAt, steps, [staticRes.message])
+    }
+    const rescued = await browserRescue(url, timeoutMs)
+    if (rescued === null) {
+      steps.push(step('network', false, 0, staticStart, `정적 요청이 막혔고 브라우저로도 열지 못했습니다 (${staticRes.message})`))
+      return failed(url, startedAt, steps, [staticRes.message])
+    }
+    page = rescued
+    steps.push(step('network', true, 0, staticStart, `정적 요청이 막혀(${staticRes.message}) 브라우저로 다시 열었습니다`))
   }
-  const page: StaticPage = staticRes.page
   let pageText = page.page.text
 
   // 사용자가 내부 API 주소를 바로 붙여넣은 경우 — 1단계에서 끝난다 (원칙 ③의 최고 시나리오)
@@ -231,6 +251,37 @@ function finish(
     page: { title: page.page.title, text: pageText, html_bytes: page.html.length },
     warnings,
     duration_ms: Date.now() - startedAt,
+  }
+}
+
+/**
+ * 정적 GET 이 막혔을 때 브라우저로 페이지를 다시 열어 StaticPage 로 감싼다.
+ * `fetchBrowserPayload` 가 4xx·5xx 를 거르므로, 봇 차단(403→브라우저 200)만 통과하고
+ * 소프트 404(내용은 있지만 404) 는 여기서도 걸러진다. 못 열면 null.
+ */
+async function browserRescue(url: string, timeoutMs: number): Promise<StaticPage | null> {
+  const out = await fetchBrowserPayload({ mode: 'browser', url, wait_for: 'networkidle' }, url, { timeoutMs })
+  if (!out.ok) return null
+  // browser 모드의 payload 는 언제나 HTML 문자열이다 (fetchers/browser.ts 머리말)
+  const html = typeof out.payload === 'string' ? out.payload : ''
+  if (html === '') return null
+  const finalUrl = out.finalUrl
+  let host = ''
+  try {
+    host = new URL(finalUrl).host
+  } catch {
+    host = ''
+  }
+  return {
+    requestedUrl: url,
+    url: finalUrl,
+    host,
+    status: 200,
+    contentType: 'text/html',
+    charset: 'utf-8', // 브라우저가 이미 디코드한 문자열이다
+    html,
+    isJson: false,
+    page: extractPage(html),
   }
 }
 

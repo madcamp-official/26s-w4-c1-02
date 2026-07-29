@@ -16,6 +16,8 @@ import { isPrivateHost } from '@endpointer/core/spec'
 
 import { childLogger } from '../logger'
 import { getConfig } from '../config'
+import { checkOutboundUrl } from '../fetchers/guard'
+import { guardedDispatcher } from '../fetchers/guarded-dispatcher'
 import { generateJson, type GeminiFailureReason } from './gemini'
 import {
   buildSuggestPrompt,
@@ -63,9 +65,47 @@ export async function suggestSources(input: SuggestInput): Promise<SuggestOutcom
 
   if (!out.ok) return { ok: false, reason: out.reason, message: out.message }
 
-  const candidates = parseSuggestOutput(out.text, input.already ?? [])
-  log.info({ query: query.slice(0, 60), candidates: candidates.length }, '소스 후보 제안')
+  const parsed = parseSuggestOutput(out.text, input.already ?? [])
+
+  // LLM 은 그럴듯한 죽은 주소를 지어낸다 (실측: 존재하지 않는 대학 공지 URL 5개). 검증 없이
+  // 내놓으면 사용자가 그걸로 표를 만들다 "목록을 못 찾았어요" 를 만나 — A42 가 시간을 태우는
+  // 기능이 된다. 그래서 제시 전에 **살아있는 주소만** 남긴다 (도달성 확인, 관문 통과).
+  const candidates = await keepReachable(parsed)
+  log.info(
+    { query: query.slice(0, 60), suggested: parsed.length, reachable: candidates.length },
+    '소스 후보 제안',
+  )
   return { ok: true, candidates }
+}
+
+/** 후보 상한이 작으므로(≤6) 전부 동시에 확인한다 */
+async function keepReachable(candidates: SourceSuggestion[]): Promise<SourceSuggestion[]> {
+  const checks = await Promise.all(candidates.map((c) => isReachable(c.url)))
+  return candidates.filter((_, i) => checks[i])
+}
+
+/**
+ * 주소가 살아 있나 — 관문(SSRF) 통과 후 가볍게 GET 해 최종 상태가 4xx·5xx 가 아니면 살았다고 본다.
+ * HEAD 는 막는 서버가 많아 GET 을 쓰되 본문은 버린다. DNS 실패·접속 거부·타임아웃은 죽음.
+ * 봇 차단(403)·인증 요구(401)·레이트리밋(429)은 **호스트가 존재해 응답한 것**이라 살려 둔다
+ * — 그런 사이트는 probe 의 브라우저 폴백이 뚫을 수 있다.
+ */
+async function isReachable(url: string): Promise<boolean> {
+  const entry = await checkOutboundUrl(url)
+  if (!entry.ok) return false
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    const init: RequestInit = { method: 'GET', redirect: 'follow', signal: controller.signal }
+    ;(init as { dispatcher?: unknown }).dispatcher = guardedDispatcher()
+    const res = await fetch(url, init)
+    clearTimeout(timer)
+    await res.body?.cancel().catch(() => {})
+    if (res.status === 401 || res.status === 403 || res.status === 429) return true
+    return res.status < 400
+  } catch {
+    return false
+  }
 }
 
 /** URL 을 host+path 로 정규화 — 중복 판정 기준. 쿼리·프래그먼트·트레일링 슬래시를 턴다 */
