@@ -23,6 +23,7 @@ import { sampleRows } from '../probe/scan'
 import type { RankedCandidate } from '../probe/types'
 import { generateJson, type GeminiFailureReason } from './gemini'
 import { buildDiscoverPrompt, DISCOVER_SYSTEM, type CompileCandidateBrief } from './prompts'
+import { repairSpecDraft } from './repair-draft'
 
 const log = childLogger({ mod: 'discover' })
 
@@ -99,7 +100,8 @@ export async function discoverSpec(input: DiscoverInput): Promise<DiscoverResult
       return { ok: false, reason: out.reason, message: out.message, errors: [out.message], attempts }
     }
 
-    const parsed = parseDiscoveryOutput(out.text, {
+    // 기계적 표기 실수(css: 누락 · {page} 누락)를 먼저 교정한다 — 관문은 그대로 통과해야 한다
+    const parsed = parseDiscoveryOutput(repairSpecDraft(out.text), {
       host: input.host,
       ...(input.allowPrivateHosts !== undefined ? { allowPrivateHosts: input.allowPrivateHosts } : {}),
     })

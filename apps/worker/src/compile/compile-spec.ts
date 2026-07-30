@@ -22,6 +22,7 @@ import { childLogger } from '../logger'
 import { sampleRows } from '../probe/scan'
 import type { RankedCandidate } from '../probe/types'
 import { generateJson, type GeminiFailureReason } from './gemini'
+import { repairSpecDraft } from './repair-draft'
 import { buildCompilePrompt, buildHealPrompt, COMPILE_SYSTEM, type CompileCandidateBrief } from './prompts'
 
 const log = childLogger({ mod: 'compile' })
@@ -100,7 +101,7 @@ export async function compileSpec(input: CompileInput): Promise<CompileResult> {
       return { ok: false, reason: out.reason, message: out.message, errors: [out.message], attempts }
     }
 
-    const parsed = parseGeminiSpecOutput(out.text, validateOpts)
+    const parsed = parseGeminiSpecOutput(repairSpecDraft(out.text), validateOpts)
     if (parsed.ok) {
       attempts.push({ n, ok: true, errors: [] })
       log.info({ host: input.host, attempt: n, mode: parsed.spec.fetch.mode }, '스펙 생성 성공')
@@ -164,7 +165,7 @@ export async function recompileSpec(
     return { ok: false, reason: out.reason, message: out.message, errors: [out.message], attempts }
   }
 
-  const parsed = parseGeminiSpecOutput(out.text, validateOpts)
+  const parsed = parseGeminiSpecOutput(repairSpecDraft(out.text), validateOpts)
   if (parsed.ok) {
     attempts.push({ n: 1, ok: true, errors: [] })
     return { ok: true, spec: parsed.spec, attempts }
