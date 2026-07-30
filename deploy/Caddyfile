@@ -50,9 +50,13 @@
 	}
 }
 
-# 공개 API·MCP 는 브라우저와 외부 에이전트가 직접 부른다 → CORS 필요.
+# MCP 는 브라우저와 외부 에이전트가 직접 부른다 → CORS 필요.
 # 지금은 전면 허용이다. 컬렉션이 private(=Bearer 키)이 되면 credentials 를 안 쓰므로
 # 와일드카드로 충분하다. 쿠키 인증을 붙이게 되면 그때 오리진을 좁혀라.
+#
+# **REST API 블록에는 넣지 마라** — 앱(public-api.ts)이 preflight 포함 CORS 를 전부 붙인다.
+# 여기서 또 붙이면 Access-Control-Allow-Origin 이 두 번 나가고, 브라우저는 중복 CORS 헤더를
+# 거부한다 ("multiple values '*, *'") — curl 은 되는데 브라우저 fetch 만 죽는 함정 (07-30 실측).
 (cors) {
 	@preflight method OPTIONS
 	handle @preflight {
@@ -88,7 +92,7 @@
 # 사용자에게 보이는 주소에서 /api/v1 접두사를 지우는 게 목적이다 (기획서 8장·12장).
 {$API_DOMAIN} {
 	import base
-	import cors
+	# cors 를 import 하지 않는다 — 앱이 붙인다 (위 (cors) 스니펫 주석)
 	tls internal
 	encode zstd gzip
 
@@ -140,7 +144,7 @@ http://{$APP_DOMAIN}:8080 {
 
 http://{$API_DOMAIN}:8080 {
 	import base
-	import cors
+	# cors 를 import 하지 않는다 — 앱이 붙인다 (위 (cors) 스니펫 주석)
 	encode zstd gzip
 
 	rewrite * /api/v1{uri}
