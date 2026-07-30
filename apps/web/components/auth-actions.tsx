@@ -54,12 +54,14 @@ export function SignInHero({ redirectTo = '/collections' }: { redirectTo?: strin
 export function SignOutForm() {
   return (
     <form
+      className="shrink-0"
       action={async () => {
         'use server'
         await signOut({ redirectTo: '/' })
       }}
     >
-      <Button type="submit" variant="ghost" size="sm">
+      {/* ghost 는 글자처럼 보여 버튼인 줄 모른다 — 테두리 있는 outline 으로 */}
+      <Button type="submit" variant="outline" size="sm">
         {COPY.signOut}
       </Button>
     </form>

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 
 import { currentUser, isAuthReady } from '@/auth'
-import { AuthNotice, SignInForm, SignInHero } from '@/components/auth-actions'
+import { AuthNotice, SignInHero } from '@/components/auth-actions'
 import { Icon, type IconName } from '@/components/ui/icon'
 
 // 로그인 상태에 따라 갈라지므로 미리 만들어두지 않는다
@@ -74,20 +74,13 @@ export default async function HomePage() {
 
   return (
     <div className="bg-[var(--surface-page)]">
-      {/* nav (원본 EpNav) — 좁은 화면은 루트 상단바가 대신한다 */}
-      <header className="sticky top-0 z-50 hidden border-b border-divider bg-white/92 backdrop-blur md:block">
-        <div className="mx-auto flex h-[60px] max-w-[1080px] items-center gap-7 px-6">
+      {/* nav (원본 EpNav) — 좁은 화면은 루트 상단바가 대신한다.
+          px-6 은 header 쪽에 둔다 — 안쪽 컨테이너에 두면 히어로(max-w 만 있는)와 시작 x 가 24px 어긋난다 */}
+      <header className="sticky top-0 z-50 hidden border-b border-divider bg-white/92 px-6 backdrop-blur md:block">
+        <div className="mx-auto flex h-[60px] max-w-[1080px] items-center gap-7">
           <span className="text-[20px] font-bold tracking-[-0.04em] text-ink">
             Endpointer<span className="text-accent">.</span>
           </span>
-          <div className="ml-auto flex items-center gap-2">
-            {isAuthReady && (
-              <>
-                <SignInForm size="sm" variant="ghost" />
-                <SignInForm size="sm" variant="primary" />
-              </>
-            )}
-          </div>
         </div>
       </header>
 
@@ -101,11 +94,7 @@ export default async function HomePage() {
         />
         <div className="relative mx-auto grid max-w-[1080px] items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[12.5px] font-semibold text-accent">
-              <span aria-hidden className="size-1.5 rounded-full bg-current" />
-              AI 연결(MCP) 지원
-            </span>
-            <h1 className="mt-4 text-[38px] leading-[1.15] font-bold tracking-[-0.03em] text-ink sm:text-[52px]">
+            <h1 className="text-[38px] leading-[1.15] font-bold tracking-[-0.03em] text-ink sm:text-[52px]">
               세상의 모든 페이지를
               <br />
               <span
@@ -115,9 +104,10 @@ export default async function HomePage() {
                 당신의 도구로
               </span>
             </h1>
-            <p className="mt-5 max-w-[440px] text-[17px] leading-[1.65] text-muted">
-              비슷한 일을 하는 서로 다른 사이트들을 하나의 표로 합쳐요. 코드 없이 표와 알림으로,
-              코드로는 주소(API)와 AI(MCP)로.
+            {/* break-keep — 한글이 "코드 없/이"처럼 글자 중간에서 꺾이지 않게 어절 단위로 줄바꿈 */}
+            <p className="mt-5 max-w-[460px] text-[17px] leading-[1.65] break-keep text-muted">
+              웹에 있는 어떤 목록이든, 붙여넣는 순간 당신의 데이터가 돼요. 갱신도 알림도 알아서 —
+              당신은 꺼내 쓰기만 하세요.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-2.5">
               {isAuthReady ? <SignInHero /> : <AuthNotice />}

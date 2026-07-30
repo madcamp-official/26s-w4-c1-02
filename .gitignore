@@ -35,3 +35,4 @@ playwright-report/
 .DS_Store
 .idea/
 .vscode/
+bash.exe.stackdump
