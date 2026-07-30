@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
-import { resetTours } from '@/components/tour/tour'
+import { resetTour } from '@/components/tour/tour'
 import { cn } from '@/lib/utils'
 
 // ── Lucide 계열 인라인 아이콘 (의존성 없이 · 1.75 stroke) ──────────────
@@ -138,12 +138,19 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
       </nav>
 
       <div className="mt-auto flex flex-col gap-3 border-t border-divider p-4">
-        {/* 둘러보기 재실행 — 기록을 지우고 처음 화면으로 가면 투어가 다시 뜬다 */}
+        {/* 둘러보기 재실행 — 지금 서 있는 맥락의 챕터가 그 자리에서 다시 뜬다.
+            컬렉션 안이면 '네 얼굴'(챕터 ②), 밖이면 콘솔 투어(챕터 ① — 내 컬렉션 화면에서) */}
         <button
           type="button"
           onClick={() => {
-            resetTours()
-            window.location.href = '/collections'
+            if (slug) {
+              resetTour('collection')
+              window.location.reload()
+            } else {
+              resetTour('console')
+              if (pathname === '/collections') window.location.reload()
+              else window.location.href = '/collections'
+            }
           }}
           className="self-start text-[11.5px] text-faint hover:text-accent"
         >

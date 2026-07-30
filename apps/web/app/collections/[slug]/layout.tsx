@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { CollectionTabs } from '@/components/collection-tabs'
+import { Tour } from '@/components/tour/tour'
 import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
 
@@ -29,6 +30,9 @@ export default async function CollectionLayout({
 
   return (
     <>
+      {/* 컬렉션 안 어디서든 처음이면 '네 얼굴' 둘러보기 (챕터 ②) — 앵커가 사이드바 탭이라 페이지 무관 */}
+      <Tour chapter="collection" />
+
       {/* 데스크톱은 좌측 사이드바가 섹션 nav 를 담당한다. 좁은 화면에서만 가로 탭 */}
       <div className="px-5 pt-4 md:hidden">
         <CollectionTabs slug={collection.slug} manage={access.canManage} />

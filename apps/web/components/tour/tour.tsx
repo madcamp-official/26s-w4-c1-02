@@ -28,11 +28,10 @@ const FIND_INTERVAL_MS = 100
 
 const storageKey = (id: TourChapter['id']) => `ep:tour:${id}`
 
-/** 재실행 입구가 쓴다 — 기록을 지우면 다음 방문에서 다시 뜬다 */
-export function resetTours(): void {
+/** 재실행 입구가 쓴다 — 지금 서 있는 맥락의 챕터만 지워, 그 자리에서 다시 뜨게 한다 */
+export function resetTour(id: TourChapter['id']): void {
   try {
-    localStorage.removeItem(storageKey('console'))
-    localStorage.removeItem(storageKey('collection'))
+    localStorage.removeItem(storageKey(id))
   } catch {
     /* 시크릿 모드 등 — 지울 게 없으면 그만 */
   }
