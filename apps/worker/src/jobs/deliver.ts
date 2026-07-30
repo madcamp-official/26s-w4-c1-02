@@ -130,7 +130,8 @@ async function buildPayload(input: BuildPayloadInput): Promise<DeliveryPayload> 
     collection: {
       slug: input.slug,
       name: input.name,
-      url: `${cfg.publicBaseUrl.replace(/\/$/, '')}/c/${input.slug}`,
+      // 웹의 실제 라우트는 /collections/<slug> 다 — /c/ 는 존재한 적 없는 경로 (리허설 실측 수리)
+      url: `${cfg.publicBaseUrl.replace(/\/$/, '')}/collections/${input.slug}`,
     },
     items,
     summary:
