@@ -62,7 +62,7 @@ export default async function CollectionSettingsPage({ params }: PageProps) {
       : []
 
   return (
-    <HeroBand dense overlap={false} title="설정" sub="공개범위 · 함께 보기 · 이름 · 삭제">
+    <HeroBand dense overlap={false} title={collection.name} sub="설정">
       <div className="grid items-start gap-5 lg:grid-cols-2">
         <section className="rounded-card border border-divider bg-surface p-5 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">

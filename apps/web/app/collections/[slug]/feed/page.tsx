@@ -1,7 +1,7 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { FeedList } from '@/components/feed-list'
+import { FeedSectionChips } from '@/components/feed-section-chips'
 import { HeroBand } from '@/components/hero-band'
 import { UnavailableState } from '@/components/empty-state'
 import { resolveCollectionAccess } from '@/lib/access'
@@ -36,33 +36,17 @@ export default async function CollectionFeedPage({ params }: PageProps) {
   const { fresh, closing, dateField } = feed.data
 
   return (
-    <HeroBand
-      dense
-      overlap={false}
-      title="읽기 피드"
-      sub="훑기만 해도 되게 — 마감 임박과 새 항목만 추려요"
-    >
+    <HeroBand dense overlap={false} title={collection.name} sub="읽기 피드">
     <div className="flex flex-col gap-7">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-accent bg-accent px-4 py-2 text-[13.5px] font-bold text-accent-ink">
-          {COPY.feedFreshTitle} {fresh.length}
-        </span>
-        {dateField !== null && (
-          <span className="rounded-full border border-border bg-surface px-4 py-2 text-[13.5px] font-bold text-muted">
-            {COPY.feedClosingTitle} {closing.length}
-          </span>
-        )}
-        <Link
-          href={`/collections/${collection.slug}/views`}
-          className="ml-auto rounded-[9px] border-[1.5px] border-accent px-4 py-2 text-[13.5px] font-bold text-accent hover:bg-accent-soft hover:no-underline"
-        >
-          새 항목 받아보기 →
-        </Link>
-      </div>
+      {/* 절 바로가기 칩 — 누른 쪽이 진해지고 해당 절로 스크롤 */}
+      <FeedSectionChips
+        freshCount={fresh.length}
+        closingCount={dateField !== null ? closing.length : null}
+      />
 
       {/* 급한 것부터 — 마감 임박이 위 (기획서 3장) */}
       {dateField !== null && closing.length > 0 && (
-        <section className="flex flex-col gap-3">
+        <section id="closing" className="flex scroll-mt-4 flex-col gap-3">
           <div className="flex flex-col gap-0.5">
             <h2 className="text-lg font-bold text-ink">{COPY.feedClosingTitle}</h2>
             <p className="text-sm text-faint">{closingCopy(dateField.label)}</p>
@@ -71,7 +55,7 @@ export default async function CollectionFeedPage({ params }: PageProps) {
         </section>
       )}
 
-      <section className="flex flex-col gap-3">
+      <section id="fresh" className="flex scroll-mt-4 flex-col gap-3">
         <div className="flex flex-col gap-0.5">
           <h2 className="text-lg font-bold text-ink">{COPY.feedFreshTitle}</h2>
           <p className="text-sm text-faint">{COPY.feedFreshBody}</p>

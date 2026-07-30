@@ -41,12 +41,7 @@ export default async function CollectionSourcesPage({ params }: PageProps) {
   const healedCount = healed.ok ? healed.data : 0
 
   return (
-    <HeroBand
-      dense
-      overlap={false}
-      title="소스"
-      sub="붙어 있는 사이트들 — 문제는 스스로 고치고, 결과만 알려요"
-    >
+    <HeroBand dense overlap={false} title={collection.name} sub="소스">
       {/* 사이트 상태 */}
       <section className="rounded-card border border-divider bg-surface p-5 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2.5">
@@ -100,19 +95,20 @@ export default async function CollectionSourcesPage({ params }: PageProps) {
         )}
       </section>
 
-      {/* 표에 붙는 값 — 이 표의 열과 값 형태 (원본 SourcesCare 두 번째 패널) */}
-      <section className="rounded-card border border-divider bg-surface p-4 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
+      {/* 표에 붙는 값 — 알약 무더기가 아니라 실제 표의 머리글처럼 (열 이름 + 값 종류) */}
+      <section className="rounded-card border border-divider bg-surface p-5 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
         <h2 className="mb-3 text-[15px] font-semibold text-ink">표에 붙는 값</h2>
-        <div className="flex flex-wrap gap-1.5">
-          {collection.schema_json.map((field) => (
-            <span
-              key={field.key}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-raised px-3 py-1 text-[12px] font-medium text-muted"
-            >
-              {field.label}
-              <span className="text-[11px] text-faint">{FIELD_TYPE_HINT[field.type]}</span>
-            </span>
-          ))}
+        <div className="scroll-x rounded-[10px] border border-border">
+          <div className="flex min-w-max divide-x divide-divider bg-canvas">
+            {collection.schema_json.map((field) => (
+              <div key={field.key} className="flex min-w-[112px] flex-col gap-0.5 px-4 py-2.5">
+                <span className="text-[13px] font-semibold whitespace-nowrap text-ink">
+                  {field.label}
+                </span>
+                <span className="text-[11px] text-faint">{FIELD_TYPE_HINT[field.type]}</span>
+              </div>
+            ))}
+          </div>
         </div>
         <p className="mt-2.5 text-[12.5px] text-faint">
           어느 사이트에서 오든 같은 열, 같은 형태로 맞춰 담아요 — 날짜는 날짜답게, 금액은 금액답게.

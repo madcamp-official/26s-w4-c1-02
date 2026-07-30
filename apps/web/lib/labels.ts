@@ -88,7 +88,7 @@ export const COPY = {
   /** 읽기 피드 (기획서 3장 — 훑는 사람 · G3 트랙 B) */
   feedOpen: '읽기로 보기',
   feedBack: '표로 보기',
-  feedFreshTitle: '새로 올라온 것',
+  feedFreshTitle: 'NEW',
   feedFreshBody: '표에 새로 담긴 순서예요.',
   feedClosingTitle: '마감 임박',
   feedEmpty: '아직 보여드릴 항목이 없어요. 사이트에서 새 내용을 받아오면 여기부터 채워집니다.',

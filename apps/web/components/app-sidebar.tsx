@@ -10,7 +10,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
-import { useCollectionName } from '@/components/collection-context'
 import { cn } from '@/lib/utils'
 
 // ── Lucide 계열 인라인 아이콘 (의존성 없이 · 1.75 stroke) ──────────────
@@ -54,7 +53,6 @@ interface NavItem {
 
 export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
   const pathname = usePathname()
-  const collectionName = useCollectionName()
 
   // 랜딩(/)은 웹사이트다 — 콘솔 사이드바 없이 자기 nav 를 그린다 (원본 ui_kits/website)
   if (pathname === '/') return null
@@ -102,21 +100,14 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
         </Link>
       </div>
 
+      {/* 컬렉션 이름은 밴드 제목이 맡는다 — 여기서는 돌아가는 길만 (아래 nav 항목과 같은 크기) */}
       {slug && (
-        <>
-          <Link
-            href="/collections"
-            className="mx-3 flex items-center gap-1.5 px-3 py-1 text-[12.5px] text-faint hover:text-accent hover:no-underline"
-          >
-            <Ic path={ICON.chevronLeft} size={13} />내 컬렉션
-          </Link>
-          {/* 지금 보고 있는 컬렉션 이름 (원본 Sidebar.jsx 의 col.name 블록) */}
-          {collectionName !== null && (
-            <div className="px-6 pt-2 pb-2.5 text-[13px] leading-[1.4] font-semibold text-ink">
-              {collectionName}
-            </div>
-          )}
-        </>
+        <Link
+          href="/collections"
+          className="mx-3 mb-0.5 flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm font-medium text-muted hover:bg-raised hover:no-underline"
+        >
+          <Ic path={ICON.chevronLeft} />내 컬렉션
+        </Link>
       )}
 
       <nav className="flex flex-col gap-0.5 px-3">

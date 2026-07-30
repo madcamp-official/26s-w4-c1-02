@@ -48,14 +48,6 @@ export function DeveloperDetails({
           </code>
           <CopyButton value={apiUrl} />
         </div>
-        <p className="text-xs leading-relaxed text-faint">
-          응답에는 <code className="font-mono">items · sources · schema_version</code> 이 항상 함께
-          와요 — 사이트 하나가 아파도 나머지는 정상 응답이에요.
-          <br />
-          공통: 정렬 <code className="font-mono">?sort=-amount</code> · 신규만{' '}
-          <code className="font-mono">?since=2026-07-20</code> · 출처{' '}
-          <code className="font-mono">?source=…</code> · 검색 <code className="font-mono">?q=…</code>
-        </p>
       </div>
 
         {/* 코드로 붙이기 — cURL·JS·Python·응답 JSON 을 골라 복사 */}

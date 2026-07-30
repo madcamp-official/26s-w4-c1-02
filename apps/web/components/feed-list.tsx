@@ -68,7 +68,8 @@ export function FeedList({
               {left !== null && left >= 0 && (
                 <Badge
                   tone={left <= 7 ? 'attention' : 'accent'}
-                  className="shrink-0 rounded-[7px] px-2.5 py-1.5 font-extrabold"
+                  // 고정 폭 + 가운데 정렬 — "D-1"과 "오늘까지"가 같은 크기라야 줄이 맞는다
+                  className="min-w-[62px] shrink-0 justify-center rounded-[7px] px-2 py-1.5 text-center font-extrabold"
                 >
                   {left === 0 ? '오늘까지' : `D-${left}`}
                 </Badge>

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 
-import { CollectionNameBroadcast } from '@/components/collection-context'
 import { CollectionTabs } from '@/components/collection-tabs'
 import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
@@ -30,8 +29,6 @@ export default async function CollectionLayout({
 
   return (
     <>
-      {/* 사이드바가 컬렉션 이름을 보여줄 수 있게 방송한다 (원본 Sidebar.jsx 의 col.name 자리) */}
-      <CollectionNameBroadcast name={collection.name} />
       {/* 데스크톱은 좌측 사이드바가 섹션 nav 를 담당한다. 좁은 화면에서만 가로 탭 */}
       <div className="px-5 pt-4 md:hidden">
         <CollectionTabs slug={collection.slug} manage={access.canManage} />

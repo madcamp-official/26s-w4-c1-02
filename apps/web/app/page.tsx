@@ -1,11 +1,8 @@
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { currentUser, isAuthReady } from '@/auth'
 import { AuthNotice, SignInForm, SignInHero } from '@/components/auth-actions'
 import { Icon, type IconName } from '@/components/ui/icon'
-import { listExampleCollections } from '@/lib/collections'
-import { coverageCopy } from '@/lib/labels'
 
 // 로그인 상태에 따라 갈라지므로 미리 만들어두지 않는다
 export const dynamic = 'force-dynamic'
@@ -24,7 +21,7 @@ const DIAGRAM_OUTPUTS: ReadonlyArray<readonly [IconName, string]> = [
 // 기능 4단 (원본 Features 레이아웃 · 문구는 이 제품이 실제로 하는 것만)
 const FEATURES: ReadonlyArray<readonly [IconName, string, string]> = [
   ['link2', '한 번의 붙여넣기', '목록 페이지 주소만 붙여넣으면 표가 돼요. 선택자도, 설정도 없어요.'],
-  ['merge', '여러 사이트, 한 표', '두 번째 사이트를 붙여도 같은 열, 같은 형식으로 맞춰 담겨요.'],
+  ['merge', '여러 사이트, 하나의 스키마', '두 번째 사이트를 붙여도 같은 열, 같은 형식으로 맞춰 담겨요.'],
   ['refresh', '스스로 고침', '사이트가 바뀌어 깨지면 스스로 고치고, 고친 기록을 보여드려요.'],
   ['plug', '네 가지 얼굴', '같은 내용을 표로, 읽기 피드로, 주소(API)로, 쓰시는 AI로 봐요.'],
 ]
@@ -74,9 +71,6 @@ function ConnectDiagram() {
 export default async function HomePage() {
   const user = await currentUser()
   if (user) redirect('/collections')
-
-  const examples = await listExampleCollections(3)
-  const exampleList = examples.ok ? examples.data : []
 
   return (
     <div className="bg-[var(--surface-page)]">
@@ -133,23 +127,23 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 두 사용자층 (원본 TwoAudiences) — 노코드 / 개발자 */}
-      <section className="border-y border-divider bg-surface px-6 py-16">
-        <div className="mx-auto max-w-[1080px]">
-          <h2 className="text-[30px] font-bold tracking-[-0.03em] text-ink">
+      {/* 두 사용자층 (원본 TwoAudiences) — 카드가 아니라 화면을 좌우로 가르는 비교.
+          왼쪽(크림)은 코드 없는 사람, 오른쪽(잉크)은 개발자 — 색이 곧 대비다 */}
+      <section className="border-y border-divider">
+        <div className="bg-surface px-6 pt-14 pb-9">
+          <h2 className="mx-auto max-w-[1080px] text-[30px] font-bold tracking-[-0.03em] text-ink">
             코드가 있든 없든, 같은 표
           </h2>
-          <p className="mt-2.5 mb-8 text-[15px] text-muted">
-            한 번 만들면 팀 전체가 각자의 방식으로 써요
-          </p>
-          <div className="grid gap-5 md:grid-cols-2">
-            <div className="rounded-2xl bg-[var(--surface-page)] p-7 shadow-[0_1px_3px_rgba(35,48,63,0.06)]">
+        </div>
+        <div className="grid border-t border-divider md:grid-cols-2">
+          <div className="bg-[var(--surface-page)] px-6 py-14 md:px-12">
+            <div className="md:ml-auto md:max-w-[480px]">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-3 py-1 text-[12.5px] font-semibold text-ok">
                 <span aria-hidden className="size-1.5 rounded-full bg-current" />
                 코드 없이
               </span>
               <h3 className="mt-3.5 mb-2 text-[22px] font-semibold tracking-[-0.02em] text-ink">
-                표와 알림으로
+                시트로 관리하거나
               </h3>
               <p className="mb-4 text-[14.5px] leading-[1.65] text-muted">
                 여러 사이트의 목록이 하나의 표로 모여요. 조건을 저장해 두면 새 항목이 생길 때 알려
@@ -166,14 +160,16 @@ export default async function HomePage() {
                 ))}
               </div>
             </div>
+          </div>
 
-            <div className="rounded-2xl bg-[var(--surface-inverse)] p-7">
+          <div className="bg-[var(--surface-inverse)] px-6 py-14 md:px-12">
+            <div className="md:mr-auto md:max-w-[480px]">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[12.5px] font-semibold text-accent">
                 <span aria-hidden className="size-1.5 rounded-full bg-current" />
                 개발자
               </span>
               <h3 className="mt-3.5 mb-2 text-[22px] font-semibold tracking-[-0.02em] text-white">
-                하나의 API로
+                하나의 API로 다루거나
               </h3>
               <div className="rounded-[10px] bg-[oklch(0.23_0.015_255)] px-4 py-3.5 font-mono text-[12.5px] leading-[1.8] text-[var(--ink-100)]">
                 <span className="text-[var(--ep-green-500)]">GET</span> /api/v1/my-collection?d_within=7
@@ -212,41 +208,6 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
-
-      {/* 예시 컬렉션 — 빈 화면 금지 (델타 5-5). 로그인 없이 눌러서 구경한다 */}
-      {exampleList.length > 0 && (
-        <section className="px-6 pb-16">
-          <div className="mx-auto max-w-[1080px]">
-            <h2 className="mb-4 text-sm font-bold text-faint">
-              이런 표가 이미 살아 있어요 — 눌러서 바로 구경해 보세요
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {exampleList.map((example) => (
-                <Link
-                  key={example.id}
-                  href={`/collections/${example.slug}`}
-                  className="flex flex-col gap-2 rounded-card border border-divider bg-surface p-5 shadow-[0_1px_3px_rgba(35,48,63,0.06)] transition-[border-color,box-shadow] hover:border-accent hover:no-underline hover:shadow-[0_4px_14px_rgba(30,86,200,0.12)]"
-                >
-                  <span className="text-[15px] font-semibold text-ink">{example.name}</span>
-                  <span className="text-xs text-faint">
-                    {coverageCopy(example.site_count, example.item_count)}
-                  </span>
-                  <span className="mt-auto flex flex-wrap gap-1.5 pt-1">
-                    {example.hosts.slice(0, 3).map((host) => (
-                      <span
-                        key={host}
-                        className="rounded-full border border-border bg-surface px-2 py-0.5 font-mono text-[11px] text-muted"
-                      >
-                        {host}
-                      </span>
-                    ))}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* CTA (원본 Cta) — 어두운 블록 */}
       <section className="px-6 pb-20">

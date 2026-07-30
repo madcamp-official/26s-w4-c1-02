@@ -65,7 +65,8 @@ export function HeroBand({
                 title
               )}
             </div>
-            {sub && <p className="mt-1.5 text-[13px] text-white/72">{sub}</p>}
+            {/* 부제 = 탭 이름. 제목(22px)보다는 작지만 위계가 읽히게 굵고 또렷하게 */}
+            {sub && <p className="mt-1.5 text-[15.5px] font-bold text-white/85">{sub}</p>}
             {status && (
               <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12.5px] text-white/85">
                 {status}
@@ -76,7 +77,14 @@ export function HeroBand({
                 {metrics.map((m) => (
                   <div key={m.label}>
                     <div className="text-[12px] font-medium text-white/65">{m.label}</div>
-                    <div className="font-mono text-[34px] leading-tight font-semibold tracking-[-0.01em] text-white">
+                    <div
+                      className="text-[34px] leading-tight font-semibold tracking-[-0.01em] text-white"
+                      // 숫자는 JetBrains Mono, 한글("회" 등)은 글리프가 없어 Pretendard 로 떨어진다
+                      style={{
+                        fontFamily:
+                          '"JetBrains Mono", "Pretendard Variable", Pretendard, ui-monospace, monospace',
+                      }}
+                    >
                       {m.value}
                     </div>
                   </div>

@@ -88,6 +88,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pag
           </span>
         </>
       }
+      sub="표"
     >
       <div className="flex flex-col gap-4">
       {/* 뷰 칩 — 전체(뷰 #0) + 저장된 뷰들 */}

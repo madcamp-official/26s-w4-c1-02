@@ -27,15 +27,6 @@ const SENT_AT_FORMAT = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul',
 })
 
-// 뒤에서 도는 것 (원본 ViewsAlarms) — 화면에는 결과만 보인다는 약속을 문장으로
-const BACKGROUND_JOBS = [
-  '정기 수집 · 하루 1회',
-  '스스로 고치기',
-  '뷰 평가 · 매일 KST 자정',
-  '조용한 사이트 감지',
-  '알림 발송(웹훅)',
-] as const
-
 function toChannelView(subscription: SubscriptionRecord): SubscriptionView {
   return {
     id: subscription.id,
@@ -85,12 +76,7 @@ export default async function CollectionViewsPage({ params }: PageProps) {
   )
 
   return (
-    <HeroBand
-      dense
-      overlap={false}
-      title="뷰 · 알림"
-      sub="저장된 조건이 곧 뷰 — 화면·API·AI·알림이 같은 뷰를 봐요"
-    >
+    <HeroBand dense overlap={false} title={collection.name} sub="뷰 · 알림">
       {cards.length === 0 ? (
         <p className="rounded-card border border-dashed border-border-strong bg-raised px-5 py-5 text-sm text-muted">
           아직 저장한 조건이 없어요.{' '}
@@ -189,23 +175,11 @@ export default async function CollectionViewsPage({ params }: PageProps) {
         />
       </section>
 
-      {/* 뒤에서 도는 것 (원본 ViewsAlarms) — 관찰만 말한다 (델타 4-4) */}
-      <section className="rounded-card border border-divider bg-surface p-4 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
-        <h2 className="mb-3 text-[15px] font-semibold text-ink">뒤에서 도는 것</h2>
-        <div className="flex flex-wrap gap-1.5">
-          {BACKGROUND_JOBS.map((job) => (
-            <span
-              key={job}
-              className="rounded-full border border-border bg-raised px-3 py-1 text-[12px] font-medium text-muted"
-            >
-              {job}
-            </span>
-          ))}
-        </div>
-        <p className="mt-2.5 text-[12.5px] text-faint">
-          화면에는 결과만 보여요 — “자동 복구 2회”, “3주째 조용함” 같은 문장으로.
-        </p>
-      </section>
+      {/* 뒤에서 도는 것 — 패널 대신 약관처럼 한 문단. 관찰만 말한다 (델타 4-4) */}
+      <p className="max-w-[640px] text-[12px] leading-relaxed text-faint">
+        손대지 않아도 하루 한 번 사이트를 다시 보고, 구조가 바뀌면 스스로 맞추고, 자정마다 저장한
+        조건을 다시 재서 새 항목만 보내드려요. 오래 조용한 사이트는 따로 알려드려요.
+      </p>
     </HeroBand>
   )
 }

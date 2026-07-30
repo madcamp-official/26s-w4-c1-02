@@ -117,6 +117,7 @@ export default async function CollectionDashboardPage({ params }: PageProps) {
           </span>
         </>
       }
+      sub="대시보드"
       status={statusLine}
       metrics={[
         { label: '항목', value: numberFormat.format(items) },

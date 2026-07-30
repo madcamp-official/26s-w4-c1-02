@@ -56,7 +56,6 @@ export function ShareManage({
       <h2 className="mb-1 text-base font-bold text-ink">함께 보기</h2>
       <p className="mb-4 text-[13px] leading-relaxed text-faint">
         초대 링크를 받은 사람은 구글로 로그인한 뒤 이 컬렉션을 <b>읽기만</b> 할 수 있어요.
-        표와 저장된 조건은 보이지만, 바꾸는 것은 주인만 해요.
       </p>
 
       {freshUrl !== null ? (
