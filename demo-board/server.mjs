@@ -52,7 +52,8 @@ function seedPosts() {
 }
 
 function load() {
-  if (existsSync(DATA_FILE)) return JSON.parse(readFileSync(DATA_FILE, 'utf8'))
+  // BOM 제거 — 윈도우 편집기/PowerShell 이 붙인 BOM 에 JSON.parse 가 죽지 않게
+  if (existsSync(DATA_FILE)) return JSON.parse(readFileSync(DATA_FILE, 'utf8').replace(/^﻿/, ''))
   const fresh = { layout: 'v1', posts: seedPosts() }
   save(fresh)
   return fresh
