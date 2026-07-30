@@ -259,6 +259,7 @@ export function healthCopy(health: ViewHealth): { tone: 'ok' | 'healing' | 'atte
  *   d_<key>   date  — 'this_week' | 'this_month' | 숫자(D-n 이내)
  *   e_<key>   enum  — 정규화 키 하나
  *   min_<key> / max_<key>  number·money
+ *   q_<key>   text  — 이 단어가 포함된 것만 (contains)
  * 모르는 값·스키마 밖 키는 조용히 버린다 — 주소창을 손으로 고친 경우다.
  */
 export function conditionsFromParams(
@@ -294,6 +295,13 @@ export function conditionsFromParams(
       const n = Number(value)
       if (!Number.isFinite(n)) continue
       out.push({ field: key, op: name.startsWith('min_') ? 'gte' : 'lte', value: n })
+    } else if (name.startsWith('q_')) {
+      const key = name.slice(2)
+      if (byKey.get(key)?.type !== 'text') continue
+      // contains 술어의 스키마 상한(200자)과 같게 자른다 — 초과분은 조용히 버려지는 것보다 낫다
+      const needle = value.trim().slice(0, 200)
+      if (needle === '') continue
+      out.push({ field: key, op: 'contains', value: needle })
     }
   }
   return out
@@ -318,6 +326,9 @@ export function paramsFromConditions(conds: readonly ViewCondition[]): Record<st
         break
       case 'lte':
         out[`max_${cond.field}`] = String(cond.value)
+        break
+      case 'contains':
+        out[`q_${cond.field}`] = cond.value
         break
       default:
         break

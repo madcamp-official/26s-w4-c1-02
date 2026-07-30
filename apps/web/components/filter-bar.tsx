@@ -47,7 +47,11 @@ export function FilterBar({
   const dateFields = fields.filter((f) => f.type === 'date')
   const enumFields = fields.filter((f) => f.type === 'enum' && enumOptions(f).length > 0)
   const amountFields = fields.filter((f) => f.type === 'money' || f.type === 'number')
-  if (dateFields.length + enumFields.length + amountFields.length === 0) return null
+  // 텍스트 칸은 "이 단어 포함" 검색 (q_<key> → contains). 전부 텍스트인 표(세일 공지 등)에서도
+  // 필터바가 사라지지 않게 한다. 링크 칸은 조건이 말이 안 되므로 뺀다 (core FIELD_OPS 와 동일)
+  const textFields = fields.filter((f) => f.type === 'text')
+  if (dateFields.length + enumFields.length + amountFields.length + textFields.length === 0)
+    return null
 
   const hasValues = Object.values(values).some((v) => v !== '')
 
@@ -77,6 +81,19 @@ export function FilterBar({
               </option>
             ))}
           </select>
+        </label>
+      ))}
+
+      {textFields.map((field) => (
+        <label key={field.key} className="flex flex-col gap-1 text-xs font-semibold text-faint">
+          {field.label}
+          <input
+            name={`q_${field.key}`}
+            defaultValue={values[`q_${field.key}`] ?? ''}
+            placeholder="포함 단어"
+            maxLength={200}
+            className={inputClass}
+          />
         </label>
       ))}
 
