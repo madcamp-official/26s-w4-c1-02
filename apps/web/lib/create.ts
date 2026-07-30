@@ -68,8 +68,10 @@ export async function callWorker<T>(path: string, body: Record<string, unknown>)
         authorization: `Bearer ${target.token}`,
       },
       body: JSON.stringify(body),
-      // probe → 컴파일 → 수집까지 도는 경로다. 브라우저 폴백이면 수십 초까지 간다
-      signal: AbortSignal.timeout(90_000),
+      // probe → 컴파일 → 수집까지 도는 경로다. 사이트 붙이기는 브라우저 probe + 매핑 +
+      // 여러 페이지 추출 + 링크 검증까지 돌아 실측 160초를 넘었다 (bizinfo 07-30 — 90초로
+      // 두면 워커는 성공하는데 화면이 먼저 포기해 "살펴보지 못하고 있어요"가 떴다).
+      signal: AbortSignal.timeout(240_000),
     })
     if (res.status === 401 || res.status === 404) return null
     return (await res.json()) as T
