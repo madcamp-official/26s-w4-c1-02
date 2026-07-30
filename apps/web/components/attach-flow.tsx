@@ -7,6 +7,7 @@ import type { AttachPreview } from '@/lib/attach'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useActionToast } from '@/components/ui/toast'
 import type { SuggestActionState } from '@/components/create-flow'
 import { cn } from '@/lib/utils'
 
@@ -71,6 +72,10 @@ export function AttachFlow({
   )
   const [pasteInputs, setPasteInputs] = useState<Record<string, string>>({})
 
+  // 실패 문구는 오른쪽 위 팝업으로 (성공은 message 가 null 이라 아무것도 안 뜬다)
+  useActionToast(previewState)
+  useActionToast(saveState)
+
   const preview = previewState.preview
 
   return (
@@ -107,12 +112,6 @@ export function AttachFlow({
             <span className="inline-block size-[18px] animate-spin rounded-full border-[2.5px] border-accent-line border-t-accent" />
             <span className="text-sm text-muted">기존 열을 이 사이트에서 찾아보는 중이에요…</span>
           </div>
-        )}
-
-        {previewState.status === 'problem' && previewState.message !== null && (
-          <p className="mt-3 rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
-            {previewState.message}
-          </p>
         )}
 
         {/* 자연어로 붙일 사이트 찾기 (ADR A42) — 후보를 누르면 위 주소칸이 채워진다 */}
@@ -316,11 +315,6 @@ export function AttachFlow({
             {Object.entries(previewState.pasted).map(([key, value]) => (
               <input key={key} type="hidden" name={`pasted_${key}`} value={value} />
             ))}
-            {saveState.status === 'problem' && saveState.message !== null && (
-              <p className="rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
-                {saveState.message}
-              </p>
-            )}
             <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" size="lg" disabled={savePending}>
                 {savePending ? '합류하는 중…' : '표에 합류하기 →'}
