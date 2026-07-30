@@ -1,0 +1,117 @@
+{
+  "taken_at": "2026-07-30T10:14:04.943Z",
+  "posts": [
+    {
+      "id": 14,
+      "title": "마지막 일요일 ㅠㅠ",
+      "category": "행사",
+      "event_date": "2026-07-26",
+      "body": "꿈티\r\n순꾸\r\n수제비\r\n볼링\r\n보드게임",
+      "created_at": "2026-07-30T10:10:25.017Z"
+    },
+    {
+      "id": 13,
+      "title": "라태형의 마술쇼",
+      "category": "행사",
+      "event_date": "2026-07-25",
+      "body": "카이스트의 권위자",
+      "created_at": "2026-07-30T10:09:40.312Z"
+    },
+    {
+      "id": 12,
+      "title": "3주차 금픽 발표합니다",
+      "category": "공지",
+      "event_date": "2026-07-23",
+      "body": "환생 시뮬레이터 (life-reroll.com)\r\nVibeCutter",
+      "created_at": "2026-07-30T10:09:09.643Z"
+    },
+    {
+      "id": 11,
+      "title": "인생 리롤 슛~",
+      "category": "스터디",
+      "event_date": "2026-07-20",
+      "body": "지금 바로 윤회",
+      "created_at": "2026-07-30T10:08:36.274Z"
+    },
+    {
+      "id": 10,
+      "title": "저희 간술해요",
+      "category": "행사",
+      "event_date": "2026-07-22",
+      "body": "이게 왜 진짜지",
+      "created_at": "2026-07-30T10:08:09.068Z"
+    },
+    {
+      "id": 9,
+      "title": "전쟁과 평화를 마셔요 x 6",
+      "category": "먹거리",
+      "event_date": "2026-07-19",
+      "body": "살려주세요",
+      "created_at": "2026-07-30T10:07:19.558Z"
+    },
+    {
+      "id": 8,
+      "title": "2주차 금픽 발표합니다",
+      "category": "공지",
+      "event_date": "2026-07-16",
+      "body": "여보세요\r\n말꼬리",
+      "created_at": "2026-07-30T09:37:31.560Z"
+    },
+    {
+      "id": 7,
+      "title": "성심당 오픈런",
+      "category": "행사",
+      "event_date": "2026-07-15",
+      "body": "복숭아시루는 실패했습니다",
+      "created_at": "2026-07-30T09:37:01.112Z"
+    },
+    {
+      "id": 6,
+      "title": "1주차 금픽 발표합니다",
+      "category": "공지",
+      "event_date": "2026-07-09",
+      "body": "Scrum Helper\r\nNomadList",
+      "created_at": "2026-07-30T09:36:37.874Z"
+    },
+    {
+      "id": 5,
+      "title": "뼈구이 먹으러 가요",
+      "category": "공지",
+      "event_date": "2026-07-11",
+      "body": "Plan C",
+      "created_at": "2026-07-30T09:35:48.977Z"
+    },
+    {
+      "id": 4,
+      "title": "전쟁과 평화를 마셔요",
+      "category": "먹거리",
+      "event_date": "2026-07-08",
+      "body": "두려워져요",
+      "created_at": "2026-07-30T09:35:30.336Z"
+    },
+    {
+      "id": 3,
+      "title": "화끈이 드실 분?",
+      "category": "먹거리",
+      "event_date": "2026-07-04",
+      "body": "선착순 n인",
+      "created_at": "2026-07-30T09:34:58.785Z"
+    },
+    {
+      "id": 2,
+      "title": "첫 번째 스크럼 진행합니다",
+      "category": "공지",
+      "event_date": "2026-07-03",
+      "body": "지각생: 안종화",
+      "created_at": "2026-07-30T09:34:12.879Z"
+    },
+    {
+      "id": 1,
+      "title": "몰입캠프 시작합니다",
+      "category": "공지",
+      "event_date": "2026-07-02",
+      "body": "자 모두 카이마루로 집합",
+      "created_at": "2026-07-30T09:33:27.678Z"
+    }
+  ]
+}
