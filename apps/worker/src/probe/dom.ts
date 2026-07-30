@@ -85,9 +85,18 @@ export function probeDom(input: DomProbeInput): DomProbeResult {
   const kept: { candidate: ProbeCandidate; volume: number }[] = []
   const seen = new Set<string>()
   let rejectedShort = 0
+  let rejectedChrome = 0
   let rejectedSelector = 0
 
   for (const group of groups) {
+    // 화면 꾸밈 영역(내비게이션·푸터·머리말) 안의 반복은 목록이 아니라 메뉴다.
+    // cse.snu.ac.kr 에서 <footer> 의 링크 묶음이 텍스트가 길어 looksLikeContent 를
+    // 통과하고 진짜 공지 목록을 이겼다 (07-30) — 태그·role 로 원천 제외한다.
+    if (insideChrome(group.parent)) {
+      rejectedChrome += 1
+      continue
+    }
+
     const texts = group.rows.map((r) => collapse(r.text()))
     if (!looksLikeContent(texts)) {
       rejectedShort += 1
@@ -130,6 +139,7 @@ export function probeDom(input: DomProbeInput): DomProbeResult {
   kept.sort((a, b) => b.volume - a.volume)
 
   const notes = [`반복 묶음 ${groups.length}개`]
+  if (rejectedChrome > 0) notes.push(`메뉴·푸터 영역이라 제외 ${rejectedChrome}개`)
   if (rejectedShort > 0) notes.push(`글자가 짧아 제외 ${rejectedShort}개`)
   if (rejectedSelector > 0) notes.push(`선택자를 못 만들어 제외 ${rejectedSelector}개`)
   notes.push(`후보 ${Math.min(kept.length, MAX_CANDIDATES)}개`)
@@ -229,6 +239,23 @@ function signatureNode($: CheerioAPI, sel: Selection, depth = 3): SignatureNode 
 }
 
 // ── ② 목록 같은가 ──────────────────────────────────────────────────────
+
+/** 목록이 있을 리 없는 꾸밈 영역의 태그와 role */
+const CHROME_TAGS = new Set(['nav', 'footer', 'header'])
+const CHROME_ROLES = new Set(['navigation', 'contentinfo', 'banner'])
+
+/** 이 요소(컨테이너)가 내비게이션·푸터·머리말 안에 있는가 — 자신 포함 조상을 따라 올라가며 본다 */
+function insideChrome(sel: Selection): boolean {
+  let current = sel
+  // 루트에 닿으면 parent() 가 빈 셀렉션이 된다. 깊이 상한은 비정상 문서의 무한 루프 안전판.
+  for (let depth = 0; current.length > 0 && depth < 60; depth += 1) {
+    if (CHROME_TAGS.has(tagOf(current))) return true
+    const role = current.attr('role')
+    if (role !== undefined && CHROME_ROLES.has(role.toLowerCase())) return true
+    current = current.parent()
+  }
+  return false
+}
 
 /**
  * 메뉴·페이지 번호·아이콘 줄을 걸러낸다.

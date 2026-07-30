@@ -96,11 +96,25 @@ const KEY_HINTS = [
   'category',
 ]
 
+/**
+ * 키를 camelCase·구분자 경계로 쪼갠다 — "startDt" → [start, dt] · "whitespace-nowrap" → [whitespace, nowrap].
+ * 힌트는 **토큰 정확 일치**로만 인정한다. 부분 문자열로 보면 'no' 가 "nowrap" 에, 'id' 가 "grid" 에
+ * 걸려서, 키가 CSS 클래스인 DOM 후보가 가짜 보너스를 받는다 — cse.snu.ac.kr 에서 푸터 메뉴가
+ * 이 보너스로 진짜 공지 목록을 0.01 차로 이겼다 (07-30).
+ */
+function keyTokens(key: string): string[] {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length > 0)
+}
+
 function keyHint(keys: readonly string[]): string[] {
   const hits: string[] = []
   for (const key of keys) {
-    const lower = key.toLowerCase()
-    if (KEY_HINTS.some((h) => lower.includes(h))) hits.push(key)
+    const tokens = keyTokens(key)
+    if (KEY_HINTS.some((h) => tokens.includes(h))) hits.push(key)
     if (hits.length >= 4) break
   }
   return hits
