@@ -111,7 +111,7 @@ export default async function CollectionSourcesPage({ params }: PageProps) {
           </div>
         </div>
         <p className="mt-2.5 text-[12.5px] text-faint">
-          어느 사이트에서 오든 같은 열, 같은 형태로 맞춰 담아요 — 날짜는 날짜답게, 금액은 금액답게.
+          어느 사이트에서 오든 같은 열, 같은 형태로 맞춰 담아요.
         </p>
       </section>
     </HeroBand>

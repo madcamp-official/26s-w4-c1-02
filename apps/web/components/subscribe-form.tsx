@@ -17,13 +17,12 @@ export interface SubscribeState {
 
 const SUBSCRIBE_IDLE: SubscribeState = { status: 'idle', message: null }
 
-/** 화면에 그릴 구독 한 줄. 시각 문구는 서버에서 만들어 넘긴다 (시간대가 흔들리지 않게) */
+/** 화면에 그릴 구독 한 줄 */
 export interface SubscriptionView {
   id: string
   target: string
   /** 부르는 이름 — 없으면 서버가 호스트로 채워 넘긴다 (subscriptionDisplayName) */
   displayName: string
-  sentCopy: string
 }
 
 /**
@@ -108,7 +107,6 @@ export function SubscribeForm({
                 <span className="block truncate font-mono text-xs text-muted">
                   {subscription.target}
                 </span>
-                <span className="block text-xs text-faint">{subscription.sentCopy}</span>
               </span>
               <form action={stop}>
                 <input type="hidden" name="subscription" value={subscription.id} />

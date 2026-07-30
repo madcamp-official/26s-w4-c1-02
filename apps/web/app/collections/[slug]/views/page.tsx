@@ -8,7 +8,6 @@ import { Badge, Dot } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
-import { COPY, lastSentCopy } from '@/lib/labels'
 import {
   listWebhookSubscriptions,
   subscriptionDisplayName,
@@ -25,21 +24,11 @@ interface PageProps {
   params: Promise<{ slug: string }>
 }
 
-const SENT_AT_FORMAT = new Intl.DateTimeFormat('ko-KR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Seoul',
-})
-
 function toChannelView(subscription: SubscriptionRecord): SubscriptionView {
   return {
     id: subscription.id,
     target: subscription.target,
     displayName: subscriptionDisplayName(subscription),
-    sentCopy:
-      subscription.last_sent_at === null
-        ? COPY.subscribeNeverSent
-        : lastSentCopy(SENT_AT_FORMAT.format(subscription.last_sent_at)),
   }
 }
 
@@ -120,15 +109,6 @@ export default async function CollectionViewsPage({ params }: PageProps) {
                 {/* 조건 요약 — 원본은 술어 문자열을 가라앉은 mono 박스에 담는다 */}
                 <p className="rounded-md bg-canvas px-2.5 py-1.5 font-mono text-[11.5px] text-muted">
                   {summary === '' ? '조건 없음 (전체)' : summary}
-                </p>
-
-                <p className="text-xs text-faint">
-                  표 · 주소(API) · AI(MCP)
-                  {view.notify !== null
-                    ? ` · 알림 → ${view.notify.channels
-                        .map((id) => channelNameById.get(id) ?? '지워진 받을 곳')
-                        .join(', ')}`
-                    : ' · 알림 꺼짐'}
                 </p>
 
                 <div className="flex flex-wrap items-center gap-2 border-t border-divider pt-2.5">
