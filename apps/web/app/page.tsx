@@ -95,13 +95,13 @@ export default async function HomePage() {
         <div className="relative mx-auto grid max-w-[1080px] items-center gap-12 lg:grid-cols-[1.1fr_1fr]">
           <div>
             <h1 className="text-[38px] leading-[1.15] font-bold tracking-[-0.03em] text-ink sm:text-[52px]">
-              세상의 모든 페이지를
+              세상의 모든 페이지를,
               <br />
               <span
                 className="bg-clip-text text-transparent"
                 style={{ backgroundImage: 'var(--gradient-connect)' }}
               >
-                당신의 도구로
+                당신의 도구로.
               </span>
             </h1>
             {/* break-keep — 한글이 "코드 없/이"처럼 글자 중간에서 꺾이지 않게 어절 단위로 줄바꿈 */}
@@ -117,68 +117,59 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 두 사용자층 (원본 TwoAudiences) — 카드가 아니라 화면을 좌우로 가르는 비교.
-          왼쪽(크림)은 코드 없는 사람, 오른쪽(잉크)은 개발자 — 색이 곧 대비다 */}
-      <section className="border-y border-divider">
-        <div className="bg-surface px-6 pt-14 pb-9">
-          <h2 className="mx-auto max-w-[1080px] text-[30px] font-bold tracking-[-0.03em] text-ink">
-            코드가 있든 없든, 같은 표
-          </h2>
-        </div>
-        <div className="grid border-t border-divider md:grid-cols-2">
-          <div className="bg-[var(--surface-page)] px-6 py-14 md:px-12">
-            <div className="md:ml-auto md:max-w-[480px]">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-3 py-1 text-[12.5px] font-semibold text-ok">
-                <span aria-hidden className="size-1.5 rounded-full bg-current" />
-                코드 없이
-              </span>
-              <h3 className="mt-3.5 mb-2 text-[22px] font-semibold tracking-[-0.02em] text-ink">
-                시트로 관리하거나
+      {/* 두 사용자층 — 제목도 배지도 없이, 화면을 좌우로 가르는 한 문장짜리 비교.
+          두 제목을 잇는 가는 선이 "같은 것을 두 방식으로"라는 말을 대신한다 */}
+      <section className="grid border-y border-divider md:grid-cols-2">
+        {/* 왼쪽 — 시트. 순백 면이라 오른쪽 잉크와 정면으로 맞선다 */}
+        <div className="bg-white px-6 py-16 md:py-24 md:pr-0 md:pl-12">
+          <div className="w-full md:ml-auto md:max-w-[560px]">
+            <div className="flex items-center gap-5">
+              <h3 className="shrink-0 text-[35px] font-bold tracking-[-0.03em] text-ink">
+                시트로 관리하거나,
               </h3>
-              <p className="mb-4 text-[14.5px] leading-[1.65] text-muted">
-                여러 사이트의 목록이 하나의 표로 모여요. 조건을 저장해 두면 새 항목이 생길 때 알려
-                드려요.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {['하나의 표', '조건 알림', '읽기 피드'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-border bg-surface px-3 py-1 text-[12px] font-medium text-muted"
-                  >
-                    {tag}
-                  </span>
+              {/* 오른쪽 제목까지 이어지는 선 — 경계(가운데)를 향해 옅어진다 */}
+              <div aria-hidden className="h-[3px] flex-1 bg-gradient-to-r from-ink to-ink/25" />
+            </div>
+
+            {/* 표 스케치 — 머리 행만 진하고, 아래로 갈수록 사라진다 */}
+            <div aria-hidden className="mt-10 flex max-w-[420px] flex-col gap-[7px]">
+              <div className="grid grid-cols-4 gap-[7px]">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-8 rounded-[7px] bg-ink" />
                 ))}
               </div>
+              {[0.3, 0.23, 0.16, 0.1].map((opacity) => (
+                <div key={opacity} className="grid grid-cols-4 gap-[7px]">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className="h-8 rounded-[7px] bg-ink"
+                      style={{ opacity }}
+                    />
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
+        </div>
 
-          <div className="bg-[var(--surface-inverse)] px-6 py-14 md:px-12">
-            <div className="md:mr-auto md:max-w-[480px]">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1 text-[12.5px] font-semibold text-accent">
-                <span aria-hidden className="size-1.5 rounded-full bg-current" />
-                개발자
-              </span>
-              <h3 className="mt-3.5 mb-2 text-[22px] font-semibold tracking-[-0.02em] text-white">
-                하나의 API로 다루거나
+        {/* 오른쪽 — 코드. 잉크 면 위에 코드 패널 하나 */}
+        <div className="bg-[var(--surface-inverse)] px-6 py-16 md:py-24 md:pr-12 md:pl-0">
+          <div className="w-full md:mr-auto md:max-w-[560px]">
+            <div className="flex items-center gap-5">
+              {/* 왼쪽에서 넘어온 선의 끝자락 */}
+              <div aria-hidden className="hidden h-[3px] w-12 shrink-0 bg-white/50 md:block" />
+              <h3 className="text-[35px] font-bold tracking-[-0.03em] text-white">
+                하나의 API로 다루거나.
               </h3>
-              <div className="rounded-[10px] bg-[oklch(0.23_0.015_255)] px-4 py-3.5 font-mono text-[12.5px] leading-[1.8] text-[var(--ink-100)]">
-                <span className="text-[var(--ep-green-500)]">GET</span> /api/v1/my-collection?d_within=7
-                <br />
-                <span className="text-[var(--ink-400)]">→ items · sources · schema 한 번에</span>
-                <br />
-                <br />
-                <span className="text-[var(--ep-blue-200)]">mcp</span> tools/call list_items
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {['REST', 'MCP', '웹훅'].map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full border border-[var(--ink-700)] px-3 py-1 font-mono text-[12px] text-[var(--ink-200)]"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
+            </div>
+
+            <div className="mt-10 rounded-xl bg-white/[0.06] px-7 py-6 font-mono text-[15.5px] leading-[2.1] ring-1 ring-white/10 md:ml-[68px]">
+              <span className="text-[var(--ep-green-500)]">GET</span>{' '}
+              <span className="text-[var(--ink-100)]">/api/v1/my-collection?d_within=7</span>
+              <br />
+              <span className="text-[var(--ep-blue-200)]">mcp</span>{' '}
+              <span className="text-[var(--ink-100)]">tools/call list_items</span>
             </div>
           </div>
         </div>
@@ -196,19 +187,6 @@ export default async function HomePage() {
               <p className="text-[13.5px] leading-[1.6] text-muted">{body}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* CTA (원본 Cta) — 어두운 블록 */}
-      <section className="px-6 pb-20">
-        <div className="mx-auto flex max-w-[1080px] flex-wrap items-center gap-6 rounded-[20px] bg-[var(--surface-inverse)] px-8 py-12 md:px-12 md:py-14">
-          <div className="min-w-[280px] flex-1">
-            <h2 className="text-[30px] font-bold tracking-[-0.03em] text-white">첫 표까지 5분</h2>
-            <p className="mt-2.5 text-[15px] text-[var(--ink-300)]">
-              구글 로그인 하나면 돼요 · 기기가 바뀌어도 컬렉션이 남아요
-            </p>
-          </div>
-          {isAuthReady && <SignInHero />}
         </div>
       </section>
 
