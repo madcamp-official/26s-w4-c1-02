@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- 데모 시나리오 ③ 3막 — "인프라는 안 만들었는데 API가 있다"의 증거물.
+     endpointer API 를 fetch 한 번으로 소비하는 30줄 위젯. 서버·빌드 없음 — 더블클릭으로 연다.
+     발표 전 확인: closing-soon 뷰가 0건이면 "이번 주 마감 없음"이 뜬다 (전날 건수 확인). -->
+<meta charset="utf-8"><title>마감 임박 지원사업</title>
+<style>
+  body{font-family:Pretendard,sans-serif;background:#f6f0e1;padding:40px;max-width:760px;margin:0 auto}
+  h1{letter-spacing:-0.03em}
+  .card{background:#fff;border-radius:14px;padding:18px 22px;margin:10px 0;
+        display:flex;align-items:baseline;gap:16px;box-shadow:0 4px 20px #0002;
+        text-decoration:none;color:inherit}
+  .card:hover{box-shadow:0 6px 24px #0003}
+  .d{font:700 22px/1 'JetBrains Mono',monospace;color:#b42318;min-width:76px}
+  .t{font-size:16px;font-weight:600}
+  .o{margin-left:auto;color:#888;font-size:13px;white-space:nowrap}
+</style>
+<h1>일주일 안 마감 ⏰</h1>
+<div id="list">불러오는 중…</div>
+<script>
+  const API='https://endpointer-api.madcamp-kaist.org/startup-live?view=closing-soon'
+  fetch(API).then(r=>r.json()).then(({items})=>{
+    document.getElementById('list').innerHTML=items.map(it=>{
+      const d=Math.ceil((new Date(it.deadline)-Date.now())/86400000)
+      return `<a class="card" href="${it.link}"><span class="d">${d===0?'D-DAY':`D-${d}`}</span>
+        <span class="t">${it.title}</span><span class="o">${it.organization} · ${it.category}</span></a>`
+    }).join('')||'이번 주 마감 없음 😌'
+  })
+</script>
