@@ -17,7 +17,7 @@
 <h1>일주일 안 마감 ⏰</h1>
 <div id="list">불러오는 중…</div>
 <script>
-  const API='https://endpointer-api.madcamp-kaist.org/startup-live?view=closing-soon'
+  const API='https://endpointer-api.madcamp-kaist.org/k-startup?view=closing-soon'
   fetch(API).then(r=>r.json()).then(({items})=>{
     document.getElementById('list').innerHTML=items.map(it=>{
       const d=Math.ceil((new Date(it.deadline)-Date.now())/86400000)
