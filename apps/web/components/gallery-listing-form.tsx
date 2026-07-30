@@ -7,6 +7,7 @@ import { useActionState } from 'react'
 
 import type { ManageState } from '@/components/collection-manage'
 import { Button } from '@/components/ui/button'
+import { useActionToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
 const IDLE: ManageState = { status: 'idle', message: null }
@@ -21,6 +22,7 @@ export function GalleryListingForm({
   save: (prev: ManageState, formData: FormData) => Promise<ManageState>
 }) {
   const [state, action, pending] = useActionState(save, IDLE)
+  useActionToast(state)
 
   return (
     <form action={action} className="flex flex-col gap-2">
@@ -47,11 +49,6 @@ export function GalleryListingForm({
         <Button type="submit" size="sm" variant="outline" disabled={!isPublic || pending}>
           저장
         </Button>
-        {state.message !== null && (
-          <span className={cn('text-xs', state.status === 'problem' ? 'text-attention' : 'text-ok')}>
-            {state.message}
-          </span>
-        )}
       </div>
     </form>
   )

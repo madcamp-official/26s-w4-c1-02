@@ -8,7 +8,7 @@ import { useActionState } from 'react'
 import type { ShareState } from '@/app/collections/[slug]/share-actions'
 import { CopyButton } from '@/components/copy-button'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { useActionToast } from '@/components/ui/toast'
 
 const SHARE_IDLE: ShareState = { status: 'idle', message: null, inviteUrl: null }
 
@@ -19,15 +19,6 @@ export interface ShareMemberItem {
 }
 
 type ShareAction = (prev: ShareState, formData: FormData) => Promise<ShareState>
-
-function StateLine({ state }: { state: ShareState }) {
-  if (state.message === null) return null
-  return (
-    <p className={cn('text-xs', state.status === 'problem' ? 'text-attention' : 'text-ok')}>
-      {state.message}
-    </p>
-  )
-}
 
 export function ShareManage({
   inviteActive,
@@ -47,6 +38,10 @@ export function ShareManage({
   const [createState, createAction, createPending] = useActionState(create, SHARE_IDLE)
   const [disableState, disableAction, disablePending] = useActionState(disable, SHARE_IDLE)
   const [removeState, removeAction, removePending] = useActionState(removeMember, SHARE_IDLE)
+  // 결과 문구는 전부 오른쪽 위 팝업으로
+  useActionToast(createState)
+  useActionToast(disableState)
+  useActionToast(removeState)
 
   // 방금 만든 링크가 있으면 그것이 최신 상태다 — "링크가 살아 있어요" 문구보다 앞선다
   const freshUrl = createState.inviteUrl
@@ -88,8 +83,6 @@ export function ShareManage({
           </form>
         )}
       </div>
-      <StateLine state={createState} />
-      <StateLine state={disableState} />
 
       {members.length > 0 && (
         <div className="mt-5 border-t border-border pt-4">
@@ -110,9 +103,6 @@ export function ShareManage({
               </li>
             ))}
           </ul>
-          <div className="mt-2">
-            <StateLine state={removeState} />
-          </div>
         </div>
       )}
     </section>

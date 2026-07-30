@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { currentUser, isAuthReady } from '@/auth'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SignInForm, SignOutForm } from '@/components/auth-actions'
+import { ToastProvider } from '@/components/ui/toast'
 
 import './globals.css'
 
@@ -66,6 +67,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       {/* 원본 콘솔 셸 — 사이드바 + 스크롤 main, 바닥은 흰색. 밴드가 main 전폭을 가로지른다 */}
       <body className="h-dvh overflow-hidden">
+        <ToastProvider>
         <div className="flex h-dvh">
           <AppSidebar authSlot={authSlot} />
 
@@ -85,6 +87,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <main className="flex-1">{children}</main>
           </div>
         </div>
+        </ToastProvider>
       </body>
     </html>
   )

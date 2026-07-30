@@ -7,6 +7,7 @@ import { useActionState } from 'react'
 
 import { Icon } from '@/components/ui/icon'
 import { Button, type ButtonSize, type ButtonVariant } from '@/components/ui/button'
+import { useActionToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
 /**
@@ -34,6 +35,7 @@ export function CloneButton({
   className?: string
 }) {
   const [state, action, pending] = useActionState(clone, IDLE)
+  useActionToast(state)
 
   return (
     <form action={action} className={cn('flex flex-col gap-1.5', className)}>
@@ -41,9 +43,6 @@ export function CloneButton({
         <Icon name={pending ? 'refresh' : 'copy'} size={15} strokeWidth={2.2} className={pending ? 'animate-spin' : undefined} />
         {pending ? '복제하는 중…' : label}
       </Button>
-      {state.status === 'problem' && state.message !== null && (
-        <span className="text-xs text-attention">{state.message}</span>
-      )}
     </form>
   )
 }

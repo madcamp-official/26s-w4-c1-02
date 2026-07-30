@@ -3,6 +3,7 @@
 import { useActionState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { useActionToast } from '@/components/ui/toast'
 import { COPY } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
@@ -44,6 +45,8 @@ export function SubscribeForm({
   subscriptions: SubscriptionView[]
 }) {
   const [state, formAction, pending] = useActionState(subscribe, SUBSCRIBE_IDLE)
+  // 결과는 오른쪽 위 팝업으로. 등록 성공('done')은 목록에 바로 보이므로 알림까지 띄우지 않는다
+  useActionToast(state, ['done'])
 
   const inputClass = cn(
     'h-9 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-raised px-3',
@@ -122,19 +125,6 @@ export function SubscribeForm({
           {COPY.subscribeSubmit}
         </Button>
       </form>
-
-      {state.message !== null && (
-        <p
-          className={cn(
-            'rounded-[10px] px-3.5 py-2.5 text-[13px]',
-            state.status === 'problem'
-              ? 'bg-attention-soft text-attention'
-              : 'border border-ok-line bg-ok-soft font-semibold text-ok',
-          )}
-        >
-          {state.message}
-        </p>
-      )}
     </section>
   )
 }

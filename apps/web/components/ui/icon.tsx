@@ -19,6 +19,7 @@ export type IconName =
   | 'link2'
   | 'copy'
   | 'sparkles'
+  | 'x'
 
 const PATHS: Record<IconName, ReactNode> = {
   grid: (
@@ -122,6 +123,7 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7L5.6 5.6" />
     </>
   ),
+  x: <path d="M18 6 6 18M6 6l12 12" />,
 }
 
 export function Icon({

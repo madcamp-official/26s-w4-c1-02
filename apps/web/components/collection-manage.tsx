@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useActionState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { useActionToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
 export interface ManageState {
@@ -22,6 +23,7 @@ export function RenameForm({
   rename: (prev: ManageState, formData: FormData) => Promise<ManageState>
 }) {
   const [state, action, pending] = useActionState(rename, MANAGE_IDLE)
+  useActionToast(state)
 
   return (
     <form action={action} className="flex flex-wrap items-center gap-2.5">
@@ -37,11 +39,6 @@ export function RenameForm({
       <Button type="submit" size="sm" variant="outline" disabled={pending}>
         저장
       </Button>
-      {state.message !== null && (
-        <span className={cn('text-xs', state.status === 'problem' ? 'text-attention' : 'text-ok')}>
-          {state.message}
-        </span>
-      )}
     </form>
   )
 }

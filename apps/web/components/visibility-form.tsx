@@ -4,7 +4,7 @@ import { useActionState } from 'react'
 
 import type { ManageState } from '@/components/collection-manage'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { useActionToast } from '@/components/ui/toast'
 
 const IDLE: ManageState = { status: 'idle', message: null }
 
@@ -24,6 +24,7 @@ export function VisibilityForm({
   save: (prev: ManageState, formData: FormData) => Promise<ManageState>
 }) {
   const [state, action, pending] = useActionState(save, IDLE)
+  useActionToast(state)
 
   return (
     <form action={action} className="flex flex-wrap items-center gap-2.5">
@@ -41,13 +42,6 @@ export function VisibilityForm({
       <Button type="submit" size="sm" variant="outline" disabled={pending}>
         저장
       </Button>
-      {state.message !== null && (
-        <span
-          className={cn('text-xs', state.status === 'problem' ? 'text-attention' : 'text-ok')}
-        >
-          {state.message}
-        </span>
-      )}
     </form>
   )
 }
