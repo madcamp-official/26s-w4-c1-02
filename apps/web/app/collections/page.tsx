@@ -4,6 +4,7 @@ import { currentUser, isAuthReady } from '@/auth'
 import { AuthNotice, SignInForm } from '@/components/auth-actions'
 import { UnavailableState } from '@/components/empty-state'
 import { HeroBand } from '@/components/hero-band'
+import { Tour } from '@/components/tour/tour'
 import { HostChip } from '@/components/ui/host-chip'
 import { Icon, type IconName } from '@/components/ui/icon'
 import { listCollections, type CollectionSummary } from '@/lib/collections'
@@ -99,12 +100,15 @@ export default async function CollectionsPage() {
       action={
         <Link
           href="/collections/new"
+          data-tour="new-collection"
           className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-4 py-2 text-[13px] font-bold text-accent hover:bg-white/90 hover:no-underline"
         >
           <Icon name="plus" size={15} strokeWidth={2.2} />새 컬렉션
         </Link>
       }
     >
+      {/* 첫 방문 둘러보기 (챕터 ①) — 본 적 없으면 이 화면에서 뜬다 */}
+      <Tour chapter="console" />
       {!isAuthReady && (
         <div className="mb-4">
           <AuthNotice />

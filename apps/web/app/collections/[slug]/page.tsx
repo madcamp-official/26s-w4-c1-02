@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 
 import { UnavailableState } from '@/components/empty-state'
 import { HeroBand } from '@/components/hero-band'
+import { Tour } from '@/components/tour/tour'
 import { Dot } from '@/components/ui/badge'
 import { resolveCollectionAccess } from '@/lib/access'
 import type { SourceStatus } from '@endpointer/core'
@@ -132,6 +133,9 @@ export default async function CollectionDashboardPage({ params }: PageProps) {
         ) : undefined
       }
     >
+      {/* 첫 컬렉션의 대시보드에 처음 들어온 순간 — 컬렉션의 네 얼굴 둘러보기 (챕터 ②) */}
+      <Tour chapter="collection" />
+
       {/* 복제로 생긴 컬렉션이면 원본 크레딧 + "내 사이트를 더하라"는 다음 걸음 (델타 §8) */}
       {origin !== null && access.canManage && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-card border border-accent-soft bg-accent-soft/40 px-5 py-3.5">

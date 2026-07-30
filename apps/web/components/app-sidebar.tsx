@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
+import { resetTours } from '@/components/tour/tour'
 import { cn } from '@/lib/utils'
 
 // ── Lucide 계열 인라인 아이콘 (의존성 없이 · 1.75 stroke) ──────────────
@@ -49,6 +50,8 @@ interface NavItem {
   href: string
   icon: keyof typeof ICON
   active: boolean
+  /** 둘러보기(투어)의 스포트라이트 앵커 (components/tour) */
+  tour?: string
 }
 
 export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
@@ -67,11 +70,11 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
   const items: NavItem[] = slug
     ? [
         { label: '대시보드', href: `/collections/${slug}`, icon: 'merge', active: section === '' },
-        { label: '표', href: `/collections/${slug}/table`, icon: 'table', active: section === 'table' },
+        { label: '표', href: `/collections/${slug}/table`, icon: 'table', active: section === 'table', tour: 'tab-table' },
         { label: '읽기 피드', href: `/collections/${slug}/feed`, icon: 'bell', active: section === 'feed' },
-        { label: '뷰 · 알림', href: `/collections/${slug}/views`, icon: 'filter', active: section === 'views' || section === 'workshop' },
-        { label: '소스', href: `/collections/${slug}/sources`, icon: 'link2', active: section === 'sources' || section === 'attach' },
-        { label: '연결', href: `/collections/${slug}/connect`, icon: 'plug', active: section === 'connect' },
+        { label: '뷰 · 알림', href: `/collections/${slug}/views`, icon: 'filter', active: section === 'views' || section === 'workshop', tour: 'tab-views' },
+        { label: '소스', href: `/collections/${slug}/sources`, icon: 'link2', active: section === 'sources' || section === 'attach', tour: 'tab-sources' },
+        { label: '연결', href: `/collections/${slug}/connect`, icon: 'plug', active: section === 'connect', tour: 'tab-connect' },
         { label: '설정', href: `/collections/${slug}/settings`, icon: 'settings', active: section === 'settings' },
       ]
     : [
@@ -80,12 +83,14 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
           href: '/collections',
           icon: 'grid',
           active: inCollections,
+          tour: 'nav-my',
         },
         {
           label: '모두의 컬렉션',
           href: '/gallery',
           icon: 'sparkles',
           active: inGallery,
+          tour: 'nav-gallery',
         },
       ]
 
@@ -118,6 +123,7 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
           <Link
             key={it.href}
             href={it.href}
+            data-tour={it.tour}
             className={cn(
               'flex items-center gap-2.5 rounded-[10px] px-3 py-2 text-sm hover:no-underline',
               it.active
@@ -131,7 +137,20 @@ export function AppSidebar({ authSlot }: { authSlot: ReactNode }) {
         ))}
       </nav>
 
-      <div className="mt-auto border-t border-divider p-4">{authSlot}</div>
+      <div className="mt-auto flex flex-col gap-3 border-t border-divider p-4">
+        {/* 둘러보기 재실행 — 기록을 지우고 처음 화면으로 가면 투어가 다시 뜬다 */}
+        <button
+          type="button"
+          onClick={() => {
+            resetTours()
+            window.location.href = '/collections'
+          }}
+          className="self-start text-[11.5px] text-faint hover:text-accent"
+        >
+          둘러보기 다시 보기
+        </button>
+        {authSlot}
+      </div>
     </aside>
   )
 }
