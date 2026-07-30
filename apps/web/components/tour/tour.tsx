@@ -20,7 +20,9 @@ import { Button } from '@/components/ui/button'
 import { TOUR_CHAPTERS, type TourChapter } from './steps'
 
 const PAD = 6
-const BUBBLE_W = 300
+const TEXT_W = 280
+/** 어둡기 — 주석(점선·화살표)이 배경 위에 떠 보이려면 충분히 어두워야 한다 */
+const DIM = 'oklch(0.13 0.02 277 / 0.78)'
 const FIND_TRIES = 20
 const FIND_INTERVAL_MS = 100
 
@@ -150,29 +152,34 @@ export function Tour({ chapter: chapterId }: { chapter: TourChapter['id'] }) {
   const step = chapter.steps[index]
   const total = chapter.steps.length
 
-  // 말풍선 위치 — 앵커 오른쪽 우선(앵커가 전부 왼쪽 사이드바라), 넘치면 아래로
-  let bubbleStyle: React.CSSProperties = {}
+  // ── 주석 배치 계산 — 점선 꺾은선이 요소를 가리키고, 설명은 대각선 아래에 뜬다 ──
+  // 앵커 옆 공간이 넓은 쪽(보통 오른쪽 — 앵커 대부분이 왼쪽 사이드바)을 골라 미러링한다.
+  let anno: {
+    side: 'right' | 'left'
+    tipX: number // 화살촉 (요소 가장자리)
+    cy: number
+    bendX: number // 꺾이는 세로선 x
+    textX: number
+    textY: number
+  } | null = null
   if (phase === 'step' && rect !== null) {
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const fitsRight = rect.right + 14 + BUBBLE_W < vw - 16
-    bubbleStyle = fitsRight
-      ? { left: rect.right + 14, top: Math.min(Math.max(rect.top - 8, 16), vh - 180) }
-      : {
-          left: Math.min(Math.max(rect.left, 16), vw - BUBBLE_W - 16),
-          top: Math.min(rect.bottom + 12, vh - 180),
-        }
+    const cy = rect.top + rect.height / 2
+    const side: 'right' | 'left' = rect.right + 90 + TEXT_W < vw - 16 ? 'right' : 'left'
+    const tipX = side === 'right' ? rect.right + PAD + 6 : rect.left - PAD - 6
+    const bendX = side === 'right' ? tipX + 40 : tipX - 40
+    const textY = Math.max(48, Math.min(cy + 56, vh - 170))
+    const textX = side === 'right' ? bendX + 24 : bendX - 24 - TEXT_W
+    anno = { side, tipX, cy, bendX, textX, textY }
   }
 
   return createPortal(
     <div aria-live="polite">
       {/* 어두운 영역 클릭 = 종료. 중앙 카드 단계에선 이 레이어가 dim 역할까지 한다 */}
       <div
-        className={
-          phase === 'step'
-            ? 'fixed inset-0 z-[100]'
-            : 'fixed inset-0 z-[100] bg-[oklch(0.15_0.02_277/0.55)]'
-        }
+        className="fixed inset-0 z-[100]"
+        style={phase === 'step' ? undefined : { background: DIM }}
         onClick={() => finish('skipped')}
       />
 
@@ -186,7 +193,7 @@ export function Tour({ chapter: chapterId }: { chapter: TourChapter['id'] }) {
             top: rect.top - PAD,
             width: rect.width + PAD * 2,
             height: rect.height + PAD * 2,
-            boxShadow: '0 0 0 9999px oklch(0.15 0.02 277 / 0.55)',
+            boxShadow: `0 0 0 9999px ${DIM}`,
           }}
         />
       )}
@@ -211,36 +218,76 @@ export function Tour({ chapter: chapterId }: { chapter: TourChapter['id'] }) {
         </div>
       )}
 
-      {/* 스텝 말풍선 */}
-      {phase === 'step' && rect !== null && step !== undefined && (
-        <div
-          className="fixed z-[102] flex flex-col gap-2.5 rounded-card border border-border bg-surface p-4 shadow-[0_12px_40px_oklch(0.2_0.02_277/0.35)]"
-          style={{ width: BUBBLE_W, ...bubbleStyle }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="text-[13.5px] leading-[1.6] break-keep text-ink">{step.body}</p>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-faint">
-              {index + 1}/{total}
-            </span>
-            <button
-              type="button"
-              onClick={() => finish('skipped')}
-              className="text-xs text-faint hover:text-ink"
-            >
-              건너뛰기
-            </button>
-            <span className="flex-1" />
-            {index > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => goToStep(index - 1)}>
-                이전
-              </Button>
-            )}
-            <Button size="sm" onClick={() => goToStep(index + 1)}>
-              {index + 1 === total && !chapter.final ? '완료' : '다음'}
-            </Button>
+      {/* 스텝 주석 — 점선 꺾은선이 요소를 가리키고, 설명은 어두운 배경 위에 뜬다 (카드 없음) */}
+      {phase === 'step' && rect !== null && step !== undefined && anno !== null && (
+        <>
+          {/* 꺾은선 + 화살촉 (SVG, 클릭 통과) */}
+          <svg
+            aria-hidden
+            className="pointer-events-none fixed inset-0 z-[101] h-full w-full"
+          >
+            <path
+              d={`M ${anno.textX + (anno.side === 'right' ? -8 : TEXT_W + 8)} ${anno.textY + 10}
+                  L ${anno.bendX} ${anno.textY + 10}
+                  L ${anno.bendX} ${anno.cy}
+                  L ${anno.tipX + (anno.side === 'right' ? 8 : -8)} ${anno.cy}`}
+              fill="none"
+              stroke="rgba(255,255,255,0.85)"
+              strokeWidth="1.5"
+              strokeDasharray="5 5"
+              strokeLinejoin="round"
+            />
+            {/* 화살촉 — 요소를 가리킨다 */}
+            <polygon
+              points={
+                anno.side === 'right'
+                  ? `${anno.tipX},${anno.cy} ${anno.tipX + 9},${anno.cy - 5} ${anno.tipX + 9},${anno.cy + 5}`
+                  : `${anno.tipX},${anno.cy} ${anno.tipX - 9},${anno.cy - 5} ${anno.tipX - 9},${anno.cy + 5}`
+              }
+              fill="rgba(255,255,255,0.95)"
+            />
+          </svg>
+
+          {/* 설명 텍스트 + 진행 컨트롤 — 흰 글자가 배경 위에 바로 뜬다 */}
+          <div
+            className="fixed z-[102] flex flex-col gap-3"
+            style={{ left: anno.textX, top: anno.textY, width: TEXT_W }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[15px] leading-[1.65] font-medium break-keep text-white [text-shadow:0_1px_8px_rgba(0,0,0,0.5)]">
+              {step.body}
+            </p>
+            <div className="flex items-center gap-3 text-[12.5px]">
+              <span className="text-white/50">
+                {index + 1}/{total}
+              </span>
+              {index > 0 && (
+                <button
+                  type="button"
+                  onClick={() => goToStep(index - 1)}
+                  className="text-white/70 hover:text-white"
+                >
+                  ← 이전
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => goToStep(index + 1)}
+                className="font-bold text-white underline decoration-dashed underline-offset-4 hover:decoration-solid"
+              >
+                {index + 1 === total && !chapter.final ? '완료' : '다음 →'}
+              </button>
+              <span className="flex-1" />
+              <button
+                type="button"
+                onClick={() => finish('skipped')}
+                className="text-white/50 hover:text-white"
+              >
+                건너뛰기
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* 마무리 카드 — 다음 행동 하나를 가리킨다 */}
