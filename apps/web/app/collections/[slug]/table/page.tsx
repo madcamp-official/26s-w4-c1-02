@@ -4,12 +4,12 @@ import { notFound } from 'next/navigation'
 import { CollectionTable } from '@/components/collection-table'
 import { EmptyState, UnavailableState } from '@/components/empty-state'
 import { FilterBar } from '@/components/filter-bar'
+import { CollectionTitle } from '@/components/collection-title'
 import { HeroBand } from '@/components/hero-band'
 import { SaveViewForm } from '@/components/save-view-form'
 import { Badge, Dot } from '@/components/ui/badge'
 import { resolveCollectionAccess } from '@/lib/access'
 import { fetchCollectionPage, getCollectionBySlug, listSites } from '@/lib/collections'
-import { VISIBILITY_COPY } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import {
   conditionsFromParams,
@@ -80,14 +80,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pag
     <HeroBand
       dense
       overlap={false}
-      title={
-        <>
-          <h1 className="text-[22px] font-bold tracking-[-0.03em] text-white">{collection.name}</h1>
-          <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11.5px] font-semibold text-white/90">
-            {VISIBILITY_COPY[collection.visibility]}
-          </span>
-        </>
-      }
+      title={<CollectionTitle name={collection.name} visibility={collection.visibility} />}
       sub="표"
     >
       <div className="flex flex-col gap-4">

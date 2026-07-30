@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import { CollectionTitle } from '@/components/collection-title'
 import { UnavailableState } from '@/components/empty-state'
 import { HeroBand } from '@/components/hero-band'
 import { Dot } from '@/components/ui/badge'
@@ -15,12 +16,7 @@ import {
   getCollectionBySlug,
   listSites,
 } from '@/lib/collections'
-import {
-  SOURCE_STATUS_COPY,
-  VISIBILITY_COPY,
-  checkedAgoCopy,
-  closingCountCopy,
-} from '@/lib/labels'
+import { SOURCE_STATUS_COPY, checkedAgoCopy, closingCountCopy } from '@/lib/labels'
 import { forkCreditFor } from '@/lib/gallery'
 import { quietSourceLines } from '@/lib/silence'
 import { cn } from '@/lib/utils'
@@ -109,14 +105,7 @@ export default async function CollectionDashboardPage({ params }: PageProps) {
   return (
     <HeroBand
       dense
-      title={
-        <>
-          <h1 className="text-[22px] font-bold tracking-[-0.03em] text-white">{collection.name}</h1>
-          <span className="rounded-full bg-white/15 px-2.5 py-1 text-[11.5px] font-semibold text-white/90">
-            {VISIBILITY_COPY[collection.visibility]}
-          </span>
-        </>
-      }
+      title={<CollectionTitle name={collection.name} visibility={collection.visibility} />}
       sub="대시보드"
       status={statusLine}
       metrics={[

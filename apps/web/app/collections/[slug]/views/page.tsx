@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { SubscribeForm, type SubscriptionView } from '@/components/subscribe-form'
+import { CollectionTitle } from '@/components/collection-title'
 import { UnavailableState } from '@/components/empty-state'
 import { HeroBand } from '@/components/hero-band'
 import { Badge, Dot } from '@/components/ui/badge'
@@ -76,7 +77,12 @@ export default async function CollectionViewsPage({ params }: PageProps) {
   )
 
   return (
-    <HeroBand dense overlap={false} title={collection.name} sub="뷰 · 알림">
+    <HeroBand
+      dense
+      overlap={false}
+      title={<CollectionTitle name={collection.name} visibility={collection.visibility} />}
+      sub="뷰 · 알림"
+    >
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         {/* ── 왼쪽: 저장한 조건(뷰) ──────────────────────────────────── */}
         <div className="min-w-0 flex-1">

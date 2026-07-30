@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { CopyButton } from '@/components/copy-button'
 import { DeveloperDetails } from '@/components/developer-details'
 import { UnavailableState } from '@/components/empty-state'
+import { CollectionTitle } from '@/components/collection-title'
 import { HeroBand } from '@/components/hero-band'
 import { resolveCollectionAccess } from '@/lib/access'
 import { fetchCollectionPage, getCollectionBySlug } from '@/lib/collections'
@@ -44,7 +45,12 @@ export default async function CollectionConnectPage({ params }: PageProps) {
       : null
 
   return (
-    <HeroBand dense overlap={false} title={collection.name} sub="연결">
+    <HeroBand
+      dense
+      overlap={false}
+      title={<CollectionTitle name={collection.name} visibility={collection.visibility} />}
+      sub="연결"
+    >
     <div className="grid items-start gap-4 lg:grid-cols-2">
       {/* 두 카드는 같은 껍데기를 쓴다 — 제목 한 줄 + 설명 한 줄 + 본문 (아래 DeveloperDetails 와 대칭) */}
       <section className="rounded-card border border-border bg-surface p-7">

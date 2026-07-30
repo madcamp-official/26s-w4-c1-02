@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { UnavailableState } from '@/components/empty-state'
+import { CollectionTitle } from '@/components/collection-title'
 import { HeroBand } from '@/components/hero-band'
 import { HostChip } from '@/components/ui/host-chip'
 import { Icon } from '@/components/ui/icon'
@@ -41,7 +42,12 @@ export default async function CollectionSourcesPage({ params }: PageProps) {
   const healedCount = healed.ok ? healed.data : 0
 
   return (
-    <HeroBand dense overlap={false} title={collection.name} sub="소스">
+    <HeroBand
+      dense
+      overlap={false}
+      title={<CollectionTitle name={collection.name} visibility={collection.visibility} />}
+      sub="소스"
+    >
       {/* 사이트 상태 */}
       <section className="rounded-card border border-divider bg-surface p-5 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-2.5">

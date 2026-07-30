@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import { FeedList } from '@/components/feed-list'
 import { FeedSectionChips } from '@/components/feed-section-chips'
+import { CollectionTitle } from '@/components/collection-title'
 import { HeroBand } from '@/components/hero-band'
 import { UnavailableState } from '@/components/empty-state'
 import { resolveCollectionAccess } from '@/lib/access'
@@ -36,7 +37,12 @@ export default async function CollectionFeedPage({ params }: PageProps) {
   const { fresh, closing, dateField } = feed.data
 
   return (
-    <HeroBand dense overlap={false} title={collection.name} sub="읽기 피드">
+    <HeroBand
+      dense
+      overlap={false}
+      title={<CollectionTitle name={collection.name} visibility={collection.visibility} />}
+      sub="읽기 피드"
+    >
     <div className="flex flex-col gap-7">
       {/* 절 바로가기 칩 — 누른 쪽이 진해지고 해당 절로 스크롤 */}
       <FeedSectionChips
