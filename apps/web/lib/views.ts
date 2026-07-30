@@ -195,6 +195,24 @@ export async function setViewPinned(
   })
 }
 
+/**
+ * 뷰 이름 바꾸기. slug 는 그대로 둔다 — 주소(?view=)와 AI 도구 이름이 slug 를 물고 있어서,
+ * 이름은 "부르는 말"만 바뀌고 연결은 안 끊긴다.
+ */
+export async function renameView(
+  collectionId: string,
+  viewId: string,
+  name: string,
+): Promise<Loaded<null>> {
+  return safeQuery(async (core) => {
+    await core.queryClient`
+      update views set name = ${name}, updated_at = now()
+      where id = ${viewId} and collection_id = ${collectionId}
+    `
+    return null
+  })
+}
+
 /** 알림 켬/끔. 어디로 갈지는 뷰가 아니라 컬렉션의 체크된 주소가 정한다 (07-30 개편) */
 export async function setViewNotify(
   collectionId: string,

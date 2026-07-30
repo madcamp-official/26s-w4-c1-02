@@ -14,6 +14,7 @@ import {
   subscriptionDisplayName,
   type SubscriptionRecord,
 } from '@/lib/subscriptions'
+import { ViewName } from '@/components/view-rename'
 import { fetchViewPage, healthCopy, listViews, summarizeConditions } from '@/lib/views'
 
 import {
@@ -21,7 +22,12 @@ import {
   subscribeWebhookAction,
   toggleSubscriptionAction,
 } from '../subscribe/actions'
-import { deleteViewAction, setViewNotifyAction, toggleViewPinAction } from '../view-actions'
+import {
+  deleteViewAction,
+  renameViewAction,
+  setViewNotifyAction,
+  toggleViewPinAction,
+} from '../view-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,13 +112,13 @@ export default async function CollectionViewsPage({ params }: PageProps) {
                     className="flex flex-col gap-2.5 rounded-card border border-divider bg-surface p-4 shadow-[0_4px_20px_oklch(0.2_0.02_277/0.10)]"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
+                      <ViewName
+                        viewId={view.id}
+                        name={view.name}
                         href={`${tablePath}?view=${view.slug}`}
-                        className="text-[14px] font-semibold text-ink hover:text-accent hover:no-underline"
-                      >
-                        {view.pinned && <span aria-hidden>★ </span>}
-                        {view.name}
-                      </Link>
+                        pinned={view.pinned}
+                        rename={renameViewAction.bind(null, collection.slug)}
+                      />
                       <span className="text-[13px] font-semibold text-accent">{countLabel}</span>
                       {notifyOn && (
                         <Badge tone="accent">

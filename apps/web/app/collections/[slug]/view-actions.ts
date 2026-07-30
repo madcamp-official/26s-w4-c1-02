@@ -6,9 +6,10 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { currentUser, isAuthReady } from '@/auth'
+import type { ManageState } from '@/components/collection-manage'
 import type { SaveViewState } from '@/components/save-view-form'
 import { getCollectionBySlug, type CollectionRecord } from '@/lib/collections'
-import { createView, deleteView, setViewNotify, setViewPinned } from '@/lib/views'
+import { createView, deleteView, renameView, setViewNotify, setViewPinned } from '@/lib/views'
 
 /** 뷰는 표의 구성물이므로 주인만 만진다 (상세 열람은 누구나 — 미들웨어) */
 async function owned(
@@ -55,6 +56,30 @@ export async function createViewAction(
   revalidatePath(`/collections/${slug}`, 'layout')
   // 저장한 조건이 바로 적용된 표로 돌아간다 — 결과를 보면서 정의한다 (델타 2-10)
   redirect(`/collections/${slug}/table?view=${result.data.slug}`)
+}
+
+/** 이름만 바꾼다 — slug(주소·AI 도구 이름)는 그대로라 연결이 안 끊긴다 */
+export async function renameViewAction(
+  slug: string,
+  _prev: ManageState,
+  formData: FormData,
+): Promise<ManageState> {
+  const viewId = String(formData.get('view_id') ?? '').trim()
+  if (viewId === '') return { status: 'problem', message: '화면을 새로 고쳐 주세요.' }
+
+  const name = String(formData.get('name') ?? '').trim()
+  if (name === '') return { status: 'problem', message: '이름을 지어 주세요.' }
+  if (name.length > 60) return { status: 'problem', message: '이름이 너무 길어요. 60자 안으로 지어 주세요.' }
+
+  const guard = await owned(slug)
+  if (!guard.ok) return { status: 'problem', message: guard.message }
+
+  const result = await renameView(guard.collection.id, viewId, name)
+  if (!result.ok) return { status: 'problem', message: result.message }
+
+  revalidatePath(`/collections/${slug}`, 'layout')
+  // 바뀐 이름이 카드에 바로 보이므로 성공 알림은 따로 띄우지 않는다
+  return { status: 'done', message: null }
 }
 
 export async function deleteViewAction(slug: string, formData: FormData): Promise<void> {
