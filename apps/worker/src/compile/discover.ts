@@ -41,6 +41,11 @@ export interface DiscoverInput {
   pageText: string
   /** 개발 중 로컬 픽스처를 대상으로 돌릴 때만 true */
   allowPrivateHosts?: boolean
+  /**
+   * 이전 판의 실패를 문장으로 넘긴다 — 첫 프롬프트부터 포함된다.
+   * 검증은 통과했지만 실제로 0개가 뽑힌 스펙을 들고 다시 올 때 쓴다 (create-collection ③-a).
+   */
+  previousErrors?: string[]
 }
 
 export interface DiscoverAttempt {
@@ -74,7 +79,7 @@ export async function discoverSpec(input: DiscoverInput): Promise<DiscoverResult
   const responseSchema = buildDiscoveryResponseSchema()
   const brief = toBrief(input.candidate)
 
-  let previousErrors: string[] = []
+  let previousErrors: string[] = input.previousErrors ?? []
   // 최초 시도 + 재생성 1회. 기획서 11장이 정한 횟수다.
   for (let n = 1; n <= 2; n += 1) {
     const prompt = buildDiscoverPrompt({
