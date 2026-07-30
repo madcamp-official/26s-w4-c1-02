@@ -20,7 +20,10 @@ import { dirname, join } from 'node:path'
 
 const PORT = Number(process.env.PORT ?? 4400)
 const DEMO_PW = process.env.DEMO_PW ?? 'madcamp'
-const DATA_FILE = join(dirname(fileURLToPath(import.meta.url)), 'board-data.json')
+const BASE_DIR = dirname(fileURLToPath(import.meta.url))
+const DATA_FILE = join(BASE_DIR, 'board-data.json')
+/** [글 초기화] 가 되돌리는 기준 상태. [기준 저장] 으로 갱신한다. 없으면 내장 시드 사용 */
+const SEED_FILE = join(BASE_DIR, 'board-seed.json')
 
 const CATEGORIES = ['공지', '행사', '먹거리', '스터디']
 
@@ -60,6 +63,15 @@ function load() {
 }
 function save(data) {
   writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
+}
+
+/** [글 초기화] 의 기준 상태. 저장된 스냅샷이 있으면 그걸, 없으면 내장 시드를 쓴다 */
+function seedFromSnapshot() {
+  if (existsSync(SEED_FILE)) {
+    const snap = JSON.parse(readFileSync(SEED_FILE, 'utf8').replace(/^﻿/, ''))
+    if (Array.isArray(snap.posts)) return snap.posts
+  }
+  return seedPosts()
 }
 
 let db = load()
@@ -183,7 +195,8 @@ function renderAdmin(msg = '') {
   <form method="post" action="/admin" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <input name="pw" type="password" placeholder="비밀번호" required style="padding:8px 10px;border:1px solid #ccd2db;border-radius:8px">
     <button name="op" value="toggle" style="background:#274bd6;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700">사이트 개편 (v1↔v2)</button>
-    <button name="op" value="reset" style="background:#7b8494;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700">글 초기화 (시드·오늘 기준 날짜)</button>
+    <button name="op" value="reset" style="background:#7b8494;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700">글 초기화 (기준 상태로)</button>
+    <button name="op" value="snapshot" style="background:#2c7a3f;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700">지금 상태를 기준으로 저장</button>
   </form>
 </div>`,
     '',
@@ -251,9 +264,13 @@ createServer(async (req, res) => {
     const form = await readBody(req)
     if (form.get('pw') !== DEMO_PW) return send(res, 200, renderAdmin('비밀번호가 달라요.'))
     if (form.get('op') === 'reset') {
-      db = { layout: db.layout, posts: seedPosts() }
+      db = { layout: db.layout, posts: seedFromSnapshot() }
       save(db)
-      return send(res, 200, renderAdmin('글을 오늘 기준 시드로 초기화했어요.'))
+      return send(res, 200, renderAdmin('글을 기준 상태로 되돌렸어요.'))
+    }
+    if (form.get('op') === 'snapshot') {
+      writeFileSync(SEED_FILE, JSON.stringify({ taken_at: new Date().toISOString(), posts: db.posts }, null, 2))
+      return send(res, 200, renderAdmin(`지금 글 ${db.posts.length}개를 초기화 기준으로 저장했어요.`))
     }
     db.layout = db.layout === 'v1' ? 'v2' : 'v1'
     save(db)

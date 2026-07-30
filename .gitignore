@@ -37,3 +37,4 @@ playwright-report/
 .vscode/
 bash.exe.stackdump
 demo-board/board-data.json
+demo-board/board-seed.json
