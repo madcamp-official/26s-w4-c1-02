@@ -19,6 +19,12 @@
 //   · 상세 페이지가 JS 로 그려져 제목이 없는 경우와 구분된다 (그건 아무 제목도 없다)
 //   · 요청 한 번이면 된다
 //
+// 단, 다른 제목이 보인다고 바로 목록은 아니다 — 그누보드류 게시판은 **글 상세 아래에
+// 목록을 같이 그린다** (math.snu.ac.kr 에서 멀쩡한 wr_id 링크가 이 판정에 기각됐다, 07-30).
+// 그래서 문서 제목 자리(<title>·h1)에 **자기 제목**이 있으면 상세로 보고 통과시킨다.
+// 지어낸 주소 틀이 여는 목록 페이지의 <title> 은 목록 이름이지 항목 제목이 아니라서
+// 원래 잡으려던 실패는 그대로 잡힌다.
+//
 // 확실하지 않으면 **통과시킨다.** 멀쩡한 링크를 의심해 사용자에게 물어보면
 // "할 일이 늘어나는" 쪽이고, 그건 기능 ②가 지려는 싸움이다.
 
@@ -74,10 +80,33 @@ export async function verifyLinkField(
   const hits = others.filter((t) => text.includes(squash(t))).length
 
   if (hits >= LIST_LIKE_HITS) {
+    // 상세 아래에 목록을 같이 그리는 게시판인지 본다 (머리말) — 문서 제목이 곧 이 항목이면 상세다
+    const ownTitle = squash(String(first.data[titleKey] ?? ''))
+    if (ownTitle.length >= MIN_TITLE_LENGTH && documentHeading(res.response.body).includes(ownTitle)) {
+      return { ok: true, reason: '본문에 목록이 같이 있지만 문서 제목이 이 항목입니다 (항목 상세)' }
+    }
     log.warn({ key, url, hits }, '링크가 항목이 아니라 목록으로 간다')
     return { ok: false, reason: `열어 보니 목록 페이지였습니다 (다른 항목 ${hits}개가 그대로 있음)` }
   }
   return { ok: true, reason: '항목 상세로 보입니다' }
+}
+
+/**
+ * 문서 제목 자리의 글자만 뽑는다 — <title> · h1 본문 · h1 의 content 속성(그누보드).
+ * 본문 전체가 아니라 여기만 보는 이유: 목록이 붙은 상세 페이지의 본문에는 남의 제목이
+ * 널려 있지만, "이 문서가 무엇인가" 는 제목 자리가 말한다.
+ */
+function documentHeading(html: string): string {
+  const parts: string[] = []
+  const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)
+  if (title?.[1] !== undefined) parts.push(title[1])
+  for (const m of html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/gi)) {
+    if (m[1] !== undefined) parts.push(m[1])
+  }
+  for (const m of html.matchAll(/<h1[^>]+content="([^"]*)"/gi)) {
+    if (m[1] !== undefined) parts.push(m[1])
+  }
+  return squash(stripTags(parts.join(' ')))
 }
 
 /** 견줄 제목 칸 — 스키마에서 첫 `text` 칸을 쓴다 (컬럼 순서가 곧 중요도다) */

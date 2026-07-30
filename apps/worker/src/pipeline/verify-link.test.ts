@@ -82,6 +82,20 @@ describe('열어 봤더니 항목이면', () => {
 
     expect((await verifyLinkField(items(LINKS), SCHEMA, 'link')).ok).toBe(true)
   })
+
+  it('상세 아래에 목록을 같이 그리는 게시판도 통과시킨다 — 문서 제목이 자기 제목이면 상세다', async () => {
+    // 그누보드류: 글 본문 밑에 게시판 목록이 통째로 붙는다 (math.snu.ac.kr 실측, 07-30).
+    // 다른 제목이 여러 개 보여도 <title> 이 이 항목 제목이면 목록이 아니다.
+    PAGES.set(
+      LINKS[0]!,
+      `<html><head><title>${TITLES[0]}</title></head><body><article>본문…</article><ul>${TITLES.map((t) => `<li>${t}</li>`).join('')}</ul></body></html>`,
+    )
+
+    const v = await verifyLinkField(items(LINKS), SCHEMA, 'link')
+
+    expect(v.ok).toBe(true)
+    if (v.ok) expect(v.reason).toContain('상세')
+  })
 })
 
 describe('판단할 수 없으면 통과시킨다', () => {
