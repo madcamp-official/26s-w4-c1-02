@@ -7,7 +7,11 @@ import { revalidatePath } from 'next/cache'
 import { currentUser, isAuthReady } from '@/auth'
 import type { SubscribeState } from '@/components/subscribe-form'
 import { getCollectionBySlug } from '@/lib/collections'
-import { createWebhookSubscription, removeSubscription } from '@/lib/subscriptions'
+import {
+  createWebhookSubscription,
+  removeSubscription,
+  setSubscriptionEnabled,
+} from '@/lib/subscriptions'
 
 /**
  * 주인 확인 (ADR A40). 구독은 관리 행동이다 — 읽기 전용 뷰어는 걸 수도 끊을 수도 없다.
@@ -90,6 +94,19 @@ export async function subscribeWebhookAction(
       : { status: 'exists', message: '이미 이 주소로 받아보고 있어요.' }
   }
   return { status: 'done', message: '이제 새 항목이 생기면 이 주소로 보내드려요.' }
+}
+
+/** 주소 체크 켬/끔 — 알림 켠 뷰의 새 항목은 체크된 주소로만 간다 */
+export async function toggleSubscriptionAction(slug: string, formData: FormData): Promise<void> {
+  const subscriptionId = String(formData.get('subscription') ?? '').trim()
+  if (subscriptionId === '') return
+  const enabled = String(formData.get('enabled') ?? '') === 'on'
+
+  const owned = await ownedCollection(slug)
+  if (!owned.ok) return
+
+  await setSubscriptionEnabled(owned.id, subscriptionId, enabled)
+  revalidatePath(`/collections/${slug}/views`)
 }
 
 export async function stopSubscriptionAction(slug: string, formData: FormData): Promise<void> {

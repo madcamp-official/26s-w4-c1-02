@@ -92,16 +92,15 @@ export const COPY = {
   feedFreshBody: '표에 새로 담긴 순서예요.',
   feedClosingTitle: '마감 임박',
   feedEmpty: '아직 보여드릴 항목이 없어요. 사이트에서 새 내용을 받아오면 여기부터 채워집니다.',
-  /** 새 항목 받아보기 (기획서 9-4 · P7 — 웹훅 먼저) */
-  subscribeTitle: '새 항목을 알아서 받아보기',
-  subscribeBody: '매번 들어와서 확인하지 않아도 돼요 — 새 항목이 생기면 여기로 보내드려요.',
-  subscribeTargetLabel: '어디로 보낼까요? — 웹훅 주소 하나면 끝, 슬랙·노션에 바로',
-  subscribeSchedule: '새 항목이 확인되는 대로 보내드려요. 같은 항목을 두 번 보내지 않아요.',
+  /** 알림 받을 곳 (07-30 개편 — 컬렉션 단위 주소록) */
+  subscribeTitle: '알림 받을 곳',
+  subscribeBody: '알림을 켠 조건에 새 항목이 들어오면, 체크된 주소 전부로 보내드려요.',
+  subscribeTargetLabel: '받을 주소 — 슬랙·노션 웹훅 주소 하나면 끝',
   subscribePlaceholder: 'https://hooks.slack.com/services/…',
-  subscribeNameLabel: '받는 곳 이름 — 알림을 어디에 걸지 이 이름으로 고르게 돼요',
+  subscribeNameLabel: '받을 곳 이름',
   subscribeNamePlaceholder: '이름 (예: 팀 슬랙) — 비워두면 주소로 표시돼요',
-  subscribeSubmit: '받아보기',
-  subscribeStop: '그만 받기',
+  subscribeSubmit: '추가',
+  subscribeStop: '지우기',
   subscribeNeverSent: '아직 보낸 적은 없어요',
   /** AI에 연결 (기획서 12장 · 보장선 B7) */
   connectTitle: 'AI에 연결하기 (MCP)',

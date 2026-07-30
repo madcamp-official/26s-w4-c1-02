@@ -39,12 +39,15 @@ export type DeliverSkipReason =
   | 'already_sent'
   /** 채널 설정이 안 돼 있다 (이메일 키 없음 등) */
   | 'channel_unavailable'
+  /** 주소 체크가 꺼져 있다 — 큐에 오른 뒤 껐어도 여기서 걸린다 */
+  | 'disabled'
 
 export async function runDeliverJob(data: DeliverJobData): Promise<DeliverJobResult> {
   const log = childLogger({ job: 'deliver', subscription_id: data.subscription_id })
 
   const sub = await loadSubscription(data.subscription_id)
   if (sub === null) return { outcome: 'skipped', reason: 'no_subscription' }
+  if (!sub.enabled) return { outcome: 'skipped', reason: 'disabled' }
 
   const collection = await loadCollection(sub.collection_id)
   if (collection === null) return { outcome: 'skipped', reason: 'no_subscription' }

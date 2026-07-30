@@ -270,6 +270,8 @@ export const subscriptions = pgTable(
     target: text('target').notNull(),
     /** 사용자가 붙인 이름. null 이면 화면이 target 호스트로 대신한다 (표시용) */
     name: text('name'),
+    /** 체크박스 — 꺼진 주소로는 아무것도 보내지 않는다 */
+    enabled: boolean('enabled').notNull().default(true),
     /** 구독 조건 (표에서 건 필터 그대로) */
     filter_json: jsonb('filter_json')
       .$type<CollectionFilter>()

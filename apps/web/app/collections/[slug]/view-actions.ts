@@ -79,9 +79,9 @@ export async function toggleViewPinAction(slug: string, formData: FormData): Pro
 export async function setViewNotifyAction(slug: string, formData: FormData): Promise<void> {
   const viewId = String(formData.get('view_id') ?? '').trim()
   if (viewId === '') return
-  const channel = String(formData.get('channel') ?? '').trim()
+  const on = String(formData.get('notify') ?? '') === 'on'
   const guard = await owned(slug)
   if (!guard.ok) return
-  await setViewNotify(guard.collection.id, viewId, channel === '' ? [] : [channel])
+  await setViewNotify(guard.collection.id, viewId, on)
   revalidatePath(`/collections/${slug}`, 'layout')
 }

@@ -105,10 +105,13 @@ export const ViewSortSchema = z.object({
 })
 export type ViewSort = z.infer<typeof ViewSortSchema>
 
+/**
+ * 뷰 알림은 **켬/끔뿐이다** — 어디로 보낼지는 뷰가 아니라 컬렉션이 정한다.
+ * 받을 주소는 subscriptions 행(컬렉션 단위)이고, `enabled` 체크가 켜진 주소 전부로 나간다.
+ * (07-30 개편 — 예전의 뷰별 channels 목록은 파싱 시 자연히 버려진다: zod 가 모르는 키를 벗긴다)
+ */
 export const ViewNotifySchema = z.object({
   on: z.enum(VIEW_EVENTS),
-  /** 배달 채널 id 목록 — 실체는 subscriptions 행이다 (계약 §4-b · §7 결정 ②) */
-  channels: z.array(z.string().min(1)).min(1).max(10),
 })
 export type ViewNotify = z.infer<typeof ViewNotifySchema>
 

@@ -13,6 +13,8 @@ export interface SubscriptionRecord {
   target: string
   /** 사용자가 붙인 이름. null 이면 화면이 target 호스트로 대신한다 */
   name: string | null
+  /** 체크박스 — 꺼진 주소로는 아무것도 안 간다 */
+  enabled: boolean
   last_sent_at: Date | null
 }
 
@@ -20,6 +22,7 @@ interface RawSubscriptionRow {
   id: string
   target: string
   name: string | null
+  enabled: boolean
   last_sent_at: Date | string | null
 }
 
@@ -39,7 +42,7 @@ export async function listWebhookSubscriptions(
 ): Promise<Loaded<SubscriptionRecord[]>> {
   return safeQuery(async (core) => {
     const rows = await core.queryClient<RawSubscriptionRow[]>`
-      select id, target, name, last_sent_at
+      select id, target, name, enabled, last_sent_at
       from subscriptions
       where collection_id = ${collectionId} and channel = 'webhook'
       order by created_at asc
@@ -48,6 +51,7 @@ export async function listWebhookSubscriptions(
       id: row.id,
       target: row.target,
       name: row.name,
+      enabled: row.enabled,
       last_sent_at: asDate(row.last_sent_at),
     }))
   })
@@ -88,6 +92,21 @@ export async function createWebhookSubscription(
               ${emptyFilter}::jsonb, ${DEFAULT_SUBSCRIPTION_SCHEDULE})
     `
     return { created: true, renamed: false }
+  })
+}
+
+/** 주소 체크 켬/끔. 컬렉션 id 를 같이 걸어 다른 컬렉션의 것을 만지지 못하게 한다 */
+export async function setSubscriptionEnabled(
+  collectionId: string,
+  subscriptionId: string,
+  enabled: boolean,
+): Promise<Loaded<null>> {
+  return safeQuery(async (core) => {
+    await core.queryClient`
+      update subscriptions set enabled = ${enabled}
+      where id = ${subscriptionId} and collection_id = ${collectionId}
+    `
+    return null
   })
 }
 

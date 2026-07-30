@@ -3,7 +3,7 @@
 // ── 이 파일은 흐름도 그 자체다 ──────────────────────────────────────────
 //
 //   어댑터 로드 → fetch(mode별) → core 해석기 → core 드리프트 검증
-//     ├─ 통과   → items UPSERT (신규/변경 판정) → 구독 큐
+//     ├─ 통과   → items UPSERT (신규/변경 판정) → 뷰 평가 큐
 //     └─ 드리프트 → 이 소스만 격리 → heal 큐
 //
 // 판단 로직을 여기에 쓰지 않는 것이 요점이다. 임계값도 문구도 전부 core 에 있고
@@ -18,20 +18,16 @@ import type { AdapterSpec } from '@endpointer/core/spec'
 import {
   existingItemKeys,
   finishRun,
-  listSubscriptions,
   loadSourceContext,
   markSourceRun,
   recentValidationReports,
-  recentlyNotified,
-  recordNotifications,
   setSourceStatus,
   startRun,
   upsertItems,
 } from '../db'
 import { runAdapter } from '../fetchers'
 import { childLogger } from '../logger'
-import { enqueueDeliver, enqueueEvaluate, enqueueHeal, type CollectJobData } from '../queues'
-import { channelKeyOf } from './channel-key'
+import { enqueueEvaluate, enqueueHeal, type CollectJobData } from '../queues'
 
 export interface CollectJobResult {
   /** 실제로 수집을 돌렸는지. 일시정지·미컴파일 소스는 false */
@@ -149,10 +145,9 @@ export async function runCollectJob(data: CollectJobData): Promise<CollectJobRes
     })
   }
 
-  // ── 구독 큐 (9-4) ────────────────────────────────────────────────────
-  await fanOutToSubscriptions(collection.id, upsert.newItemIds)
-
   // ── 뷰 평가 (A34) — 새 데이터가 들어왔으니 enter 를 잡는다 ───────────
+  // (07-30 개편) 전건 구독 발송은 없어졌다 — 알림은 "알림 켠 뷰"의 enter 로만 나가고,
+  // 받을 주소(체크된 것 전부)는 evaluate-views 가 컬렉션에서 읽는다.
   // 여기서 직접 부르지 않고 **큐로 민다** (enqueueEvaluate 머리말) — 같은 컬렉션의
   // 소스 둘이 동시에 수집을 마치면 평가가 겹쳐 돌아 같은 enter 가 두 번 잡혔다.
   // 큐 등록이 죽어도 수집은 성공이다 — 다음 평가(자정)가 따라잡는다 (원칙 ④).
@@ -174,40 +169,6 @@ export async function runCollectJob(data: CollectJobData): Promise<CollectJobRes
     items_changed: upsert.changedItemIds.length,
     status: 'ok',
     summary: null,
-  }
-}
-
-/**
- * 신규 아이템을 구독(받아보기 채널)마다 발송 큐에 넣는다.
- *
- * 채널만 등록한 사람에게는 **모든 신규 항목이 바로** 간다 — 이게 구독 폼의 약속이고,
- * 조건을 걸고 싶으면 뷰에 알림을 붙인다 (델타 3절 — 정밀한 알림은 뷰의 몫).
- *
- * 뷰 알림(evaluate-views)과 **같은 원장(notification_log · A36)** 을 쓴다.
- * 예전엔 이 경로가 원장을 우회해서, 같은 항목이 "전건 발송 + 뷰 enter 발송" 으로
- * 같은 채널에 두 번 갈 수 있었다. 이제 어느 경로가 먼저 보냈든 24시간 안에는
- * 같은 (채널, 항목) 이 다시 나가지 않는다. view_ids 는 빈 배열로 남긴다 —
- * "뷰에 걸려서" 가 아니라 "채널 구독이라서" 나간 발송이라는 표시다.
- */
-async function fanOutToSubscriptions(collectionId: string, newItemIds: readonly string[]): Promise<void> {
-  if (newItemIds.length === 0) return // 신규가 없으면 침묵한다
-
-  const subs = await listSubscriptions(collectionId)
-  const now = new Date()
-  for (const sub of subs) {
-    const channelKey = channelKeyOf(sub.channel, sub.target)
-    const recent = await recentlyNotified(channelKey, [...newItemIds], now)
-    const fresh = newItemIds.filter((id) => !recent.has(id))
-    if (fresh.length === 0) continue
-
-    // 사건 기록이 발송보다 먼저다 (evaluate-views 와 같은 순서) — 발송이 재시도돼도 기록은 한 번
-    await recordNotifications(channelKey, fresh.map((item_id) => ({ item_id, view_ids: [] })), now)
-    await enqueueDeliver({
-      subscription_id: sub.id,
-      collection_id: collectionId,
-      item_ids: fresh,
-      reason: 'immediate',
-    })
   }
 }
 

@@ -36,6 +36,13 @@
       "when": 1785392986444,
       "tag": "0004_sour_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785395207526,
+      "tag": "0005_absent_sabretooth",
+      "breakpoints": true
     }
   ]
 }

@@ -195,14 +195,14 @@ export async function setViewPinned(
   })
 }
 
-/** 알림 채널 설정. channels 가 비면 알림을 끈다 (notify_json = null) */
+/** 알림 켬/끔. 어디로 갈지는 뷰가 아니라 컬렉션의 체크된 주소가 정한다 (07-30 개편) */
 export async function setViewNotify(
   collectionId: string,
   viewId: string,
-  channels: string[],
+  on: boolean,
 ): Promise<Loaded<null>> {
   return safeQuery(async (core) => {
-    const notify = channels.length === 0 ? null : { on: 'enter' as const, channels }
+    const notify = on ? { on: 'enter' as const } : null
     await core.queryClient`
       update views set notify_json = ${notify === null ? null : JSON.stringify(notify)}::jsonb,
                        updated_at = now()

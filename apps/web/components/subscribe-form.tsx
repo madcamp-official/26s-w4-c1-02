@@ -17,94 +17,73 @@ export interface SubscribeState {
 
 const SUBSCRIBE_IDLE: SubscribeState = { status: 'idle', message: null }
 
-/** 화면에 그릴 구독 한 줄 */
+/** 화면에 그릴 받을 곳 한 줄 */
 export interface SubscriptionView {
   id: string
   target: string
   /** 부르는 이름 — 없으면 서버가 호스트로 채워 넘긴다 (subscriptionDisplayName) */
   displayName: string
+  /** 체크 — 꺼진 주소로는 아무것도 안 간다 */
+  enabled: boolean
 }
 
 /**
- * 새 항목 받아보기 (기획서 9-4 · G3 트랙 B).
- * 사용자가 입력하는 것은 받을 주소 하나뿐이다 — 필터·주기는 기본값으로 저장되고,
- * 신규 항목만 골라 보내는 일은 워커의 발송 잡이 한다.
+ * 알림 받을 곳 (07-30 개편 — 컬렉션 단위 주소록).
+ * 주소를 등록해 두고 체크로 켜고 끈다. 알림을 켠 조건(뷰)에 새 항목이 들어오면
+ * 체크된 주소 전부로 나간다 — 어느 뷰가 어디로 보낼지 고르는 단계는 없다.
  */
 export function SubscribeForm({
   subscribe,
   stop,
+  toggle,
   subscriptions,
 }: {
   subscribe: (prev: SubscribeState, formData: FormData) => Promise<SubscribeState>
   stop: (formData: FormData) => Promise<void>
+  toggle: (formData: FormData) => Promise<void>
   subscriptions: SubscriptionView[]
 }) {
   const [state, formAction, pending] = useActionState(subscribe, SUBSCRIBE_IDLE)
 
+  const inputClass = cn(
+    'h-9 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-raised px-3',
+    'text-[13px] text-ink placeholder:text-faint',
+    'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+  )
+
   return (
-    <section className="flex flex-col gap-2.5 rounded-card border border-border bg-surface px-5 py-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+    <section className="flex flex-col gap-2.5 rounded-card border border-border bg-surface px-4 py-4">
+      <div className="flex flex-col gap-1">
         <h2 className="text-[14px] font-bold text-ink">{COPY.subscribeTitle}</h2>
-        <span className="text-xs text-faint">{COPY.subscribeSchedule}</span>
+        <p className="text-xs leading-relaxed text-muted">{COPY.subscribeBody}</p>
       </div>
-
-      <form action={formAction} className="flex w-full flex-col gap-2">
-        <div className="flex w-full flex-col gap-2 sm:flex-row">
-          <input
-            id="subscribe-name"
-            name="name"
-            type="text"
-            maxLength={40}
-            aria-label={COPY.subscribeNameLabel}
-            placeholder={COPY.subscribeNamePlaceholder}
-            className={cn(
-              'h-9 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-raised px-3 sm:w-[220px]',
-              'text-[13px] text-ink placeholder:text-faint',
-              'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
-            )}
-          />
-          <input
-            id="subscribe-target"
-            name="target"
-            type="text"
-            inputMode="url"
-            autoComplete="url"
-            aria-label={COPY.subscribeTargetLabel}
-            placeholder={COPY.subscribePlaceholder}
-            className={cn(
-              'h-9 min-w-0 flex-1 rounded-lg border-[1.5px] border-border-strong bg-raised px-3',
-              'font-mono text-[13px] text-ink placeholder:text-faint',
-              'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
-            )}
-          />
-          <Button type="submit" size="sm" disabled={pending}>
-            {COPY.subscribeSubmit}
-          </Button>
-        </div>
-      </form>
-
-      {state.message !== null && (
-        <p
-          className={cn(
-            'rounded-[10px] px-4 py-3 text-[13.5px]',
-            state.status === 'problem'
-              ? 'bg-attention-soft text-attention'
-              : 'border border-ok-line bg-ok-soft font-semibold text-ok',
-          )}
-        >
-          {state.message}
-        </p>
-      )}
 
       {subscriptions.length > 0 && (
         <ul className="flex flex-col divide-y divide-border">
           {subscriptions.map((subscription) => (
-            <li key={subscription.id} className="flex flex-wrap items-center gap-2 py-2">
+            <li key={subscription.id} className="flex items-center gap-2.5 py-2">
+              {/* 체크 = 이 주소로 보낸다. key 로 되그리기해서 서버 상태와 어긋나지 않게 */}
+              <form action={toggle} key={subscription.enabled ? 'on' : 'off'} className="flex">
+                <input type="hidden" name="subscription" value={subscription.id} />
+                <input type="hidden" name="enabled" value={subscription.enabled ? 'off' : 'on'} />
+                <input
+                  type="checkbox"
+                  defaultChecked={subscription.enabled}
+                  onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                  aria-label={`${subscription.displayName}(으)로 보내기`}
+                  className="size-4 cursor-pointer accent-accent"
+                />
+              </form>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-semibold text-ink">
+                <span
+                  className={cn(
+                    'block truncate text-[13px] font-semibold',
+                    subscription.enabled ? 'text-ink' : 'text-faint',
+                  )}
+                >
                   {subscription.displayName}
                 </span>
-                <span className="block truncate font-mono text-xs text-muted">
+                <span className="block truncate font-mono text-[11px] text-faint">
                   {subscription.target}
                 </span>
               </span>
@@ -117,6 +96,44 @@ export function SubscribeForm({
             </li>
           ))}
         </ul>
+      )}
+
+      <form action={formAction} className="flex w-full flex-col gap-2 border-t border-divider pt-2.5">
+        <input
+          id="subscribe-name"
+          name="name"
+          type="text"
+          maxLength={40}
+          aria-label={COPY.subscribeNameLabel}
+          placeholder={COPY.subscribeNamePlaceholder}
+          className={inputClass}
+        />
+        <input
+          id="subscribe-target"
+          name="target"
+          type="text"
+          inputMode="url"
+          autoComplete="url"
+          aria-label={COPY.subscribeTargetLabel}
+          placeholder={COPY.subscribePlaceholder}
+          className={cn(inputClass, 'font-mono')}
+        />
+        <Button type="submit" size="sm" disabled={pending}>
+          {COPY.subscribeSubmit}
+        </Button>
+      </form>
+
+      {state.message !== null && (
+        <p
+          className={cn(
+            'rounded-[10px] px-3.5 py-2.5 text-[13px]',
+            state.status === 'problem'
+              ? 'bg-attention-soft text-attention'
+              : 'border border-ok-line bg-ok-soft font-semibold text-ok',
+          )}
+        >
+          {state.message}
+        </p>
       )}
     </section>
   )

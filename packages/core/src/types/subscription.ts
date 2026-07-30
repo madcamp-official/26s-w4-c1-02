@@ -22,6 +22,8 @@ export interface Subscription {
   target: string
   /** 사용자가 붙인 이름 ("팀 슬랙"). null 이면 화면이 target 의 호스트로 대신한다 — 표시용, 발송은 안 읽는다 */
   name: string | null
+  /** 체크박스 — 꺼진 주소로는 아무것도 보내지 않는다. 알림 켠 뷰는 켜진 주소 전부로 나간다 */
+  enabled: boolean
   /** 표에서 건 필터 그대로 */
   filter_json: CollectionFilter
   /** cron 표현식 */

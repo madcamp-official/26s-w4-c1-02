@@ -14,10 +14,12 @@
 // 매칭 집합을 만든다. 여기서 조건을 따로 해석하면 "표에서 보이는 것과 알림이 오는 것이
 // 다르다"가 된다. 이 파일이 아는 것은 차집합과 동기화 순서뿐이다.
 //
-// ── 알림 (A36) ──────────────────────────────────────────────────────────
-// 같은 전이 사건에서 한 항목이 뷰 3개에 걸려도 **채널당 1건** — 항목→뷰 목록으로 묶어
-// notification_log 에 사건당 한 줄을 남기고, 24시간 안에 같은 (채널, 항목) 재발송은 막는다
-// (경계값이 흔들려 매 평가마다 들락거리는 항목의 스팸 안전판). 재진입 자체는 새 사건이다.
+// ── 알림 (A36 · 07-30 개편) ─────────────────────────────────────────────
+// 받을 주소는 **컬렉션 단위**다 — 뷰는 켬/끔만 정하고, 알림 켠 뷰의 enter 는
+// 체크(enabled)된 주소 전부로 나간다. 같은 전이 사건에서 한 항목이 뷰 3개에 걸려도
+// **채널당 1건** — 항목→뷰 목록으로 묶어 notification_log 에 사건당 한 줄을 남기고,
+// 24시간 안에 같은 (채널, 항목) 재발송은 막는다 (경계값이 흔들려 매 평가마다
+// 들락거리는 항목의 스팸 안전판). 재진입 자체는 새 사건이다.
 
 import { buildItemsWhere, viewToQuery } from '@endpointer/core/query'
 import type { ViewCondition, ViewSort } from '@endpointer/core'
@@ -25,9 +27,9 @@ import type { ViewCondition, ViewSort } from '@endpointer/core'
 import {
   db,
   items,
+  listSubscriptions,
   listViews,
   loadCollection,
-  loadSubscription,
   recentlyNotified,
   recordNotifications,
   syncViewMatches,
@@ -67,8 +69,8 @@ export async function evaluateCollectionViews(
   if (views.length === 0) return []
 
   const results: ViewEvaluation[] = []
-  /** 채널별 발송 묶음 — 항목 하나가 여러 뷰에 걸리면 뷰 목록으로 합쳐진다 (A36) */
-  const perChannel = new Map<string, Map<string, Set<string>>>()
+  /** 발송 묶음 — 항목 하나가 알림 켠 뷰 여럿에 걸리면 뷰 목록으로 합쳐진다 (A36) */
+  const byItem = new Map<string, Set<string>>()
 
   for (const view of views) {
     try {
@@ -76,14 +78,10 @@ export async function evaluateCollectionViews(
       results.push(evaluated)
 
       if (view.notify_json !== null && evaluated.entered.length > 0) {
-        for (const channelId of view.notify_json.channels) {
-          const byItem = perChannel.get(channelId) ?? new Map<string, Set<string>>()
-          for (const itemId of evaluated.entered) {
-            const viewIds = byItem.get(itemId) ?? new Set<string>()
-            viewIds.add(view.id)
-            byItem.set(itemId, viewIds)
-          }
-          perChannel.set(channelId, byItem)
+        for (const itemId of evaluated.entered) {
+          const viewIds = byItem.get(itemId) ?? new Set<string>()
+          viewIds.add(view.id)
+          byItem.set(itemId, viewIds)
         }
       }
     } catch (e) {
@@ -92,7 +90,7 @@ export async function evaluateCollectionViews(
     }
   }
 
-  const notifiedViews = await notifyEnters(perChannel, now)
+  const notifiedViews = await notifyEnters(collectionId, byItem, now)
   for (const r of results) if (notifiedViews.has(r.view_id)) r.notified = true
 
   return results
@@ -123,24 +121,27 @@ async function evaluateOne(
   return { view_id: view.id, slug: view.slug, name: view.name, matched: current.size, entered, exited, notified: false }
 }
 
-// ── 알림 (A36) ─────────────────────────────────────────────────────────
+// ── 알림 (A36 · 07-30 개편) ────────────────────────────────────────────
 
-/** 발송까지 간 뷰 id 집합을 돌려준다 (평가 결과 표시용) */
+/**
+ * 알림 켠 뷰의 enter 를 **체크된 주소 전부**로 보낸다 (머리말).
+ * 발송까지 간 뷰 id 집합을 돌려준다 (평가 결과 표시용).
+ */
 async function notifyEnters(
-  perChannel: ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<string>>>,
+  collectionId: string,
+  byItem: ReadonlyMap<string, ReadonlySet<string>>,
   now: Date,
 ): Promise<Set<string>> {
   const notifiedViews = new Set<string>()
+  if (byItem.size === 0) return notifiedViews
 
-  for (const [channelId, byItem] of perChannel) {
-    const sub = await loadSubscription(channelId)
-    if (sub === null) {
-      log.warn({ channel: channelId }, '뷰가 가리키는 배달 채널이 없다 — 건너뜁니다')
-      continue
-    }
+  const subs = (await listSubscriptions(collectionId)).filter((s) => s.enabled)
+  if (subs.length === 0) return notifiedViews
 
+  const itemIds = [...byItem.keys()]
+
+  for (const sub of subs) {
     const channelKey = channelKeyOf(sub.channel, sub.target)
-    const itemIds = [...byItem.keys()]
 
     // 24시간 안전판 — 이미 나간 (채널, 항목) 은 다시 보내지 않는다
     const recent = await recentlyNotified(channelKey, itemIds, now)
