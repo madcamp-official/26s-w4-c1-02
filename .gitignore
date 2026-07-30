@@ -36,5 +36,8 @@ playwright-report/
 .idea/
 .vscode/
 bash.exe.stackdump
+# 데모 게시판의 살아있는 상태 — 글 하나 쓸 때마다 덮어써지므로 버전에 넣지 않는다.
+# 없으면 server.mjs 가 내장 시드로 시작한다.
 demo-board/board-data.json
-demo-board/board-seed.json
+# board-seed.json 은 반대로 **버전에 넣는다** — [기준 저장] 을 누를 때만 바뀌는
+# 큐레이션한 기준점이고, 이게 저장소에 있어야 다른 VM 에서 pull 만으로 리허설을 반복할 수 있다.
