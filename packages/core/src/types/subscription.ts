@@ -20,6 +20,8 @@ export interface Subscription {
   channel: SubscriptionChannel
   /** URL 또는 이메일 주소 */
   target: string
+  /** 사용자가 붙인 이름 ("팀 슬랙"). null 이면 화면이 target 의 호스트로 대신한다 — 표시용, 발송은 안 읽는다 */
+  name: string | null
   /** 표에서 건 필터 그대로 */
   filter_json: CollectionFilter
   /** cron 표현식 */

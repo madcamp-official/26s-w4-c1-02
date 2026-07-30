@@ -21,6 +21,8 @@ const SUBSCRIBE_IDLE: SubscribeState = { status: 'idle', message: null }
 export interface SubscriptionView {
   id: string
   target: string
+  /** 부르는 이름 — 없으면 서버가 호스트로 채워 넘긴다 (subscriptionDisplayName) */
+  displayName: string
   sentCopy: string
 }
 
@@ -47,24 +49,39 @@ export function SubscribeForm({
         <span className="text-xs text-faint">{COPY.subscribeSchedule}</span>
       </div>
 
-      <form action={formAction} className="flex w-full flex-col gap-2 sm:flex-row">
-        <input
-          id="subscribe-target"
-          name="target"
-          type="text"
-          inputMode="url"
-          autoComplete="url"
-          aria-label={COPY.subscribeTargetLabel}
-          placeholder={COPY.subscribePlaceholder}
-          className={cn(
-            'h-9 min-w-0 flex-1 rounded-lg border-[1.5px] border-border-strong bg-raised px-3',
-            'font-mono text-[13px] text-ink placeholder:text-faint',
-            'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
-          )}
-        />
-        <Button type="submit" size="sm" disabled={pending}>
-          {COPY.subscribeSubmit}
-        </Button>
+      <form action={formAction} className="flex w-full flex-col gap-2">
+        <div className="flex w-full flex-col gap-2 sm:flex-row">
+          <input
+            id="subscribe-name"
+            name="name"
+            type="text"
+            maxLength={40}
+            aria-label={COPY.subscribeNameLabel}
+            placeholder={COPY.subscribeNamePlaceholder}
+            className={cn(
+              'h-9 min-w-0 rounded-lg border-[1.5px] border-border-strong bg-raised px-3 sm:w-[220px]',
+              'text-[13px] text-ink placeholder:text-faint',
+              'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+            )}
+          />
+          <input
+            id="subscribe-target"
+            name="target"
+            type="text"
+            inputMode="url"
+            autoComplete="url"
+            aria-label={COPY.subscribeTargetLabel}
+            placeholder={COPY.subscribePlaceholder}
+            className={cn(
+              'h-9 min-w-0 flex-1 rounded-lg border-[1.5px] border-border-strong bg-raised px-3',
+              'font-mono text-[13px] text-ink placeholder:text-faint',
+              'focus:border-accent focus:outline-2 focus:outline-offset-2 focus:outline-accent',
+            )}
+          />
+          <Button type="submit" size="sm" disabled={pending}>
+            {COPY.subscribeSubmit}
+          </Button>
+        </div>
       </form>
 
       {state.message !== null && (
@@ -85,7 +102,10 @@ export function SubscribeForm({
           {subscriptions.map((subscription) => (
             <li key={subscription.id} className="flex flex-wrap items-center gap-2 py-2">
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-mono text-xs text-ink">
+                <span className="block truncate text-[13px] font-semibold text-ink">
+                  {subscription.displayName}
+                </span>
+                <span className="block truncate font-mono text-xs text-muted">
                   {subscription.target}
                 </span>
                 <span className="block text-xs text-faint">{subscription.sentCopy}</span>

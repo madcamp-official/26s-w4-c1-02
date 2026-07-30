@@ -11,13 +11,26 @@ import { safeQuery, type Loaded } from './db'
 export interface SubscriptionRecord {
   id: string
   target: string
+  /** 사용자가 붙인 이름. null 이면 화면이 target 호스트로 대신한다 */
+  name: string | null
   last_sent_at: Date | null
 }
 
 interface RawSubscriptionRow {
   id: string
   target: string
+  name: string | null
   last_sent_at: Date | string | null
+}
+
+/** 받을 곳을 부르는 이름 — 붙인 이름이 없으면 주소의 호스트로 대신한다 */
+export function subscriptionDisplayName(record: Pick<SubscriptionRecord, 'name' | 'target'>): string {
+  if (record.name !== null && record.name !== '') return record.name
+  try {
+    return new URL(record.target).host
+  } catch {
+    return record.target
+  }
 }
 
 /** 이 컬렉션에 걸린 웹훅 구독들 */
@@ -26,40 +39,55 @@ export async function listWebhookSubscriptions(
 ): Promise<Loaded<SubscriptionRecord[]>> {
   return safeQuery(async (core) => {
     const rows = await core.queryClient<RawSubscriptionRow[]>`
-      select id, target, last_sent_at
+      select id, target, name, last_sent_at
       from subscriptions
       where collection_id = ${collectionId} and channel = 'webhook'
       order by created_at asc
     `
-    return rows.map((row) => ({ id: row.id, target: row.target, last_sent_at: asDate(row.last_sent_at) }))
+    return rows.map((row) => ({
+      id: row.id,
+      target: row.target,
+      name: row.name,
+      last_sent_at: asDate(row.last_sent_at),
+    }))
   })
 }
 
-/** 웹훅 구독 등록. 같은 주소가 이미 있으면 새로 만들지 않는다 (created: false) */
+/**
+ * 웹훅 구독 등록. 같은 주소가 이미 있으면 새로 만들지 않는다 (created: false) —
+ * 대신 이름이 새로 들어왔으면 그 이름으로 바꿔 단다 (renamed: true). 같은 주소를
+ * 다시 붙여넣는 것이 곧 이름 바꾸기가 되도록.
+ */
 export async function createWebhookSubscription(
   collectionId: string,
   userId: string,
   target: string,
-): Promise<Loaded<{ created: boolean }>> {
+  name: string | null,
+): Promise<Loaded<{ created: boolean; renamed: boolean }>> {
   return safeQuery(async (core) => {
     const sql = core.queryClient
-    const existing = await sql<{ id: string }[]>`
-      select id
+    const existing = await sql<{ id: string; name: string | null }[]>`
+      select id, name
       from subscriptions
       where collection_id = ${collectionId} and channel = 'webhook' and target = ${target}
       limit 1
     `
-    if (existing.length > 0) return { created: false }
+    const first = existing[0]
+    if (first !== undefined) {
+      if (name === null || name === first.name) return { created: false, renamed: false }
+      await sql`update subscriptions set name = ${name} where id = ${first.id}`
+      return { created: false, renamed: true }
+    }
 
     // filter_json 은 "표에서 건 필터 그대로"의 자리다 (기획서 10장).
     // 필터 UI 가 붙기 전까지는 전체 = 빈 필터로 저장한다.
     const emptyFilter = JSON.stringify({ eq: {}, gte: {}, lte: {} })
     await sql`
-      insert into subscriptions (collection_id, user_id, channel, target, filter_json, schedule)
-      values (${collectionId}, ${userId}, 'webhook', ${target},
+      insert into subscriptions (collection_id, user_id, channel, target, name, filter_json, schedule)
+      values (${collectionId}, ${userId}, 'webhook', ${target}, ${name},
               ${emptyFilter}::jsonb, ${DEFAULT_SUBSCRIPTION_SCHEDULE})
     `
-    return { created: true }
+    return { created: true, renamed: false }
   })
 }
 

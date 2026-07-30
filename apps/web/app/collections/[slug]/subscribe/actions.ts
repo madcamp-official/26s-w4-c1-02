@@ -31,6 +31,17 @@ async function ownedCollection(
   return { ok: true, id: found.data.id, ownerId: found.data.owner_id }
 }
 
+/** 받을 곳 이름 상한 — 뷰 이름(60)보다 짧게. 목록·선택칸에 한 줄로 들어가야 한다 */
+const MAX_CHANNEL_NAME = 40
+
+/** 폼에서 받은 이름을 다듬는다. 비어 있으면 null (화면이 호스트로 대신한다) */
+function normalizeName(raw: string): { ok: true; name: string | null } | { ok: false } {
+  const trimmed = raw.trim().replace(/\s+/g, ' ')
+  if (trimmed === '') return { ok: true, name: null }
+  if (trimmed.length > MAX_CHANNEL_NAME) return { ok: false }
+  return { ok: true, name: trimmed }
+}
+
 /** 폼에서 받은 주소를 웹훅으로 다듬는다. 이상하면 null */
 function normalizeTarget(raw: string): string | null {
   const trimmed = raw.trim()
@@ -57,16 +68,26 @@ export async function subscribeWebhookAction(
     }
   }
 
+  const named = normalizeName(String(formData.get('name') ?? ''))
+  if (!named.ok) {
+    return {
+      status: 'problem',
+      message: `이름이 너무 길어요. ${MAX_CHANNEL_NAME}자 안으로 지어 주세요.`,
+    }
+  }
+
   // 주인만 구독을 건다 (ADR A40) — 뷰어는 읽기 전용이다
   const owned = await ownedCollection(slug)
   if (!owned.ok) return { status: 'problem', message: owned.message }
 
-  const result = await createWebhookSubscription(owned.id, owned.ownerId, target)
+  const result = await createWebhookSubscription(owned.id, owned.ownerId, target, named.name)
   if (!result.ok) return { status: 'problem', message: result.message }
 
   revalidatePath(`/collections/${slug}/views`)
   if (!result.data.created) {
-    return { status: 'exists', message: '이미 이 주소로 받아보고 있어요.' }
+    return result.data.renamed
+      ? { status: 'done', message: '이미 받아보고 있는 주소예요 — 이름을 새로 붙였어요.' }
+      : { status: 'exists', message: '이미 이 주소로 받아보고 있어요.' }
   }
   return { status: 'done', message: '이제 새 항목이 생기면 이 주소로 보내드려요.' }
 }

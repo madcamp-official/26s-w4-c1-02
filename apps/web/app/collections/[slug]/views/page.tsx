@@ -9,7 +9,11 @@ import { Button } from '@/components/ui/button'
 import { resolveCollectionAccess } from '@/lib/access'
 import { getCollectionBySlug } from '@/lib/collections'
 import { COPY, lastSentCopy } from '@/lib/labels'
-import { listWebhookSubscriptions, type SubscriptionRecord } from '@/lib/subscriptions'
+import {
+  listWebhookSubscriptions,
+  subscriptionDisplayName,
+  type SubscriptionRecord,
+} from '@/lib/subscriptions'
 import { fetchViewPage, healthCopy, listViews, summarizeConditions } from '@/lib/views'
 
 import { stopSubscriptionAction, subscribeWebhookAction } from '../subscribe/actions'
@@ -31,6 +35,7 @@ function toChannelView(subscription: SubscriptionRecord): SubscriptionView {
   return {
     id: subscription.id,
     target: subscription.target,
+    displayName: subscriptionDisplayName(subscription),
     sentCopy:
       subscription.last_sent_at === null
         ? COPY.subscribeNeverSent
@@ -64,6 +69,8 @@ export default async function CollectionViewsPage({ params }: PageProps) {
   ])
   const views = viewsResult.ok ? viewsResult.data : []
   const channels = subscriptions.ok ? subscriptions.data : []
+  // 알림을 "이름으로" 걸고 읽는다 — id·주소가 아니라 사용자가 붙인 이름이 화면의 통화다
+  const channelNameById = new Map(channels.map((c) => [c.id, subscriptionDisplayName(c)]))
 
   // 뷰별 현재 건수 — 표와 같은 문(viewToQuery)으로 센다. 50개 넘으면 "50+"
   const cards = await Promise.all(
@@ -118,7 +125,9 @@ export default async function CollectionViewsPage({ params }: PageProps) {
                 <p className="text-xs text-faint">
                   표 · 주소(API) · AI(MCP)
                   {view.notify !== null
-                    ? ` · 알림 켜짐 (채널 ${view.notify.channels.length}개)`
+                    ? ` · 알림 → ${view.notify.channels
+                        .map((id) => channelNameById.get(id) ?? '지워진 받을 곳')
+                        .join(', ')}`
                     : ' · 알림 꺼짐'}
                 </p>
 
@@ -137,7 +146,7 @@ export default async function CollectionViewsPage({ params }: PageProps) {
                       <option value="">알림 끄기</option>
                       {channels.map((channel) => (
                         <option key={channel.id} value={channel.id}>
-                          {channel.target.slice(0, 28)}…
+                          {subscriptionDisplayName(channel)}
                         </option>
                       ))}
                     </select>

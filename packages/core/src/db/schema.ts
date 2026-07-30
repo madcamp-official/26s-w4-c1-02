@@ -268,6 +268,8 @@ export const subscriptions = pgTable(
     channel: text('channel').$type<SubscriptionChannel>().notNull(),
     /** URL 또는 이메일 주소 */
     target: text('target').notNull(),
+    /** 사용자가 붙인 이름. null 이면 화면이 target 호스트로 대신한다 (표시용) */
+    name: text('name'),
     /** 구독 조건 (표에서 건 필터 그대로) */
     filter_json: jsonb('filter_json')
       .$type<CollectionFilter>()

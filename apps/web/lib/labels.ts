@@ -98,6 +98,8 @@ export const COPY = {
   subscribeTargetLabel: '어디로 보낼까요? — 웹훅 주소 하나면 끝, 슬랙·노션에 바로',
   subscribeSchedule: '새 항목이 확인되는 대로 보내드려요. 같은 항목을 두 번 보내지 않아요.',
   subscribePlaceholder: 'https://hooks.slack.com/services/…',
+  subscribeNameLabel: '받는 곳 이름 — 알림을 어디에 걸지 이 이름으로 고르게 돼요',
+  subscribeNamePlaceholder: '이름 (예: 팀 슬랙) — 비워두면 주소로 표시돼요',
   subscribeSubmit: '받아보기',
   subscribeStop: '그만 받기',
   subscribeNeverSent: '아직 보낸 적은 없어요',
