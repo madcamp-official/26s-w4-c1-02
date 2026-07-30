@@ -2,6 +2,11 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# 스크립트 실행 전 의존성 재검증 끔 — 컨테이너(비루트·오프라인)에서 자동 install 이
+# EACCES 로 죽어 워커가 부팅 루프에 빠졌다. 이미지는 빌드 때 --frozen-lockfile 로 이미
+# 고정된다. 주의: pnpm 10+ 에서 이 설정은 .npmrc 가 아니라 여기(workspace.yaml)만 읽는다.
+verifyDepsBeforeRun: false
+
 # pnpm 10+ 는 postinstall 빌드 스크립트를 기본 차단한다. 실제로 네이티브 빌드가 필요한 것만 허용.
 allowBuilds:
   '@google/genai': true
