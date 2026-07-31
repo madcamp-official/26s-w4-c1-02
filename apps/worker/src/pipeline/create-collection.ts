@@ -177,6 +177,40 @@ export async function createCollectionFromUrl(
   let schema = discovered.schema
   let executed = await runAdapter({ spec, schema, now, maxPages })
   const repairNotesOut: string[] = []
+  let compileAttempts = discovered.attempts.length
+
+  // ── ③-a 0개면 실패를 문장으로 만들어 한 번 다시 컴파일한다 ──────────
+  //
+  // 검증(validateSpec)은 모양만 본다 — 모양이 맞는데 실제 페이지에서 0개가 뽑히는 스펙이
+  // 실제로 나온다 (k-startup 실측 07-30: 5열 생성 성공 → 추출 0개 → 그대로 사용자 실패).
+  // LLM 컴파일은 판마다 결과가 달라서, "그 경로로 0개였다"는 사실을 넣고 다시 부르면
+  // 대부분 다른 경로를 내놓는다. 재시도는 한 번뿐이다 — 예산(원칙 ①)과 11장 규율.
+  if (executed.items.length === 0) {
+    const rediscovered = await discoverSpec({
+      url: probed.final_url,
+      host: probed.host,
+      scope_id: `new:${probed.host}`,
+      candidate: probed.best,
+      pageText: probed.page.text,
+      ...(input.allowPrivateHosts !== undefined ? { allowPrivateHosts: input.allowPrivateHosts } : {}),
+      previousErrors: [
+        `직전 스펙은 검증을 통과했지만 실제 페이지에서 항목이 0개 뽑혔다 (list: ${spec.list}). 목록 경로와 필드 경로를 후보의 HTML 표본에 실제로 있는 것으로 다시 골라라.`,
+        ...(executed.failure !== null ? [executed.failure] : []),
+      ],
+    })
+    if (rediscovered.ok) {
+      compileAttempts += rediscovered.attempts.length
+      const retried = await runAdapter({ spec: rediscovered.spec, schema: rediscovered.schema, now, maxPages })
+      if (retried.items.length > 0) {
+        spec = rediscovered.spec
+        schema = rediscovered.schema
+        executed = retried
+        log.info({ host: probed.host }, '0개 추출 스펙을 다시 컴파일해 살렸다')
+      }
+    } else {
+      compileAttempts += rediscovered.attempts.length
+    }
+  }
 
   // ── ③-b 항상 비는 칸 고치기 (보장선 B3) ──────────────────────────────
   //
@@ -247,7 +281,7 @@ export async function createCollectionFromUrl(
   const trace: CreatePreviewTrace = {
     ...baseTrace,
     overlap: probed.best.overlap,
-    compile_attempts: discovered.attempts.length,
+    compile_attempts: compileAttempts,
     duration_ms: Date.now() - startedAt,
   }
 

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useActionState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { useActionToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
 export interface SaveViewState {
@@ -30,6 +31,7 @@ export function SaveViewForm({
 }) {
   const [state, formAction, pending] = useActionState(save, SAVE_IDLE)
   const [name, setName] = useState(suggestedName)
+  useActionToast(state)
 
   return (
     <form
@@ -54,9 +56,6 @@ export function SaveViewForm({
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? '저장하는 중…' : '이 조건 저장'}
       </Button>
-      {state.status === 'problem' && state.message !== null && (
-        <p className="w-full text-[13px] text-attention">{state.message}</p>
-      )}
     </form>
   )
 }

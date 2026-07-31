@@ -15,6 +15,44 @@ const log = childLogger({ mod: 'deliver:webhook' })
 
 const TIMEOUT_MS = 10_000
 
+// ── 디스코드 웹훅 특례 ──────────────────────────────────────────────────
+// 디스코드는 자기 형식({"content": ...})이 아니면 400 으로 거절한다 — 우리 JSON 을
+// 그대로 보내면 알림이 조용히 증발한다 (리허설 실측). 주소가 디스코드면 형식을 맞춰준다.
+// 다른 수신자(자체 서버·Zapier 등)는 기존 그대로 우리 페이로드를 받는다.
+
+const DISCORD_HOSTS = new Set(['discord.com', 'discordapp.com', 'ptb.discord.com', 'canary.discord.com'])
+
+function isDiscordWebhook(url: URL): boolean {
+  return DISCORD_HOSTS.has(url.hostname) && url.pathname.startsWith('/api/webhooks/')
+}
+
+/** 항목의 "부르는 이름" — title 우선, 없으면 첫 텍스트 값 (스키마가 표마다 다르므로) */
+function itemTitle(item: Record<string, unknown>): string {
+  const t = item['title']
+  if (typeof t === 'string' && t.trim() !== '') return t.trim()
+  for (const [key, value] of Object.entries(item)) {
+    if (key.startsWith('_') || key === 'link') continue
+    if (typeof value === 'string' && value.trim() !== '') return value.trim()
+  }
+  return '새 항목'
+}
+
+/** 디스코드 메시지 본문 — summary 한 줄 + 항목 몇 개 + 컬렉션 주소. 2000자 제한 준수 */
+function discordBody(payload: DeliveryPayload): string {
+  const MAX_ITEMS = 5
+  const lines = payload.items.slice(0, MAX_ITEMS).map((raw) => {
+    const item = raw as unknown as Record<string, unknown>
+    const link =
+      typeof item['_link'] === 'string' ? item['_link'] : typeof item['link'] === 'string' ? item['link'] : null
+    return link === null ? `• ${itemTitle(item)}` : `• ${itemTitle(item)}\n  ${link}`
+  })
+  const parts = [`**${payload.summary}**`, ...lines]
+  const rest = payload.items.length - MAX_ITEMS
+  if (rest > 0) parts.push(`…외 ${rest}건`)
+  parts.push(payload.collection.url)
+  return JSON.stringify({ content: parts.join('\n').slice(0, 1990) })
+}
+
 export const webhookDeliverer: Deliverer = {
   channel: 'webhook',
 
@@ -40,7 +78,7 @@ export const webhookDeliverer: Deliverer = {
           // 수신자가 어느 컬렉션인지 본문을 열지 않고도 알 수 있게
           'X-Endpointer-Collection': payload.collection.slug,
         },
-        body: JSON.stringify(payload),
+        body: isDiscordWebhook(url) ? discordBody(payload) : JSON.stringify(payload),
         // 따라가지 않는다. 확인한 주소가 아닌 곳으로 본문이 가면 안 된다.
         // 수집(`fetchers/http.ts`)은 홉마다 다시 확인하며 따라가지만, 발송은 그럴 이유가 없다 —
         // 받는 주소는 사용자가 직접 적은 것이라 넘길 일이 있으면 제대로 적으면 된다.

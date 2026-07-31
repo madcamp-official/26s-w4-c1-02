@@ -7,6 +7,7 @@ import type { FieldDef } from '@endpointer/core'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useActionToast } from '@/components/ui/toast'
 import { FIELD_TYPE_HINT } from '@/lib/labels'
 import type { CreatePreview } from '@/lib/create'
 import { cn } from '@/lib/utils'
@@ -138,6 +139,10 @@ export function CreateFlow({
     suggestAction,
     SUGGEST_IDLE,
   )
+
+  // 실패 문구는 오른쪽 위 팝업으로 (성공은 message 가 null 이라 아무것도 안 뜬다)
+  useActionToast(previewState)
+  useActionToast(createState)
 
   // 만들기의 대상은 **담긴 주소뿐**이다. 입력칸의 글자는 "담기"를 눌러야 바구니로 들어간다 —
   // 담지 않은 글자는 목록에도, 만들기 대상에도 들어가지 않는다.
@@ -364,12 +369,6 @@ export function CreateFlow({
         </section>
       </div>
 
-      {previewState.status === 'problem' && previewState.message !== null && (
-        <p className="rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
-          {previewState.message}
-        </p>
-      )}
-
       {(previewPending || preview !== null) && (
         <ProbeSteps activeStep={activeStep} allDone={preview !== null && !previewPending} />
       )}
@@ -486,11 +485,6 @@ export function CreateFlow({
                 'text-sm font-semibold text-ink focus:border-accent focus:outline-none',
               )}
             />
-            {createState.status === 'problem' && createState.message !== null && (
-              <p className="rounded-[10px] bg-attention-soft px-4 py-3 text-sm text-attention">
-                {createState.message}
-              </p>
-            )}
             <div>
               <Button type="submit" size="lg" disabled={createPending}>
                 {createPending ? '만드는 중이에요…' : '이 표로 컬렉션 만들기'}
