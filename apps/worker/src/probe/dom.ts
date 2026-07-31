@@ -21,6 +21,7 @@
 
 import { load, type CheerioAPI } from 'cheerio'
 
+import { tagWithClasses } from '../css-ident'
 import { clip } from '../html'
 import type { ProbeCandidate, ProbePath } from './types'
 
@@ -322,7 +323,8 @@ function rowSelector(rows: readonly Selection[]): string {
   }
 
   const tag = tagOf(first)
-  return shared.length > 0 ? `${tag}.${shared.slice(0, 2).join('.')}` : tag
+  // 콜론이 든 Tailwind 클래스를 그대로 이으면 CSS 파서가 던진다 (css-ident.ts 머리말)
+  return tagWithClasses(tag, shared.slice(0, 2))
 }
 
 /** 컨테이너 쪽 선택자 후보들 — 좁은 것부터 */

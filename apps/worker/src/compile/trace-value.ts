@@ -12,6 +12,7 @@
 import { evaluateCssPath, evaluateJsonPath } from '@endpointer/core/spec'
 import { load } from 'cheerio'
 
+import { tagWithClasses } from '../css-ident'
 import { cheerioAdapter } from '../fetchers/cheerio-adapter'
 import { joinJsonPath } from '../probe/scan'
 
@@ -229,7 +230,9 @@ function selectorFor($: ReturnType<typeof load>, el: unknown): string | null {
       .filter((c) => c !== '' && !/\d/.test(c)) // 해시·인덱스가 붙은 클래스는 불안정하다
       .slice(0, 2)
 
-    let part = classes.length > 0 ? `${tag}.${classes.join('.')}` : tag
+    // Tailwind 의 `sm:w-auto` 처럼 콜론이 든 클래스는 이스케이프해야 한다 —
+    // 안 하면 CSS 파서가 가상클래스로 읽고 던진다 (css-ident.ts 머리말)
+    let part = tagWithClasses(tag, classes)
     if (classes.length === 0) {
       const n = nthOfType($, current)
       if (n !== null && n > 1) part = `${tag}:nth-of-type(${n})`
@@ -238,7 +241,14 @@ function selectorFor($: ReturnType<typeof load>, el: unknown): string | null {
     chain.unshift(part)
 
     const candidate = chain.join(' ')
-    if ($(candidate).length === 1) return candidate
+    // 그래도 파서가 거절하는 모양이 남을 수 있다. 역추적 하나 때문에 요청 전체를 죽이지 않는다.
+    let matched = -1
+    try {
+      matched = $(candidate).length
+    } catch {
+      matched = -1
+    }
+    if (matched === 1) return candidate
 
     current = node.parent
   }
