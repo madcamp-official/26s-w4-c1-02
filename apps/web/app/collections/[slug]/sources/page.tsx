@@ -4,12 +4,15 @@ import { notFound } from 'next/navigation'
 import { UnavailableState } from '@/components/empty-state'
 import { CollectionTitle } from '@/components/collection-title'
 import { HeroBand } from '@/components/hero-band'
+import { RepairForm } from '@/components/repair-form'
 import { HostChip } from '@/components/ui/host-chip'
 import { Icon } from '@/components/ui/icon'
 import { resolveCollectionAccess } from '@/lib/access'
 import { countHealedThisMonth, getCollectionBySlug, listSites } from '@/lib/collections'
 import { FIELD_TYPE_HINT, SOURCE_STATUS_COPY, checkedAgoCopy, healedCopy } from '@/lib/labels'
 import { cn } from '@/lib/utils'
+
+import { repairSourceFieldAction } from '../repair-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +43,12 @@ export default async function CollectionSourcesPage({ params }: PageProps) {
   ])
   const siteList = sites.ok ? sites.data : []
   const healedCount = healed.ok ? healed.data : 0
+
+  // 고칠 수 있는 칸 — 링크는 조건도 수리도 말이 안 되므로 뺀다 (core 의 FIELD_OPS 와 같은 판단).
+  // 화면에는 한국어 라벨만 나간다 (B1: 타입 코드를 타이핑하게 하지 않는다 · B2)
+  const repairableFields = collection.schema_json
+    .filter((field) => field.type !== 'link')
+    .map((field) => ({ key: field.key, label: field.label }))
 
   return (
     <HeroBand
@@ -77,24 +86,39 @@ export default async function CollectionSourcesPage({ params }: PageProps) {
               <div
                 key={site.id}
                 className={cn(
-                  'flex flex-wrap items-center gap-x-3 gap-y-1 py-3',
+                  'py-3',
                   index < siteList.length - 1 && 'border-b border-divider',
                 )}
               >
-                <HostChip host={site.host} status={site.status} />
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-1.5 text-[12.5px] font-medium',
-                    site.status === 'ok'
-                      ? 'text-ok'
-                      : site.status === 'healing'
-                        ? 'text-accent'
-                        : 'text-healing',
-                  )}
-                >
-                  {copy.sentence}
-                </span>
-                <span className="ml-auto text-xs text-faint">{checkedAgoCopy(site.last_ok_at)}</span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <HostChip host={site.host} status={site.status} />
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 text-[12.5px] font-medium',
+                      site.status === 'ok'
+                        ? 'text-ok'
+                        : site.status === 'healing'
+                          ? 'text-accent'
+                          : 'text-healing',
+                    )}
+                  >
+                    {copy.sentence}
+                  </span>
+                  <span className="ml-auto text-xs text-faint">
+                    {checkedAgoCopy(site.last_ok_at)}
+                  </span>
+                </div>
+
+                {/* 스스로 못 고친 사이트에는 다음 걸음을 준다 — 값을 붙여넣으면 시스템이 역추적한다 (B1).
+                    지금까지 화면은 "확인이 필요합니다" 에서 끝났고, 사용자가 할 수 있는 일이 없었다. */}
+                {site.status === 'needs_attention' && (
+                  <RepairForm
+                    sourceId={site.id}
+                    host={site.host}
+                    fields={repairableFields}
+                    repair={repairSourceFieldAction.bind(null, collection.slug)}
+                  />
+                )}
               </div>
             )
           })

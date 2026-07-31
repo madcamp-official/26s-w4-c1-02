@@ -49,3 +49,9 @@ export {
 } from './persist'
 
 export { cloneCollection, type CloneInput, type CloneOutcome } from './clone'
+
+export {
+  repairFieldByPastedValue,
+  type RepairFieldInput,
+  type RepairFieldOutcome,
+} from './repair-field'

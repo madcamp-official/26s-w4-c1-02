@@ -33,6 +33,7 @@ import {
   cloneCollection,
   collectionNameFrom,
   createCollectionFromUrl,
+  repairFieldByPastedValue,
   resolveByPastedValue,
   slugFrom,
 } from '../pipeline'
@@ -205,6 +206,12 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return
   }
 
+  // 수리도 주소가 아니라 소스 id 를 받는다 (붙여넣기로 칸 고치기 · B1) — url 검사 앞에 둔다
+  if (path === '/internal/repair') {
+    await repair(res, body)
+    return
+  }
+
   const url = typeof body['url'] === 'string' ? body['url'] : ''
   if (url === '') {
     send(res, 200, { ok: false, message: '주소를 넣어 주세요.', stage: 'url' })
@@ -261,6 +268,45 @@ export interface CloneResponse {
   sources_copied: number
   items_copied: number
   views_copied: number
+}
+
+/** `POST /internal/repair` 의 성공 응답 (붙여넣기로 칸 고치기 · B1) */
+export interface RepairResponse {
+  ok: true
+  /** 승격된 새 어댑터 버전 */
+  version: number
+  items_found: number
+  /** 붙여넣은 값이 목록에서 발견된 비율 — 화면 문구의 재료 */
+  coverage: number
+  /** 고친 칸의 화면 이름 ("등록일") — 화면이 내부 키를 안 쓰게 (B2) */
+  label: string
+}
+
+async function repair(res: ServerResponse, body: Record<string, unknown>): Promise<void> {
+  const sourceId = typeof body['source_id'] === 'string' ? body['source_id'] : ''
+  const key = typeof body['key'] === 'string' ? body['key'] : ''
+  const value = typeof body['value'] === 'string' ? body['value'] : ''
+  if (sourceId === '' || key === '') {
+    send(res, 200, { ok: false, message: '어느 칸을 고칠지 알 수 없어요.', stage: 'input' })
+    return
+  }
+  if (value.trim() === '') {
+    send(res, 200, { ok: false, message: '값을 붙여넣어 주세요.', stage: 'input' })
+    return
+  }
+
+  const outcome = await repairFieldByPastedValue({ source_id: sourceId, key, value })
+  if (!outcome.ok) {
+    send(res, 200, { ok: false, message: outcome.message, stage: outcome.stage })
+    return
+  }
+  send(res, 200, {
+    ok: true,
+    version: outcome.version,
+    items_found: outcome.items_found,
+    coverage: outcome.coverage,
+    label: outcome.label,
+  } satisfies RepairResponse)
 }
 
 async function clone(res: ServerResponse, body: Record<string, unknown>): Promise<void> {
